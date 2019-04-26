@@ -8,19 +8,19 @@
 
 /* Begin PBXBuildFile section */
 		4E9F8E7B22719AB500B87B4A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9F8E7A22719AB500B87B4A /* AppDelegate.swift */; };
-		4E9F8E7D22719AB500B87B4A /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9F8E7C22719AB500B87B4A /* ViewController.swift */; };
 		4E9F8E7F22719AB600B87B4A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E9F8E7E22719AB600B87B4A /* Assets.xcassets */; };
 		4E9F8E8222719AB600B87B4A /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4E9F8E8022719AB600B87B4A /* Main.storyboard */; };
+		4E9F8E8B2271EECF00B87B4A /* MusicVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9F8E8A2271EECF00B87B4A /* MusicVC.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		4E9F8E7722719AB500B87B4A /* PlayStatus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PlayStatus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E9F8E7A22719AB500B87B4A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		4E9F8E7C22719AB500B87B4A /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
 		4E9F8E7E22719AB600B87B4A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4E9F8E8122719AB600B87B4A /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		4E9F8E8322719AB600B87B4A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		4E9F8E8422719AB600B87B4A /* PlayStatus.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PlayStatus.entitlements; sourceTree = "<group>"; };
+		4E9F8E8A2271EECF00B87B4A /* MusicVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicVC.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,7 +54,7 @@
 			isa = PBXGroup;
 			children = (
 				4E9F8E7A22719AB500B87B4A /* AppDelegate.swift */,
-				4E9F8E7C22719AB500B87B4A /* ViewController.swift */,
+				4E9F8E8A2271EECF00B87B4A /* MusicVC.swift */,
 				4E9F8E7E22719AB600B87B4A /* Assets.xcassets */,
 				4E9F8E8022719AB600B87B4A /* Main.storyboard */,
 				4E9F8E8322719AB600B87B4A /* Info.plist */,
@@ -95,6 +95,11 @@
 				TargetAttributes = {
 					4E9F8E7622719AB500B87B4A = {
 						CreatedOnToolsVersion = 10.1;
+						SystemCapabilities = {
+							com.apple.Sandbox = {
+								enabled = 0;
+							};
+						};
 					};
 				};
 			};
@@ -133,8 +138,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4E9F8E7D22719AB500B87B4A /* ViewController.swift in Sources */,
 				4E9F8E7B22719AB500B87B4A /* AppDelegate.swift in Sources */,
+				4E9F8E8B2271EECF00B87B4A /* MusicVC.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -271,7 +276,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = PlayStatus/PlayStatus.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = KALT4PNG4U;
@@ -290,7 +294,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = PlayStatus/PlayStatus.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = KALT4PNG4U;
