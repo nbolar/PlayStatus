@@ -116,7 +116,11 @@ class MusicVC: NSViewController {
             if player state is playing then
                 pause current track
             else
-                play current track
+                if current track exists then
+                    play current track
+                else
+                    play some track
+                end if
             end if
         end tell
     else
