@@ -18,6 +18,8 @@ class MusicVC: NSViewController {
     @IBOutlet weak var prevButton: NSButton!
     @IBOutlet weak var nextButton: NSButton!
     @IBOutlet weak var quitButton: NSButton!
+    @IBOutlet weak var skipBack: NSButton!
+    @IBOutlet weak var skipAhead: NSButton!
     
     var out: NSAppleEventDescriptor?
     var check = 0
@@ -118,7 +120,9 @@ class MusicVC: NSViewController {
             end if
         end tell
     else
-        return ""
+        run application "iTunes"
+        delay 7
+        tell application "iTunes" to play some track
     end if
     """
     
@@ -136,6 +140,34 @@ class MusicVC: NSViewController {
     end if
     """
     
+    let skipAheadScpt = """
+    if application "iTunes" is running then
+        tell application "iTunes"
+            if player state is playing then
+                set player position to (player position + 15)
+            else
+                return ""
+            end if
+        end tell
+    else
+        return ""
+    end if
+    """
+    
+    let skipBackScpt = """
+    if application "iTunes" is running then
+        tell application "iTunes"
+            if player state is playing then
+                set player position to (player position - 15)
+            else
+                return ""
+            end if
+        end tell
+    else
+        return ""
+    end if
+    """
+    
     
     
     
@@ -143,7 +175,7 @@ class MusicVC: NSViewController {
         super.viewDidLoad()
         // Do view setup here.
         songDetails.wantsLayer = true
-        songDetails.layer?.backgroundColor = CGColor.init(gray: 0.9, alpha: 0.3)
+        songDetails.layer?.backgroundColor = CGColor.init(gray: 0.9, alpha: 0.5)
         songDetails.layer?.cornerRadius = 8
         
         playButton.isHidden = true
@@ -152,6 +184,8 @@ class MusicVC: NSViewController {
         prevButton.isHidden = true
         nextButton.isHidden = true
         quitButton.isHidden = true
+        skipBack.isHidden = true
+        skipAhead.isHidden = true
         let area = NSTrackingArea.init(rect: albumArt.bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
         albumArt.addTrackingArea(area)
         
@@ -187,6 +221,7 @@ class MusicVC: NSViewController {
         
     }
     override func mouseEntered(with event: NSEvent) {
+        
         if check == 1{
             songDetails.isHidden = false
             pauseButton.isHidden = false
@@ -194,6 +229,8 @@ class MusicVC: NSViewController {
             prevButton.isHidden = false
             nextButton.isHidden = false
             quitButton.isHidden = false
+            skipBack.isHidden = false
+            skipAhead.isHidden = false
         }else if check == 2{
             playButton.isHidden = false
             pauseButton.isHidden = true
@@ -201,6 +238,9 @@ class MusicVC: NSViewController {
             prevButton.isHidden = false
             nextButton.isHidden = false
             quitButton.isHidden = false
+            skipBack.isHidden = false
+            skipAhead.isHidden = false
+
         }
         
     }
@@ -212,6 +252,8 @@ class MusicVC: NSViewController {
         prevButton.isHidden = true
         nextButton.isHidden = true
         quitButton.isHidden = true
+        skipBack.isHidden = true
+        skipAhead.isHidden = true
     }
     
     @objc func loadAlbumArtwork()
@@ -229,6 +271,7 @@ class MusicVC: NSViewController {
                 albumArt.image = NSImage(named: "wallpaper2")
                 songDetails.stringValue = "No Music Playing"
             }else{
+                songDetails.stringValue = ""
                 albumArt.image = NSImage(contentsOfFile: imageName)
             }
             
@@ -241,10 +284,9 @@ class MusicVC: NSViewController {
     
     func deleteAlbum()
     {
-        var out: NSAppleEventDescriptor?
         if let scriptObject = NSAppleScript(source: deleteScpt) {
             var errorDict: NSDictionary? = nil
-            out = scriptObject.executeAndReturnError(&errorDict)
+            scriptObject.executeAndReturnError(&errorDict)
             
             if let error = errorDict {
                 print(error)
@@ -254,10 +296,9 @@ class MusicVC: NSViewController {
     }
     
     @IBAction func previousButtonClicked(_ sender: Any) {
-        var out: NSAppleEventDescriptor?
         if let scriptObject = NSAppleScript(source: prevTrackScpt) {
             var errorDict: NSDictionary? = nil
-            out = scriptObject.executeAndReturnError(&errorDict)
+            scriptObject.executeAndReturnError(&errorDict)
             
             if let error = errorDict {
                 print(error)
@@ -269,10 +310,10 @@ class MusicVC: NSViewController {
     }
     
     @IBAction func nextButtonClicked(_ sender: Any) {
-        var out: NSAppleEventDescriptor?
+    
         if let scriptObject = NSAppleScript(source: nextTrackScpt) {
             var errorDict: NSDictionary? = nil
-            out = scriptObject.executeAndReturnError(&errorDict)
+            scriptObject.executeAndReturnError(&errorDict)
             
             if let error = errorDict {
                 print(error)
@@ -293,16 +334,48 @@ class MusicVC: NSViewController {
             playButton.isHidden = false
             pauseButton.isHidden = true
         }
-        var out: NSAppleEventDescriptor?
         if let scriptObject = NSAppleScript(source: playPauseTrackScpt) {
             var errorDict: NSDictionary? = nil
-            out = scriptObject.executeAndReturnError(&errorDict)
+            scriptObject.executeAndReturnError(&errorDict)
             
             if let error = errorDict {
                 print(error)
             }
         }
+        let appDelegate = NSApplication.shared.delegate as! AppDelegate
+        appDelegate.getSongName()
+        loadAlbumArtwork()
         
     }
+    
+    @IBAction func skipBackButtonClicked(_ sender: Any) {
+        if let scriptObject = NSAppleScript(source: skipBackScpt) {
+            var errorDict: NSDictionary? = nil
+            scriptObject.executeAndReturnError(&errorDict)
+            
+            if let error = errorDict {
+                print(error)
+            }
+        }
+        let appDelegate = NSApplication.shared.delegate as! AppDelegate
+        appDelegate.getSongName()
+        loadAlbumArtwork()
+    }
+    
+    
+    @IBAction func skipAheadButtonClicked(_ sender: Any) {
+        if let scriptObject = NSAppleScript(source: skipAheadScpt) {
+            var errorDict: NSDictionary? = nil
+            scriptObject.executeAndReturnError(&errorDict)
+            
+            if let error = errorDict {
+                print(error)
+            }
+        }
+        let appDelegate = NSApplication.shared.delegate as! AppDelegate
+        appDelegate.getSongName()
+        loadAlbumArtwork()
+    }
+    
     
 }

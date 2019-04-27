@@ -64,13 +64,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             var errorDict: NSDictionary? = nil
             out = scriptObject.executeAndReturnError(&errorDict)
             songName = out?.stringValue ?? ""
-            
+
         }
         if let scriptObject = NSAppleScript(source: currentTrackArtistScpt) {
             var errorDict: NSDictionary? = nil
             out = scriptObject.executeAndReturnError(&errorDict)
             artistName = out?.stringValue ?? ""
-            
+
         }
         if songName != ""
         {

@@ -2,7 +2,6 @@
 <document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="14460.31" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
     <dependencies>
         <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="14460.31"/>
-        <capability name="System colors introduced in macOS 10.14" minToolsVersion="10.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
@@ -725,7 +724,7 @@
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                     <font key="font" metaFont="system"/>
                                 </buttonCell>
-                                <color key="contentTintColor" name="alternatingContentBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                <color key="contentTintColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
                                 <connections>
                                     <action selector="previousButtonClicked:" target="sM2-A5-j4E" id="qZ1-pY-fCz"/>
                                 </connections>
@@ -737,7 +736,7 @@
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                     <font key="font" metaFont="system"/>
                                 </buttonCell>
-                                <color key="contentTintColor" name="alternatingContentBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                <color key="contentTintColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
                                 <connections>
                                     <action selector="nextButtonClicked:" target="sM2-A5-j4E" id="VTE-PC-eFN"/>
                                 </connections>
@@ -749,7 +748,7 @@
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                     <font key="font" metaFont="system"/>
                                 </buttonCell>
-                                <color key="contentTintColor" name="alternatingContentBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                <color key="contentTintColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
                                 <connections>
                                     <action selector="playPauseButtonClicked:" target="sM2-A5-j4E" id="uwU-Mv-9lb"/>
                                 </connections>
@@ -761,9 +760,33 @@
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                     <font key="font" metaFont="system"/>
                                 </buttonCell>
-                                <color key="contentTintColor" name="alternatingContentBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                <color key="contentTintColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
                                 <connections>
                                     <action selector="playPauseButtonClicked:" target="sM2-A5-j4E" id="LMb-iu-AbG"/>
+                                </connections>
+                            </button>
+                            <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="EOz-7s-baV">
+                                <rect key="frame" x="68" y="126" width="48" height="48"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="NSTouchBarSkipBack15SecondsTemplate" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="p15-Df-Izq">
+                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <color key="contentTintColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                <connections>
+                                    <action selector="skipBackButtonClicked:" target="sM2-A5-j4E" id="ECs-w2-q0S"/>
+                                </connections>
+                            </button>
+                            <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mu7-Q1-ai1">
+                                <rect key="frame" x="184" y="126" width="48" height="48"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="NSTouchBarSkipAhead15SecondsTemplate" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="R26-WT-U56">
+                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <color key="contentTintColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                <connections>
+                                    <action selector="skipAheadButtonClicked:" target="sM2-A5-j4E" id="bGx-UV-UvO"/>
                                 </connections>
                             </button>
                         </subviews>
@@ -779,6 +802,8 @@
                         <outlet property="playButton" destination="Rab-o5-SYr" id="9oG-Jw-fbc"/>
                         <outlet property="prevButton" destination="2QB-XB-xo5" id="FaH-xp-xVr"/>
                         <outlet property="quitButton" destination="itc-zp-nhz" id="mGx-cu-2IG"/>
+                        <outlet property="skipAhead" destination="mu7-Q1-ai1" id="hzi-el-x6D"/>
+                        <outlet property="skipBack" destination="EOz-7s-baV" id="lj1-nb-ek8"/>
                         <outlet property="songDetails" destination="Ccf-7o-vis" id="p1F-oQ-Ig3"/>
                     </connections>
                 </viewController>
@@ -789,6 +814,8 @@
     </scenes>
     <resources>
         <image name="NSStopProgressFreestandingTemplate" width="14" height="14"/>
+        <image name="NSTouchBarSkipAhead15SecondsTemplate" width="17" height="30"/>
+        <image name="NSTouchBarSkipBack15SecondsTemplate" width="17" height="30"/>
         <image name="forward" width="2679" height="1253"/>
         <image name="pause" width="1329" height="1553"/>
         <image name="play" width="1247" height="1246"/>
