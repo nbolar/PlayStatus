@@ -21,26 +21,58 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         tell application "iTunes"
             if player state is playing then
                 return name of current track
+            end if
+        end tell
+        checkSpotify()
+    else if application "Spotify" is running then
+        tell application "Spotify"
+            if player state is playing then
+                return name of current track
             else
                 return ""
-        end if
+            end if
         end tell
-    else
-        return ""
     end if
+    on checkSpotify()
+        if application "Spotify" is running then
+            tell application "Spotify"
+                if player state is playing then
+                    return name of current track
+                else
+                    return ""
+                end if
+            end tell
+        end if
+    end checkSpotify
     """
     let currentTrackArtistScpt = """
     if application "iTunes" is running then
         tell application "iTunes"
             if player state is playing then
                 return artist of current track
+            end if
+        end tell
+        checkSpotify()
+    else if application "Spotify" is running then
+        tell application "Spotify"
+            if player state is playing then
+                return artist of current track
             else
                 return ""
-        end if
+            end if
         end tell
-    else
-        return ""
     end if
+    on checkSpotify()
+        if application "Spotify" is running then
+            tell application "Spotify"
+                if player state is playing then
+                    return artist of current track
+                else
+                    return ""
+                end if
+            end tell
+        end if
+    end checkSpotify
     """
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {

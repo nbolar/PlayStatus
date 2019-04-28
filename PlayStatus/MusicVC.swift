@@ -46,6 +46,15 @@ class MusicVC: NSViewController {
         -- write the image bytes to the file
         write srcBytes to outFile
         close access outFile
+
+    else if application "Spotify" is running then
+        tell application "Spotify"
+            if player state is playing then
+                return artwork url of current track
+            else
+                return ""
+            end if
+        end tell
     end if
         on convertPathToPOSIXString(thePath)
             tell application "System Events"
@@ -93,6 +102,14 @@ class MusicVC: NSViewController {
                 return ""
             end if
         end tell
+    else if application "Spotify" is running then
+        tell application "Spotify"
+            if player state is playing then
+                play (next track)
+            else
+                return ""
+            end if
+        end tell
     else
         return ""
     end if
@@ -100,6 +117,14 @@ class MusicVC: NSViewController {
     let prevTrackScpt = """
     if application "iTunes" is running then
         tell application "iTunes"
+            if player state is playing then
+                play (previous track)
+            else
+                return ""
+            end if
+        end tell
+    else if application "Spotify" is running then
+        tell application "Spotify"
             if player state is playing then
                 play (previous track)
             else
@@ -123,6 +148,10 @@ class MusicVC: NSViewController {
                 end if
             end if
         end tell
+    else if application "Spotify" is running then
+        tell application "Spotify"
+            playpause
+        end tell
     else
         run application "iTunes"
         delay 7
@@ -133,6 +162,14 @@ class MusicVC: NSViewController {
     let statusScpt = """
     if application "iTunes" is running then
         tell application "iTunes"
+            if player state is playing then
+                return "playing"
+            else
+                return "not playing"
+            end if
+        end tell
+    else if application "Spotify" is running then
+        tell application "Spotify"
             if player state is playing then
                 return "playing"
             else
@@ -153,6 +190,14 @@ class MusicVC: NSViewController {
                 return ""
             end if
         end tell
+    else if application "Spotify" is running then
+        tell application "Spotify"
+            if player state is playing then
+                set player position to (player position + 15)
+            else
+                return ""
+            end if
+        end tell
     else
         return ""
     end if
@@ -161,6 +206,14 @@ class MusicVC: NSViewController {
     let skipBackScpt = """
     if application "iTunes" is running then
         tell application "iTunes"
+            if player state is playing then
+                set player position to (player position - 15)
+            else
+                return ""
+            end if
+        end tell
+    else if application "Spotify" is running then
+        tell application "Spotify"
             if player state is playing then
                 set player position to (player position - 15)
             else
@@ -178,6 +231,8 @@ class MusicVC: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do view setup here.
+        self.view.wantsLayer = true
+        self.view.layer?.cornerRadius = 8
         songDetails.wantsLayer = true
         songDetails.layer?.backgroundColor = CGColor.init(gray: 0.9, alpha: 0.5)
         songDetails.layer?.cornerRadius = 8
@@ -274,6 +329,10 @@ class MusicVC: NSViewController {
             {
                 albumArt.image = NSImage(named: "wallpaper2")
                 songDetails.stringValue = "No Music Playing"
+            }else if imageName.contains("http://"){
+                songDetails.stringValue = ""
+                let url = URL(string: imageName)
+                albumArt.image = NSImage(contentsOf: url!)
             }else{
                 songDetails.stringValue = ""
                 albumArt.image = NSImage(contentsOfFile: imageName)
