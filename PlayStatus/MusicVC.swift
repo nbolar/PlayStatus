@@ -261,8 +261,7 @@ class MusicVC: NSViewController {
     func checkStatus()
     {
         if let scriptObject = NSAppleScript(source: statusScpt) {
-            var errorDict: NSDictionary? = nil
-            out = scriptObject.executeAndReturnError(&errorDict)
+            out = scriptObject.executeAndReturnError(nil)
             let status = out?.stringValue ?? ""
             if status == "playing"
             {
@@ -271,9 +270,6 @@ class MusicVC: NSViewController {
             }else if status == "not playing"
             {
                 check = 2
-            }
-            if let error = errorDict {
-                print(error)
             }
         }
         
@@ -321,10 +317,8 @@ class MusicVC: NSViewController {
 //        let appDelegate = NSApplication.shared.delegate as! AppDelegate
         checkStatus()
         if let scriptObject = NSAppleScript(source: songImageScpt) {
-            var errorDict: NSDictionary? = nil
-            out = scriptObject.executeAndReturnError(&errorDict)
+            out = scriptObject.executeAndReturnError(nil)
             let imageName = out?.stringValue ?? ""
-//            print(imageName)
             if imageName == ""
             {
                 albumArt.image = NSImage(named: "wallpaper2")
@@ -338,9 +332,6 @@ class MusicVC: NSViewController {
                 albumArt.image = NSImage(contentsOfFile: imageName)
             }
             
-            if let error = errorDict {
-                print(error)
-            }
         }
         deleteAlbum()
     }
@@ -348,24 +339,14 @@ class MusicVC: NSViewController {
     func deleteAlbum()
     {
         if let scriptObject = NSAppleScript(source: deleteScpt) {
-            var errorDict: NSDictionary? = nil
-            scriptObject.executeAndReturnError(&errorDict)
-            
-            if let error = errorDict {
-                print(error)
-            }
+            scriptObject.executeAndReturnError(nil)
         }
-        
     }
     
     @IBAction func previousButtonClicked(_ sender: Any) {
         if let scriptObject = NSAppleScript(source: prevTrackScpt) {
-            var errorDict: NSDictionary? = nil
-            scriptObject.executeAndReturnError(&errorDict)
-            
-            if let error = errorDict {
-                print(error)
-            }
+            scriptObject.executeAndReturnError(nil)
+
         }
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
@@ -375,12 +356,7 @@ class MusicVC: NSViewController {
     @IBAction func nextButtonClicked(_ sender: Any) {
     
         if let scriptObject = NSAppleScript(source: nextTrackScpt) {
-            var errorDict: NSDictionary? = nil
-            scriptObject.executeAndReturnError(&errorDict)
-            
-            if let error = errorDict {
-                print(error)
-            }
+            scriptObject.executeAndReturnError(nil)
         }
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
@@ -398,12 +374,7 @@ class MusicVC: NSViewController {
             pauseButton.isHidden = true
         }
         if let scriptObject = NSAppleScript(source: playPauseTrackScpt) {
-            var errorDict: NSDictionary? = nil
-            scriptObject.executeAndReturnError(&errorDict)
-            
-            if let error = errorDict {
-                print(error)
-            }
+            scriptObject.executeAndReturnError(nil)
         }
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
@@ -413,12 +384,7 @@ class MusicVC: NSViewController {
     
     @IBAction func skipBackButtonClicked(_ sender: Any) {
         if let scriptObject = NSAppleScript(source: skipBackScpt) {
-            var errorDict: NSDictionary? = nil
-            scriptObject.executeAndReturnError(&errorDict)
-            
-            if let error = errorDict {
-                print(error)
-            }
+            scriptObject.executeAndReturnError(nil)
         }
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
@@ -428,12 +394,7 @@ class MusicVC: NSViewController {
     
     @IBAction func skipAheadButtonClicked(_ sender: Any) {
         if let scriptObject = NSAppleScript(source: skipAheadScpt) {
-            var errorDict: NSDictionary? = nil
-            scriptObject.executeAndReturnError(&errorDict)
-            
-            if let error = errorDict {
-                print(error)
-            }
+            scriptObject.executeAndReturnError(nil)
         }
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()

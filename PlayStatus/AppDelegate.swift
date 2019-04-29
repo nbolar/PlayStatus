@@ -80,14 +80,45 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusItem.button?.image = NSImage(named: "icon_20")
         statusItem.button?.imagePosition = .imageLeft
-        statusItem.button?.action = #selector(self.displayPopUp)
+        statusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
+        statusItem.button?.action = #selector(self.togglePopover(_:))
         _ = Timer.scheduledTimer(timeInterval: 2.0, target: self, selector: #selector(getSongName), userInfo: nil, repeats: true)
 
 
     }
+    @objc func togglePopover(_ sender: AnyObject?) {
+        let event = NSApp.currentEvent!
+        
+        if event.type == NSEvent.EventType.leftMouseUp
+        {
+            displayPopUp()
+        }else if event.type == NSEvent.EventType.rightMouseUp{
+            
+            var appVersion: String? {
+                return Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+            }
+            let menu = NSMenu()
+            menu.addItem(NSMenuItem(title: "PlayStatus version \(appVersion ?? "")", action: nil, keyEquivalent: ""))
+            menu.addItem(NSMenuItem.separator())
+            menu.addItem(NSMenuItem(title: "Quit PlayStatus", action: #selector(self.quitApp), keyEquivalent: "q"))
+            
+//            statusItem.menu = menu
+            statusItem.popUpMenu(menu)
+
+            
+//            statusItem.menu = nil
+            
+        }
+    }
+    
 
     func applicationWillTerminate(_ aNotification: Notification) {
         // Insert code here to tear down your application
+    }
+    
+    @objc func quitApp()
+    {
+        NSApp.terminate(self)
     }
     
     @objc func getSongName()
