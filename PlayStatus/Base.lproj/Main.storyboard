@@ -790,7 +790,7 @@
                                 </connections>
                             </button>
                             <slider verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="SQw-KV-05I">
-                                <rect key="frame" x="18" y="85" width="264" height="19"/>
+                                <rect key="frame" x="18" y="87" width="264" height="19"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <sliderCell key="cell" continuous="YES" state="on" alignment="left" maxValue="100" doubleValue="50" tickMarkPosition="above" sliderType="linear" id="CpD-uP-mmv" customClass="CustomSliderCell" customModule="PlayStatus" customModuleProvider="target"/>
                                 <connections>

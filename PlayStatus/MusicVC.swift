@@ -429,8 +429,14 @@ class MusicVC: NSViewController {
                     return ""
                 end if
             end tell
-        else
-            return ""
+        else if application "Spotify" is running then
+                tell application "Spotify"
+                    if player state is playing then
+                        return duration of current track / 1000
+                    else
+                        return ""
+                    end if
+                end tell
         end if
         """
         if let scriptObject = NSAppleScript(source: totalDurationScpt) {
@@ -448,9 +454,14 @@ class MusicVC: NSViewController {
                     return ""
                 end if
             end tell
-        else
-            return ""
-        end if
+        else if application "Spotify" is running then
+                tell application "Spotify"
+                    set tM to round (((duration of current track) / 1000) / 60) rounding down
+                    set tS to round (((duration of current track) / 1000) mod 60) rounding down
+                    set myTime to ((tM as text) & ":" & tS as text)
+                    return myTime
+                end tell
+            end if
         """
         if let scriptObject = NSAppleScript(source: totalDurationMinsScpt) {
             out = scriptObject.executeAndReturnError(nil)
@@ -476,8 +487,14 @@ class MusicVC: NSViewController {
                     return ""
                 end if
             end tell
-        else
-            return ""
+        else if application "Spotify" is running then
+                tell application "Spotify"
+                    if player state is playing then
+                        set player position to "\(position)"
+                    else
+                        return ""
+                    end if
+                end tell
         end if
         """
 
@@ -498,8 +515,14 @@ class MusicVC: NSViewController {
                     return ""
                 end if
             end tell
-        else
-            return ""
+        else if application "Spotify" is running then
+                tell application "Spotify"
+                    if player state is playing then
+                        return player position
+                    else
+                        return ""
+                    end if
+                end tell
         end if
         """
         
