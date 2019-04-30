@@ -709,9 +709,9 @@
                                 </connections>
                             </button>
                             <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Ccf-7o-vis">
-                                <rect key="frame" x="18" y="120" width="262" height="60"/>
+                                <rect key="frame" x="18" y="69" width="262" height="111"/>
                                 <autoresizingMask key="autoresizingMask"/>
-                                <textFieldCell key="cell" alignment="center" drawsBackground="YES" id="o7o-MF-evj">
+                                <textFieldCell key="cell" continuous="YES" refusesFirstResponder="YES" alignment="center" drawsBackground="YES" id="o7o-MF-evj">
                                     <font key="font" size="14" name="AvenirNext-Regular"/>
                                     <color key="textColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="1" colorSpace="custom" customColorSpace="displayP3"/>
                                     <color key="backgroundColor" red="0.59607843140000005" green="0.59607843140000005" blue="0.61568627450000002" alpha="0.10000000000000001" colorSpace="custom" customColorSpace="sRGB"/>
@@ -789,6 +789,14 @@
                                     <action selector="skipAheadButtonClicked:" target="sM2-A5-j4E" id="bGx-UV-UvO"/>
                                 </connections>
                             </button>
+                            <slider verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="SQw-KV-05I">
+                                <rect key="frame" x="18" y="85" width="264" height="19"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <sliderCell key="cell" continuous="YES" state="on" alignment="left" maxValue="100" doubleValue="50" tickMarkPosition="above" sliderType="linear" id="CpD-uP-mmv" customClass="CustomSliderCell" customModule="PlayStatus" customModuleProvider="target"/>
+                                <connections>
+                                    <action selector="musicSliderChanged:" target="sM2-A5-j4E" id="Csm-xv-22b"/>
+                                </connections>
+                            </slider>
                         </subviews>
                         <constraints>
                             <constraint firstAttribute="trailing" secondItem="itc-zp-nhz" secondAttribute="trailing" constant="3" id="0Ph-A9-flj"/>
@@ -797,6 +805,7 @@
                     </view>
                     <connections>
                         <outlet property="albumArt" destination="RA8-5A-P0m" id="Ve0-Bx-IlZ"/>
+                        <outlet property="musicSlider" destination="SQw-KV-05I" id="6Qp-XI-nYd"/>
                         <outlet property="nextButton" destination="Boe-QH-ZYq" id="Lfv-fr-dtG"/>
                         <outlet property="pauseButton" destination="HjA-sr-knX" id="rZL-Hi-H2b"/>
                         <outlet property="playButton" destination="Rab-o5-SYr" id="9oG-Jw-fbc"/>

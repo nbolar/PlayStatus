@@ -8,6 +8,9 @@
 
 import Cocoa
 
+var currentSong: String!
+var prevSong: String!
+
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
 
@@ -119,6 +122,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func quitApp()
     {
         NSApp.terminate(self)
+        
     }
     
     @objc func getSongName()
@@ -127,6 +131,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             var errorDict: NSDictionary? = nil
             out = scriptObject.executeAndReturnError(&errorDict)
             songName = out?.stringValue ?? ""
+            
 
         }
         if let scriptObject = NSAppleScript(source: currentTrackArtistScpt) {
@@ -137,6 +142,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if songName != ""
         {
+            currentSong = songName
             statusItem.button?.title = "\(artistName!) - \(songName!)"
             
         }else

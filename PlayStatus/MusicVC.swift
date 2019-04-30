@@ -20,6 +20,7 @@ class MusicVC: NSViewController {
     @IBOutlet weak var quitButton: NSButton!
     @IBOutlet weak var skipBack: NSButton!
     @IBOutlet weak var skipAhead: NSButton!
+    @IBOutlet weak var musicSlider: NSSlider!
     
     var out: NSAppleEventDescriptor?
     var check = 0
@@ -231,6 +232,7 @@ class MusicVC: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do view setup here.
+//        musicSliderChanged(self)
         self.view.wantsLayer = true
         self.view.layer?.cornerRadius = 8
         songDetails.wantsLayer = true
@@ -245,12 +247,13 @@ class MusicVC: NSViewController {
         quitButton.isHidden = true
         skipBack.isHidden = true
         skipAhead.isHidden = true
+        musicSlider.isHidden = true
         let area = NSTrackingArea.init(rect: albumArt.bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
         albumArt.addTrackingArea(area)
         
         checkStatus()
         loadAlbumArtwork()
-        _ = Timer.scheduledTimer(timeInterval: 2.0, target: self, selector: #selector(loadAlbumArtwork), userInfo: nil, repeats: true)
+        _ = Timer.scheduledTimer(timeInterval: 1.0, target: self, selector: #selector(changeSliderPosition), userInfo: nil, repeats: true)
         
     }
     
@@ -286,6 +289,7 @@ class MusicVC: NSViewController {
             quitButton.isHidden = false
             skipBack.isHidden = false
             skipAhead.isHidden = false
+            musicSlider.isHidden = false
         }else if check == 2{
             playButton.isHidden = false
             pauseButton.isHidden = true
@@ -295,6 +299,7 @@ class MusicVC: NSViewController {
             quitButton.isHidden = false
             skipBack.isHidden = false
             skipAhead.isHidden = false
+            musicSlider.isHidden = false
 
         }
         
@@ -309,6 +314,7 @@ class MusicVC: NSViewController {
         quitButton.isHidden = true
         skipBack.isHidden = true
         skipAhead.isHidden = true
+        musicSlider.isHidden = true
     }
     
     @objc func loadAlbumArtwork()
@@ -316,6 +322,7 @@ class MusicVC: NSViewController {
         var out: NSAppleEventDescriptor?
 //        let appDelegate = NSApplication.shared.delegate as! AppDelegate
         checkStatus()
+        trackDuration()
         if let scriptObject = NSAppleScript(source: songImageScpt) {
             out = scriptObject.executeAndReturnError(nil)
             let imageName = out?.stringValue ?? ""
@@ -401,5 +408,78 @@ class MusicVC: NSViewController {
         loadAlbumArtwork()
     }
     
+    func trackDuration()
+    {
+        let totalDurationScpt = """
+        if application "iTunes" is running then
+            tell application "iTunes"
+                if player state is playing then
+                    return duration of current track
+                else
+                    return ""
+                end if
+            end tell
+        else
+            return ""
+        end if
+        """
+        if let scriptObject = NSAppleScript(source: totalDurationScpt) {
+            out = scriptObject.executeAndReturnError(nil)
+            musicSlider.maxValue = Double(out?.stringValue ?? "") ?? 100
+        }
+
+    }
+    @IBAction func musicSliderChanged(_ sender: Any) {
+//        print(musicSlider.doubleValue)
+        scrubTrack(position: musicSlider.doubleValue)
+        
+
+
+    }
+    
+    func scrubTrack(position : Double){
+        let currentDurationScpt = """
+        if application "iTunes" is running then
+            tell application "iTunes"
+                if player state is playing then
+                    set player position to "\(position)"
+                else
+                    return ""
+                end if
+            end tell
+        else
+            return ""
+        end if
+        """
+
+
+        if let scriptObject = NSAppleScript(source: currentDurationScpt) {
+            scriptObject.executeAndReturnError(nil)
+        }
+    }
+    
+    @objc func changeSliderPosition()
+    {
+        let currentDurationScpt = """
+        if application "iTunes" is running then
+            tell application "iTunes"
+                if player state is playing then
+                    return player position
+                else
+                    return ""
+                end if
+            end tell
+        else
+            return ""
+        end if
+        """
+        
+        
+        if let scriptObject = NSAppleScript(source: currentDurationScpt) {
+            out = scriptObject.executeAndReturnError(nil)
+            musicSlider.stringValue = out?.stringValue ?? ""
+        }
+    }
+
     
 }

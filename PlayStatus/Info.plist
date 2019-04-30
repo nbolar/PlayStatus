@@ -31,7 +31,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Permission requested to manage iTunes session</string>
+	<string>Permission requested to manage iTunes/Spotify session</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
