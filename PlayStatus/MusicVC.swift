@@ -21,6 +21,8 @@ class MusicVC: NSViewController {
     @IBOutlet weak var skipBack: NSButton!
     @IBOutlet weak var skipAhead: NSButton!
     @IBOutlet weak var musicSlider: NSSlider!
+    @IBOutlet weak var startTime: NSTextField!
+    @IBOutlet weak var endTime: NSTextField!
     
     var out: NSAppleEventDescriptor?
     var check = 0
@@ -232,7 +234,7 @@ class MusicVC: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do view setup here.
-//        musicSliderChanged(self)
+        changeSliderPosition()
         self.view.wantsLayer = true
         self.view.layer?.cornerRadius = 8
         songDetails.wantsLayer = true
@@ -248,6 +250,8 @@ class MusicVC: NSViewController {
         skipBack.isHidden = true
         skipAhead.isHidden = true
         musicSlider.isHidden = true
+        startTime.isHidden = true
+        endTime.isHidden = true
         let area = NSTrackingArea.init(rect: albumArt.bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
         albumArt.addTrackingArea(area)
         
@@ -290,6 +294,8 @@ class MusicVC: NSViewController {
             skipBack.isHidden = false
             skipAhead.isHidden = false
             musicSlider.isHidden = false
+            startTime.isHidden = false
+            endTime.isHidden = false
         }else if check == 2{
             playButton.isHidden = false
             pauseButton.isHidden = true
@@ -300,6 +306,8 @@ class MusicVC: NSViewController {
             skipBack.isHidden = false
             skipAhead.isHidden = false
             musicSlider.isHidden = false
+            startTime.isHidden = false
+            endTime.isHidden = false
 
         }
         
@@ -315,6 +323,8 @@ class MusicVC: NSViewController {
         skipBack.isHidden = true
         skipAhead.isHidden = true
         musicSlider.isHidden = true
+        startTime.isHidden = true
+        endTime.isHidden = true
     }
     
     @objc func loadAlbumArtwork()
@@ -427,6 +437,25 @@ class MusicVC: NSViewController {
             out = scriptObject.executeAndReturnError(nil)
             musicSlider.maxValue = Double(out?.stringValue ?? "") ?? 100
         }
+        
+        
+        let totalDurationMinsScpt = """
+        if application "iTunes" is running then
+            tell application "iTunes"
+                if player state is playing then
+                    return time of current track
+                else
+                    return ""
+                end if
+            end tell
+        else
+            return ""
+        end if
+        """
+        if let scriptObject = NSAppleScript(source: totalDurationMinsScpt) {
+            out = scriptObject.executeAndReturnError(nil)
+            endTime.stringValue = out?.stringValue ?? ""
+        }
 
     }
     @IBAction func musicSliderChanged(_ sender: Any) {
@@ -478,6 +507,7 @@ class MusicVC: NSViewController {
         if let scriptObject = NSAppleScript(source: currentDurationScpt) {
             out = scriptObject.executeAndReturnError(nil)
             musicSlider.stringValue = out?.stringValue ?? ""
+            startTime.stringValue = String(Int(Double(musicSlider.stringValue)! / 60) % 60) + ":" +  String(format: "%02d", Int(Double(musicSlider.stringValue)!.truncatingRemainder(dividingBy: 60)))
         }
     }
 

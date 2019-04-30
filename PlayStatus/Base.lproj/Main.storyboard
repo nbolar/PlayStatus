@@ -718,7 +718,7 @@
                                 </textFieldCell>
                             </textField>
                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="2QB-XB-xo5">
-                                <rect key="frame" x="20" y="130" width="40" height="40"/>
+                                <rect key="frame" x="20" y="118" width="40" height="40"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="previous" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="Qd5-xg-hKR">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -730,7 +730,7 @@
                                 </connections>
                             </button>
                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Boe-QH-ZYq">
-                                <rect key="frame" x="240" y="130" width="40" height="40"/>
+                                <rect key="frame" x="240" y="118" width="40" height="40"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="forward" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="pGA-Di-7In">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -742,7 +742,7 @@
                                 </connections>
                             </button>
                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Rab-o5-SYr">
-                                <rect key="frame" x="134" y="135" width="30" height="30"/>
+                                <rect key="frame" x="135" y="123" width="30" height="30"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="play" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="ma3-M3-ZDB">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -754,7 +754,7 @@
                                 </connections>
                             </button>
                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="HjA-sr-knX">
-                                <rect key="frame" x="134" y="130" width="30" height="40"/>
+                                <rect key="frame" x="134" y="118" width="30" height="40"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="pause" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="Ctf-af-aXf">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -766,7 +766,7 @@
                                 </connections>
                             </button>
                             <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="EOz-7s-baV">
-                                <rect key="frame" x="68" y="126" width="48" height="48"/>
+                                <rect key="frame" x="68" y="114" width="48" height="48"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="NSTouchBarSkipBack15SecondsTemplate" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="p15-Df-Izq">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -778,7 +778,7 @@
                                 </connections>
                             </button>
                             <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mu7-Q1-ai1">
-                                <rect key="frame" x="184" y="126" width="48" height="48"/>
+                                <rect key="frame" x="184" y="114" width="48" height="48"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="NSTouchBarSkipAhead15SecondsTemplate" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="R26-WT-U56">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -797,6 +797,24 @@
                                     <action selector="musicSliderChanged:" target="sM2-A5-j4E" id="Csm-xv-22b"/>
                                 </connections>
                             </slider>
+                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="CzZ-6c-PPk">
+                                <rect key="frame" x="252" y="69" width="24" height="19"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                                <textFieldCell key="cell" lineBreakMode="clipping" title="end" id="vcQ-cy-7xJ">
+                                    <font key="font" size="11" name="AvenirNext-Regular"/>
+                                    <color key="textColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" red="0.59607843140000005" green="0.59607843140000005" blue="0.61568627450000002" alpha="0.10000000000000001" colorSpace="custom" customColorSpace="sRGB"/>
+                                </textFieldCell>
+                            </textField>
+                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Ql6-Ht-BvX">
+                                <rect key="frame" x="24" y="70" width="44" height="19"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                                <textFieldCell key="cell" lineBreakMode="clipping" title="start" id="zYx-Hp-lHa">
+                                    <font key="font" size="11" name="AvenirNext-Regular"/>
+                                    <color key="textColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" red="0.59607843140000005" green="0.59607843140000005" blue="0.61568627450000002" alpha="0.10000000000000001" colorSpace="custom" customColorSpace="sRGB"/>
+                                </textFieldCell>
+                            </textField>
                         </subviews>
                         <constraints>
                             <constraint firstAttribute="trailing" secondItem="itc-zp-nhz" secondAttribute="trailing" constant="3" id="0Ph-A9-flj"/>
@@ -805,6 +823,7 @@
                     </view>
                     <connections>
                         <outlet property="albumArt" destination="RA8-5A-P0m" id="Ve0-Bx-IlZ"/>
+                        <outlet property="endTime" destination="CzZ-6c-PPk" id="Ko9-qv-2Su"/>
                         <outlet property="musicSlider" destination="SQw-KV-05I" id="6Qp-XI-nYd"/>
                         <outlet property="nextButton" destination="Boe-QH-ZYq" id="Lfv-fr-dtG"/>
                         <outlet property="pauseButton" destination="HjA-sr-knX" id="rZL-Hi-H2b"/>
@@ -814,6 +833,7 @@
                         <outlet property="skipAhead" destination="mu7-Q1-ai1" id="hzi-el-x6D"/>
                         <outlet property="skipBack" destination="EOz-7s-baV" id="lj1-nb-ek8"/>
                         <outlet property="songDetails" destination="Ccf-7o-vis" id="p1F-oQ-Ig3"/>
+                        <outlet property="startTime" destination="Ql6-Ht-BvX" id="OH7-nH-KYG"/>
                     </connections>
                 </viewController>
                 <customObject id="q9Y-sG-mIO" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
