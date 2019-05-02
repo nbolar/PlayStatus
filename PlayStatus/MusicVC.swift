@@ -243,7 +243,7 @@ class MusicVC: NSViewController {
         self.view.wantsLayer = true
         self.view.layer?.cornerRadius = 8
         songDetails.wantsLayer = true
-        songDetails.layer?.backgroundColor = CGColor.init(gray: 0.9, alpha: 0.6)
+        songDetails.layer?.backgroundColor = CGColor.init(gray: 0.9, alpha: 0.7)
         songDetails.layer?.cornerRadius = 8
         
         

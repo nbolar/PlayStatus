@@ -828,7 +828,7 @@
                                 <rect key="frame" x="25" y="187" width="252" height="36"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" selectable="YES" continuous="YES" alignment="center" title="Multiline Label" id="8nF-f4-pQo">
-                                    <font key="font" size="13" name="AvenirNext-Medium"/>
+                                    <font key="font" size="14" name="AvenirNext-Medium"/>
                                     <color key="textColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" red="0.59607843140000005" green="0.59607843140000005" blue="0.61568627450000002" alpha="0.10000000000000001" colorSpace="custom" customColorSpace="sRGB"/>
                                 </textFieldCell>
