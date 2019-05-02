@@ -151,7 +151,8 @@ class MusicVC: NSViewController {
                 if current track exists then
                     play current track
                 else
-                    play some track
+                    set shuffle enabled to true
+                    play
                 end if
             end if
         end tell
@@ -162,7 +163,8 @@ class MusicVC: NSViewController {
     else
         run application "iTunes"
         delay 7
-        tell application "iTunes" to play some track
+        tell application "iTunes" to set shuffle enabled to true
+        tell application "iTunes" to play
     end if
     """
     
