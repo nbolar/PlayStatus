@@ -7,6 +7,8 @@
 //
 
 import Cocoa
+import Alamofire
+import SwiftyJSON
 
 
 class MusicVC: NSViewController {
@@ -23,6 +25,8 @@ class MusicVC: NSViewController {
     @IBOutlet weak var musicSlider: NSSlider!
     @IBOutlet weak var startTime: NSTextField!
     @IBOutlet weak var endTime: NSTextField!
+    @IBOutlet weak var artistName: NSTextField!
+    @IBOutlet weak var songName: NSTextField!
     
     var out: NSAppleEventDescriptor?
     var check = 0
@@ -234,12 +238,12 @@ class MusicVC: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do view setup here.
-        changeSliderPosition()
         self.view.wantsLayer = true
         self.view.layer?.cornerRadius = 8
         songDetails.wantsLayer = true
-        songDetails.layer?.backgroundColor = CGColor.init(gray: 0.9, alpha: 0.5)
+        songDetails.layer?.backgroundColor = CGColor.init(gray: 0.9, alpha: 0.6)
         songDetails.layer?.cornerRadius = 8
+        
         
         playButton.isHidden = true
         pauseButton.isHidden = true
@@ -252,12 +256,14 @@ class MusicVC: NSViewController {
         musicSlider.isHidden = true
         startTime.isHidden = true
         endTime.isHidden = true
+        songName.isHidden = true
+        artistName.isHidden = true
         let area = NSTrackingArea.init(rect: albumArt.bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
         albumArt.addTrackingArea(area)
         
         checkStatus()
         loadAlbumArtwork()
-        _ = Timer.scheduledTimer(timeInterval: 1.0, target: self, selector: #selector(changeSliderPosition), userInfo: nil, repeats: true)
+        _ = Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: #selector(changeSliderPosition), userInfo: nil, repeats: true)
         
     }
     
@@ -296,6 +302,8 @@ class MusicVC: NSViewController {
             musicSlider.isHidden = false
             startTime.isHidden = false
             endTime.isHidden = false
+            songName.isHidden = false
+            artistName.isHidden = false
         }else if check == 2{
             playButton.isHidden = false
             pauseButton.isHidden = true
@@ -308,6 +316,8 @@ class MusicVC: NSViewController {
             musicSlider.isHidden = false
             startTime.isHidden = false
             endTime.isHidden = false
+            songName.isHidden = false
+            artistName.isHidden = false
 
         }
         
@@ -325,6 +335,8 @@ class MusicVC: NSViewController {
         musicSlider.isHidden = true
         startTime.isHidden = true
         endTime.isHidden = true
+        songName.isHidden = true
+        artistName.isHidden = true 
     }
     
     @objc func loadAlbumArtwork()
@@ -333,10 +345,13 @@ class MusicVC: NSViewController {
 //        let appDelegate = NSApplication.shared.delegate as! AppDelegate
         checkStatus()
         trackDuration()
+        
+        songName.stringValue = currentSongName ?? ""
+        artistName.stringValue = currentSongArtist ?? ""
         if let scriptObject = NSAppleScript(source: songImageScpt) {
             out = scriptObject.executeAndReturnError(nil)
             let imageName = out?.stringValue ?? ""
-            if imageName == ""
+            if songName.stringValue == ""
             {
                 albumArt.image = NSImage(named: "wallpaper2")
                 songDetails.stringValue = "No Music Playing"
@@ -344,9 +359,22 @@ class MusicVC: NSViewController {
                 songDetails.stringValue = ""
                 let url = URL(string: imageName)
                 albumArt.image = NSImage(contentsOf: url!)
-            }else{
+            }else if imageName != ""{
                 songDetails.stringValue = ""
                 albumArt.image = NSImage(contentsOfFile: imageName)
+            }else if imageName == "" && songName.stringValue != ""
+            {
+                let stringURL = "https://itunes.apple.com/search?term=\(currentSongArtist!)+\(currentSongName!)&country=us&limit=1"
+                let editedStringURL = stringURL.replacingOccurrences(of: " ", with: "+", options: .literal, range: nil)
+                let url = URL(string: editedStringURL)
+                AF.request(url!).responseData { (response) in
+                    let json = try! JSON(response.data)
+                    let originalURL = json["results"][0]["artworkUrl100"].stringValue
+                    let editedURL = originalURL.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg", options: .literal, range: nil)
+                    let imageURL = URL(string: editedURL)
+                    self.albumArt.image = NSImage(contentsOf: imageURL!)
+                }
+
             }
             
         }
@@ -470,11 +498,7 @@ class MusicVC: NSViewController {
 
     }
     @IBAction func musicSliderChanged(_ sender: Any) {
-//        print(musicSlider.doubleValue)
         scrubTrack(position: musicSlider.doubleValue)
-        
-
-
     }
     
     func scrubTrack(position : Double){
@@ -502,6 +526,7 @@ class MusicVC: NSViewController {
         if let scriptObject = NSAppleScript(source: currentDurationScpt) {
             scriptObject.executeAndReturnError(nil)
         }
+        loadAlbumArtwork()
     }
     
     @objc func changeSliderPosition()

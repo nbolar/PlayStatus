@@ -8,8 +8,8 @@
 
 import Cocoa
 
-var currentSong: String!
-var prevSong: String!
+var currentSongName: String!
+var currentSongArtist: String!
 
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -142,7 +142,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if songName != ""
         {
-            currentSong = songName
+            currentSongName = songName
+            currentSongArtist = artistName
             statusItem.button?.title = "\(artistName!) - \(songName!)"
             
         }else
