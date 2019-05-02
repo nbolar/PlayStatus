@@ -366,8 +366,10 @@ class MusicVC: NSViewController {
                 albumArt.image = NSImage(contentsOfFile: imageName)
             }else if imageName == "" && songName.stringValue != ""
             {
-                let stringURL = "https://itunes.apple.com/search?term=\(currentSongArtist!)+\(currentSongName!)&country=us&limit=1"
+                let editedSongArtist = currentSongArtist.replacingOccurrences(of: "&", with: "+", options: .literal, range: nil)
+                let stringURL = "https://itunes.apple.com/search?term=\(editedSongArtist)+\(currentSongName!)&country=us&limit=1"
                 let editedStringURL = stringURL.replacingOccurrences(of: " ", with: "+", options: .literal, range: nil)
+
                 let url = URL(string: editedStringURL)
                 AF.request(url!).responseData { (response) in
                     let json = try! JSON(response.data)

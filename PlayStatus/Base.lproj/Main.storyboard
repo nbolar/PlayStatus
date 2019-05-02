@@ -825,7 +825,7 @@
                                 </textFieldCell>
                             </textField>
                             <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="J19-5P-wOe">
-                                <rect key="frame" x="25" y="187" width="252" height="36"/>
+                                <rect key="frame" x="25" y="181" width="252" height="42"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" selectable="YES" continuous="YES" alignment="center" title="Multiline Label" id="8nF-f4-pQo">
                                     <font key="font" size="14" name="AvenirNext-Medium"/>
