@@ -18,6 +18,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var songName: String!
     var artistName: String!
     var out: NSAppleEventDescriptor?
+    lazy var aboutView: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "aboutWindowController") as? NSWindowController
     
     let currentTrackNameScpt = """
     if application "iTunes" is running then
@@ -103,6 +104,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let menu = NSMenu()
             menu.addItem(NSMenuItem(title: "PlayStatus version \(appVersion ?? "")", action: nil, keyEquivalent: ""))
             menu.addItem(NSMenuItem.separator())
+            menu.addItem(withTitle: "About", action: #selector(aboutMenu), keyEquivalent: "")
             menu.addItem(NSMenuItem(title: "Quit PlayStatus", action: #selector(self.quitApp), keyEquivalent: "q"))
             
 //            statusItem.menu = menu
@@ -117,6 +119,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ aNotification: Notification) {
         // Insert code here to tear down your application
+    }
+    
+    @objc func aboutMenu()
+    {
+        aboutView?.showWindow(self)
+        aboutView?.window?.makeKeyAndOrderFront(self)
+        NSApp.activate(ignoringOtherApps: true)
     }
     
     @objc func quitApp()

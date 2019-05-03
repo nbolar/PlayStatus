@@ -371,14 +371,14 @@ class MusicVC: NSViewController {
                 let safeSongURL = currentSongName.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed)!
                 let stringURL = "https://itunes.apple.com/search?term=\(safeArtistURL)+\(safeSongURL)&country=us&limit=1"
                 let editedStringURL = stringURL.replacingOccurrences(of: " ", with: "+", options: .literal, range: nil)
-
+                
                 let url = URL(string: editedStringURL)
                 AF.request(url!).responseData { (response) in
-                    let json = try! JSON(response.data)
+                    let json = JSON(response.data as Any)
                     let originalURL = json["results"][0]["artworkUrl100"].stringValue
                     let editedURL = originalURL.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg", options: .literal, range: nil)
                     let imageURL = URL(string: editedURL)
-                    self.albumArt.image = NSImage(contentsOf: imageURL!)
+                    self.albumArt.image = NSImage(contentsOf: imageURL ?? URL(string: "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/i/e7981d38-6ee3-496d-a6c0-8710745bdbfc/db6zlbs-68b8cd4f-bf6b-4d39-b9a7-7475cade812f.png")!)
                 }
 
             }

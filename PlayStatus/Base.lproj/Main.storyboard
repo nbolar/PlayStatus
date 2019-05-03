@@ -680,6 +680,119 @@
             </objects>
             <point key="canvasLocation" x="75" y="0.0"/>
         </scene>
+        <!--Window Controller-->
+        <scene sceneID="upF-vW-FWb">
+            <objects>
+                <windowController storyboardIdentifier="aboutWindowController" id="Uh6-Mz-u3g" sceneMemberID="viewController">
+                    <window key="window" title="About" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" frameAutosaveName="" animationBehavior="default" titlebarAppearsTransparent="YES" id="xYM-XL-0g4">
+                        <windowStyleMask key="styleMask" titled="YES" closable="YES"/>
+                        <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
+                        <rect key="contentRect" x="294" y="362" width="480" height="270"/>
+                        <rect key="screenRect" x="0.0" y="0.0" width="1920" height="1177"/>
+                        <connections>
+                            <outlet property="delegate" destination="Uh6-Mz-u3g" id="SZH-Eb-a3i"/>
+                        </connections>
+                    </window>
+                    <connections>
+                        <segue destination="md2-IF-ABi" kind="relationship" relationship="window.shadowedContentViewController" id="DER-JH-wxt"/>
+                    </connections>
+                </windowController>
+                <customObject id="1TA-u7-SeC" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="-280" y="976"/>
+        </scene>
+        <!--About View Controller-->
+        <scene sceneID="zQ6-Vc-S7K">
+            <objects>
+                <viewController title="About View Controller" storyboardIdentifier="AboutVC" id="md2-IF-ABi" customClass="AboutVC" customModule="PlayStatus" customModuleProvider="target" sceneMemberID="viewController">
+                    <view key="view" id="q9h-dG-Lhb">
+                        <rect key="frame" x="0.0" y="0.0" width="450" height="200"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                        <subviews>
+                            <imageView horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="1kR-gd-aqS">
+                                <rect key="frame" x="20" y="118" width="64" height="64"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="proportionallyDown" image="NSApplicationIcon" id="lrt-0v-IvN"/>
+                            </imageView>
+                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="lq8-XI-7RP">
+                                <rect key="frame" x="90" y="163" width="72" height="17"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                                <textFieldCell key="cell" lineBreakMode="clipping" title="PlayStatus" id="Qf5-k4-5w5">
+                                    <font key="font" metaFont="systemSemibold" size="13"/>
+                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                            </textField>
+                            <scrollView fixedFrame="YES" borderType="none" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" translatesAutoresizingMaskIntoConstraints="NO" id="g2u-ZP-bMf">
+                                <rect key="frame" x="92" y="28" width="338" height="127"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <clipView key="contentView" ambiguous="YES" drawsBackground="NO" copiesOnScroll="NO" id="zAi-1N-uW3">
+                                    <rect key="frame" x="0.0" y="0.0" width="338" height="127"/>
+                                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                    <subviews>
+                                        <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="dfv-20-eJ3">
+                                            <rect key="frame" x="0.0" y="0.0" width="103" height="17"/>
+                                            <textFieldCell key="cell" allowsUndo="NO" placeholderString="Description Text" allowsEditingTextAttributes="YES" id="361-c5-b0N">
+                                                <font key="font" usesAppearanceFont="YES"/>
+                                                <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                            </textFieldCell>
+                                        </textField>
+                                    </subviews>
+                                    <constraints>
+                                        <constraint firstAttribute="trailing" secondItem="dfv-20-eJ3" secondAttribute="trailing" constant="2" id="PK7-ey-Rd4"/>
+                                        <constraint firstItem="dfv-20-eJ3" firstAttribute="top" secondItem="zAi-1N-uW3" secondAttribute="top" id="tyI-Vm-tb5"/>
+                                        <constraint firstItem="dfv-20-eJ3" firstAttribute="leading" secondItem="zAi-1N-uW3" secondAttribute="leading" constant="2" id="wdE-en-1rK"/>
+                                    </constraints>
+                                </clipView>
+                                <scroller key="horizontalScroller" hidden="YES" wantsLayer="YES" verticalHuggingPriority="750" horizontal="YES" id="aTd-0b-9Ky">
+                                    <rect key="frame" x="-100" y="-100" width="94" height="16"/>
+                                    <autoresizingMask key="autoresizingMask"/>
+                                </scroller>
+                                <scroller key="verticalScroller" wantsLayer="YES" verticalHuggingPriority="750" doubleValue="1" horizontal="NO" id="zON-Xh-za2">
+                                    <rect key="frame" x="322" y="0.0" width="16" height="127"/>
+                                    <autoresizingMask key="autoresizingMask"/>
+                                </scroller>
+                            </scrollView>
+                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="oi4-GC-yUL">
+                                <rect key="frame" x="268" y="6" width="164" height="14"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <gestureRecognizers>
+                                    <clickGestureRecognizer delaysPrimaryMouseButtonEvents="YES" numberOfClicksRequired="1" id="67R-Ul-te9">
+                                        <connections>
+                                            <action selector="repoClicked:" target="md2-IF-ABi" id="wsE-ua-vtp"/>
+                                        </connections>
+                                    </clickGestureRecognizer>
+                                </gestureRecognizers>
+                                <textFieldCell key="cell" controlSize="small" lineBreakMode="clipping" title="github.com/nbolar/PlayStatus" allowsEditingTextAttributes="YES" id="FIH-9C-xgt">
+                                    <font key="font" metaFont="systemMedium" size="11"/>
+                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                                <connections>
+                                    <action selector="repoClicked:" target="md2-IF-ABi" id="8gi-iP-JU5"/>
+                                </connections>
+                            </textField>
+                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="2gn-CK-J0p">
+                                <rect key="frame" x="166" y="164" width="80" height="11"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                                <textFieldCell key="cell" lineBreakMode="clipping" placeholderString="version" id="bCd-yO-oQf">
+                                    <font key="font" metaFont="miniSystem"/>
+                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                            </textField>
+                        </subviews>
+                    </view>
+                    <connections>
+                        <outlet property="descriptionField" destination="dfv-20-eJ3" id="XfX-mS-doN"/>
+                        <outlet property="versionText" destination="2gn-CK-J0p" id="IW8-Go-4eD"/>
+                    </connections>
+                </viewController>
+                <customObject id="dfo-AH-2e9" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="504" y="968"/>
+        </scene>
         <!--MusicVC-->
         <scene sceneID="Tdu-bp-48f">
             <objects>
@@ -862,6 +975,7 @@
         </scene>
     </scenes>
     <resources>
+        <image name="NSApplicationIcon" width="32" height="32"/>
         <image name="NSStopProgressFreestandingTemplate" width="14" height="14"/>
         <image name="NSTouchBarSkipAhead15SecondsTemplate" width="17" height="30"/>
         <image name="NSTouchBarSkipBack15SecondsTemplate" width="17" height="30"/>
