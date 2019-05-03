@@ -27,6 +27,7 @@ class MusicVC: NSViewController {
     @IBOutlet weak var endTime: NSTextField!
     @IBOutlet weak var artistName: NSTextField!
     @IBOutlet weak var songName: NSTextField!
+    @IBOutlet weak var musicButton: NSButton!
     
     var out: NSAppleEventDescriptor?
     var check = 0
@@ -190,6 +191,29 @@ class MusicVC: NSViewController {
     end if
     """
     
+    
+    let appPlayingScpt = """
+    if application "iTunes" is running then
+        tell application "iTunes"
+            if player state is playing then
+                return "iTunes"
+            else
+                return ""
+            end if
+        end tell
+    else if application "Spotify" is running then
+        tell application "Spotify"
+            if player state is playing then
+                return "Spotify"
+            else
+                return ""
+            end if
+        end tell
+    else
+        return ""
+    end if
+    """
+    
     let skipAheadScpt = """
     if application "iTunes" is running then
         tell application "iTunes"
@@ -260,6 +284,7 @@ class MusicVC: NSViewController {
         endTime.isHidden = true
         songName.isHidden = true
         artistName.isHidden = true
+        musicButton.isHidden = true
         let area = NSTrackingArea.init(rect: albumArt.bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
         albumArt.addTrackingArea(area)
         
@@ -306,6 +331,7 @@ class MusicVC: NSViewController {
             endTime.isHidden = false
             songName.isHidden = false
             artistName.isHidden = false
+            musicButton.isHidden = false
         }else if check == 2{
             playButton.isHidden = false
             pauseButton.isHidden = true
@@ -320,7 +346,7 @@ class MusicVC: NSViewController {
             endTime.isHidden = false
             songName.isHidden = false
             artistName.isHidden = false
-
+            musicButton.isHidden = false
         }
         
     }
@@ -338,7 +364,8 @@ class MusicVC: NSViewController {
         startTime.isHidden = true
         endTime.isHidden = true
         songName.isHidden = true
-        artistName.isHidden = true 
+        artistName.isHidden = true
+        musicButton.isHidden = true
     }
     
     @objc func loadAlbumArtwork()
@@ -564,6 +591,26 @@ class MusicVC: NSViewController {
             startTime.stringValue = String(Int(Double(musicSlider.stringValue)! / 60) % 60) + ":" +  String(format: "%02d", Int(Double(musicSlider.stringValue)!.truncatingRemainder(dividingBy: 60)))
         }
     }
+    
+    @IBAction func musicButtonClicked(_ sender: Any) {
+        if let scriptObject = NSAppleScript(source: appPlayingScpt) {
+            out = scriptObject.executeAndReturnError(nil)
+            
+            if out?.stringValue == "iTunes"
+            {
+                NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/iTunes.app"))
+                self.dismiss(nil)
+                
+            } else if out?.stringValue == "Spotify"
+            {
+                NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Spotify.app"))
+                self.dismiss(nil)
+            }
+        }
+        
+        
+    }
+    
     
 
     

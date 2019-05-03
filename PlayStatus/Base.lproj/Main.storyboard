@@ -946,16 +946,34 @@
                                     <color key="backgroundColor" red="0.59607843140000005" green="0.59607843140000005" blue="0.61568627450000002" alpha="0.10000000000000001" colorSpace="custom" customColorSpace="sRGB"/>
                                 </textFieldCell>
                             </textField>
+                            <button translatesAutoresizingMaskIntoConstraints="NO" id="wCa-ZZ-XgA">
+                                <rect key="frame" x="6" y="279" width="15" height="15"/>
+                                <constraints>
+                                    <constraint firstAttribute="height" constant="15" id="JHg-hZ-Cgz"/>
+                                    <constraint firstAttribute="width" constant="15" id="MnZ-vl-lt4"/>
+                                </constraints>
+                                <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="music" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="J2i-Fa-6ui">
+                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <color key="contentTintColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="1" colorSpace="custom" customColorSpace="displayP3"/>
+                                <connections>
+                                    <action selector="musicButtonClicked:" target="sM2-A5-j4E" id="jWp-Hz-7vf"/>
+                                </connections>
+                            </button>
                         </subviews>
                         <constraints>
                             <constraint firstAttribute="trailing" secondItem="itc-zp-nhz" secondAttribute="trailing" constant="3" id="0Ph-A9-flj"/>
+                            <constraint firstItem="wCa-ZZ-XgA" firstAttribute="top" secondItem="4c5-fu-f1J" secondAttribute="top" constant="6" id="1O2-yk-bqr"/>
                             <constraint firstItem="itc-zp-nhz" firstAttribute="top" secondItem="4c5-fu-f1J" secondAttribute="top" constant="3" id="8lK-dP-K3U"/>
+                            <constraint firstItem="wCa-ZZ-XgA" firstAttribute="leading" secondItem="4c5-fu-f1J" secondAttribute="leading" constant="6" id="hRg-Yv-yfi"/>
                         </constraints>
                     </view>
                     <connections>
                         <outlet property="albumArt" destination="RA8-5A-P0m" id="Ve0-Bx-IlZ"/>
                         <outlet property="artistName" destination="J19-5P-wOe" id="xWT-5i-o4X"/>
                         <outlet property="endTime" destination="CzZ-6c-PPk" id="Ko9-qv-2Su"/>
+                        <outlet property="musicButton" destination="wCa-ZZ-XgA" id="fxS-ye-wGD"/>
                         <outlet property="musicSlider" destination="SQw-KV-05I" id="6Qp-XI-nYd"/>
                         <outlet property="nextButton" destination="Boe-QH-ZYq" id="Lfv-fr-dtG"/>
                         <outlet property="pauseButton" destination="HjA-sr-knX" id="rZL-Hi-H2b"/>
@@ -980,6 +998,7 @@
         <image name="NSTouchBarSkipAhead15SecondsTemplate" width="17" height="30"/>
         <image name="NSTouchBarSkipBack15SecondsTemplate" width="17" height="30"/>
         <image name="forward" width="2679" height="1253"/>
+        <image name="music" width="36" height="36"/>
         <image name="pause" width="1329" height="1553"/>
         <image name="play" width="1247" height="1246"/>
         <image name="previous" width="2683" height="1262"/>
