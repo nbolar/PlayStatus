@@ -264,11 +264,21 @@ class MusicVC: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do view setup here.
+        
+        
+        
         self.view.wantsLayer = true
         self.view.layer?.cornerRadius = 8
         songDetails.wantsLayer = true
-        songDetails.layer?.backgroundColor = CGColor.init(gray: 0.9, alpha: 0.7)
+        songDetails.layer?.backgroundColor = CGColor.init(gray: 0.5, alpha: 0.5)
+//        songDetails.layer?.backgroundColor = .clear
         songDetails.layer?.cornerRadius = 8
+        songDetails.layer?.masksToBounds = true
+        songDetails.layerUsesCoreImageFilters = true
+        songDetails.layer?.needsDisplayOnBoundsChange = true
+        
+        
+        
         
         
         playButton.isHidden = true
@@ -291,6 +301,27 @@ class MusicVC: NSViewController {
         checkStatus()
         loadAlbumArtwork()
         _ = Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: #selector(changeSliderPosition), userInfo: nil, repeats: true)
+        
+    }
+    
+    func createBlurView()
+    {
+        var satFilter = CIFilter(name: "CIColorControls")
+        satFilter!.setDefaults()
+        satFilter!.setValue(NSNumber(value: 2.0), forKey: "inputSaturation")
+        
+        var blurFilter = CIFilter(name: "CIGaussianBlur")
+        blurFilter!.setDefaults()
+        blurFilter!.setValue(NSNumber(value: 7.0), forKey: "inputRadius")
+        
+        songDetails.layer?.backgroundFilters = [satFilter, blurFilter]
+        
+    }
+    
+    func removeBlurView()
+    {
+        
+        songDetails.layer?.backgroundFilters = .none
         
     }
     
@@ -318,6 +349,7 @@ class MusicVC: NSViewController {
     override func mouseEntered(with event: NSEvent) {
         
         if check == 1{
+            createBlurView()
             songDetails.isHidden = false
             pauseButton.isHidden = false
             playButton.isHidden = true
@@ -333,6 +365,7 @@ class MusicVC: NSViewController {
             artistName.isHidden = false
             musicButton.isHidden = false
         }else if check == 2{
+            createBlurView()
             playButton.isHidden = false
             pauseButton.isHidden = true
             songDetails.isHidden = false
@@ -352,6 +385,7 @@ class MusicVC: NSViewController {
     }
     
     override func mouseExited(with event: NSEvent) {
+        removeBlurView()
         playButton.isHidden = true
         pauseButton.isHidden = true
         songDetails.isHidden = true

@@ -911,9 +911,9 @@
                                 </connections>
                             </slider>
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="CzZ-6c-PPk">
-                                <rect key="frame" x="246" y="95" width="31" height="19"/>
+                                <rect key="frame" x="238" y="95" width="39" height="19"/>
                                 <autoresizingMask key="autoresizingMask"/>
-                                <textFieldCell key="cell" lineBreakMode="clipping" title="end" id="vcQ-cy-7xJ">
+                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" title="end" id="vcQ-cy-7xJ">
                                     <font key="font" size="11" name="AvenirNext-Regular"/>
                                     <color key="textColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" red="0.59607843140000005" green="0.59607843140000005" blue="0.61568627450000002" alpha="0.10000000000000001" colorSpace="custom" customColorSpace="sRGB"/>
@@ -922,7 +922,7 @@
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Ql6-Ht-BvX">
                                 <rect key="frame" x="25" y="96" width="44" height="19"/>
                                 <autoresizingMask key="autoresizingMask"/>
-                                <textFieldCell key="cell" lineBreakMode="clipping" title="start" id="zYx-Hp-lHa">
+                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="left" title="start" id="zYx-Hp-lHa">
                                     <font key="font" size="11" name="AvenirNext-Regular"/>
                                     <color key="textColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" red="0.59607843140000005" green="0.59607843140000005" blue="0.61568627450000002" alpha="0.10000000000000001" colorSpace="custom" customColorSpace="sRGB"/>
@@ -931,8 +931,15 @@
                             <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="hgc-gH-kkc">
                                 <rect key="frame" x="25" y="53" width="252" height="40"/>
                                 <autoresizingMask key="autoresizingMask"/>
-                                <textFieldCell key="cell" selectable="YES" continuous="YES" alignment="center" title="Multiline Label" id="oIU-nW-au8">
-                                    <font key="font" size="13" name="AvenirNext-Medium"/>
+                                <gestureRecognizers>
+                                    <clickGestureRecognizer delaysPrimaryMouseButtonEvents="YES" numberOfClicksRequired="1" id="BVx-iF-6x1">
+                                        <connections>
+                                            <action selector="musicButtonClicked:" target="sM2-A5-j4E" id="qP4-CQ-0Kc"/>
+                                        </connections>
+                                    </clickGestureRecognizer>
+                                </gestureRecognizers>
+                                <textFieldCell key="cell" continuous="YES" alignment="center" title="Multiline Label" id="oIU-nW-au8">
+                                    <font key="font" size="14" name="AvenirNext-Medium"/>
                                     <color key="textColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" red="0.59607843140000005" green="0.59607843140000005" blue="0.61568627450000002" alpha="0.10000000000000001" colorSpace="custom" customColorSpace="sRGB"/>
                                 </textFieldCell>
@@ -940,7 +947,14 @@
                             <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="J19-5P-wOe">
                                 <rect key="frame" x="25" y="181" width="252" height="42"/>
                                 <autoresizingMask key="autoresizingMask"/>
-                                <textFieldCell key="cell" selectable="YES" continuous="YES" alignment="center" title="Multiline Label" id="8nF-f4-pQo">
+                                <gestureRecognizers>
+                                    <clickGestureRecognizer delaysPrimaryMouseButtonEvents="YES" numberOfClicksRequired="1" id="POy-Df-Ds8">
+                                        <connections>
+                                            <action selector="musicButtonClicked:" target="sM2-A5-j4E" id="mak-75-wzz"/>
+                                        </connections>
+                                    </clickGestureRecognizer>
+                                </gestureRecognizers>
+                                <textFieldCell key="cell" continuous="YES" alignment="center" title="Multiline Label" id="8nF-f4-pQo">
                                     <font key="font" size="14" name="AvenirNext-Medium"/>
                                     <color key="textColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" red="0.59607843140000005" green="0.59607843140000005" blue="0.61568627450000002" alpha="0.10000000000000001" colorSpace="custom" customColorSpace="sRGB"/>
