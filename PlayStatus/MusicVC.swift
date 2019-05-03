@@ -367,7 +367,9 @@ class MusicVC: NSViewController {
             }else if imageName == "" && songName.stringValue != ""
             {
                 let editedSongArtist = currentSongArtist.replacingOccurrences(of: "&", with: "+", options: .literal, range: nil)
-                let stringURL = "https://itunes.apple.com/search?term=\(editedSongArtist)+\(currentSongName!)&country=us&limit=1"
+                let safeArtistURL = editedSongArtist.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed)!
+                let safeSongURL = currentSongName.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed)!
+                let stringURL = "https://itunes.apple.com/search?term=\(safeArtistURL)+\(safeSongURL)&country=us&limit=1"
                 let editedStringURL = stringURL.replacingOccurrences(of: " ", with: "+", options: .literal, range: nil)
 
                 let url = URL(string: editedStringURL)
@@ -562,6 +564,7 @@ class MusicVC: NSViewController {
             startTime.stringValue = String(Int(Double(musicSlider.stringValue)! / 60) % 60) + ":" +  String(format: "%02d", Int(Double(musicSlider.stringValue)!.truncatingRemainder(dividingBy: 60)))
         }
     }
+    
 
     
 }
