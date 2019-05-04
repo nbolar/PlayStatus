@@ -816,7 +816,7 @@
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                     <font key="font" metaFont="system"/>
                                 </buttonCell>
-                                <color key="contentTintColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="1" colorSpace="custom" customColorSpace="displayP3"/>
+                                <color key="contentTintColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
                                 <connections>
                                     <action selector="quitButtonClicked:" target="sM2-A5-j4E" id="Qmb-GI-i4N"/>
                                 </connections>
@@ -929,7 +929,7 @@
                                 </textFieldCell>
                             </textField>
                             <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="hgc-gH-kkc">
-                                <rect key="frame" x="25" y="53" width="252" height="40"/>
+                                <rect key="frame" x="19" y="53" width="263" height="40"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <gestureRecognizers>
                                     <clickGestureRecognizer delaysPrimaryMouseButtonEvents="YES" numberOfClicksRequired="1" id="BVx-iF-6x1">
@@ -945,7 +945,7 @@
                                 </textFieldCell>
                             </textField>
                             <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="J19-5P-wOe">
-                                <rect key="frame" x="25" y="181" width="252" height="42"/>
+                                <rect key="frame" x="25" y="186" width="252" height="42"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <gestureRecognizers>
                                     <clickGestureRecognizer delaysPrimaryMouseButtonEvents="YES" numberOfClicksRequired="1" id="POy-Df-Ds8">
@@ -970,7 +970,7 @@
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                     <font key="font" metaFont="system"/>
                                 </buttonCell>
-                                <color key="contentTintColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="1" colorSpace="custom" customColorSpace="displayP3"/>
+                                <color key="contentTintColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
                                 <connections>
                                     <action selector="musicButtonClicked:" target="sM2-A5-j4E" id="jWp-Hz-7vf"/>
                                 </connections>

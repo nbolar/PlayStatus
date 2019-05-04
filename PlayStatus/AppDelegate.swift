@@ -14,11 +14,42 @@ var currentSongArtist: String!
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
 
-    let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+//    let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     var songName: String!
     var artistName: String!
     var out: NSAppleEventDescriptor?
+    private var lastStatusTitle: String = ""
+    let popoverView = NSPopover()
     lazy var aboutView: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "aboutWindowController") as? NSWindowController
+    
+    private enum Constants {
+        static let statusItemIconLength: CGFloat = 30
+        static let statusItemLength: CGFloat = 250
+    }
+    private lazy var statusItem: NSStatusItem = {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.length = Constants.statusItemIconLength
+        return statusItem
+    }()
+    private lazy var scrollingStatusItemView: ScrollingStatusItemView = {
+        let view = ScrollingStatusItemView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.lengthHandler = handleLength
+        return view
+    }()
+    
+    private lazy var handleLength: StatusItemLengthUpdate = { length in
+        if length < Constants.statusItemLength {
+            self.statusItem.length = length
+        } else {
+            self.statusItem.length = Constants.statusItemLength
+        }
+    }
+    
+    private lazy var contentView: NSView? = {
+        let view = (statusItem.value(forKey: "window") as? NSWindow)?.contentView
+        return view
+    }()
     
     let currentTrackNameScpt = """
     if application "iTunes" is running then
@@ -81,9 +112,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
-
-        statusItem.button?.image = NSImage(named: "icon_20")
-        statusItem.button?.imagePosition = .imageLeft
+//        statusItem.length = 250
+//        statusItem.button?.image = NSImage(named: "icon_20")
+//        statusItem.button?.imagePosition = .imageLeft
+        loadSubviews()
         statusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
         statusItem.button?.action = #selector(self.togglePopover(_:))
         _ = Timer.scheduledTimer(timeInterval: 2.0, target: self, selector: #selector(getSongName), userInfo: nil, repeats: true)
@@ -95,7 +127,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         if event.type == NSEvent.EventType.leftMouseUp
         {
-            displayPopUp()
+            if popoverView.isShown
+            {
+                popoverView.close()
+            }else{
+                displayPopUp()
+            }
+            
         }else if event.type == NSEvent.EventType.rightMouseUp{
             
             var appVersion: String? {
@@ -106,12 +144,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(NSMenuItem.separator())
             menu.addItem(withTitle: "About", action: #selector(aboutMenu), keyEquivalent: "")
             menu.addItem(NSMenuItem(title: "Quit PlayStatus", action: #selector(self.quitApp), keyEquivalent: "q"))
-            
-//            statusItem.menu = menu
+
             statusItem.popUpMenu(menu)
 
-            
-//            statusItem.menu = nil
             
         }
     }
@@ -136,6 +171,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @objc func getSongName()
     {
+        loadSubviews()
         if let scriptObject = NSAppleScript(source: currentTrackNameScpt) {
             var errorDict: NSDictionary? = nil
             out = scriptObject.executeAndReturnError(&errorDict)
@@ -149,16 +185,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             artistName = out?.stringValue ?? ""
 
         }
-        if songName != ""
-        {
-            currentSongName = songName
-            currentSongArtist = artistName
-            statusItem.button?.title = "\(artistName!) - \(songName!)"
-            
-        }else
-        {
-            statusItem.button?.title = ""
+        
+        let statutsItemTitle = "\(artistName!) - \(songName!)"
+        
+        if lastStatusTitle != statutsItemTitle {
+            updateTitle(newTitle: statutsItemTitle)
         }
+        
+        currentSongName = songName
+        currentSongArtist = artistName
+        
+        
+//        if songName != ""
+//        {
+
+////            scrollingStatusItemView.text = "\(artistName!) - \(songName!)"
+//
+//            updateTitle(newTitle: "\(artistName!) - \(songName!)")
+//
+//
+//
+//        }else
+//        {
+//            statusItem.button?.title = ""
+////            updateTitle(newTitle: "")
+//        }
         
     }
     
@@ -167,12 +218,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func displayPopUp() {
         let storyboard = NSStoryboard(name: "Main", bundle: nil)
         guard let vc =  storyboard.instantiateController(withIdentifier: "MusicVC") as? NSViewController else { return }
-        let popoverView = NSPopover()
+        
         popoverView.contentViewController = vc
         popoverView.behavior = .transient
         popoverView.show(relativeTo: statusItem.button!.bounds, of: statusItem.button!, preferredEdge: .minY)
         
     }
+    
+    
+    
+    // MARK: - Private methods
+    
+    private func loadSubviews() {
+        guard let contentView = contentView else { return }
+
+        contentView.addSubview(scrollingStatusItemView)
+        NSLayoutConstraint.activate([
+            scrollingStatusItemView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            scrollingStatusItemView.leftAnchor.constraint(equalTo: contentView.leftAnchor),
+            scrollingStatusItemView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            scrollingStatusItemView.rightAnchor.constraint(equalTo: contentView.rightAnchor)])
+    }
+    
+    private func updateTitle(newTitle: String) {
+        lastStatusTitle = newTitle
+        scrollingStatusItemView.icon = NSImage(named: "icon_20")
+        scrollingStatusItemView.text = newTitle
+
+        
+        if newTitle.count == 0 && statusItem.button != nil {
+            statusItem.length = scrollingStatusItemView.hasImage ? Constants.statusItemLength : 0
+        }
+    }
+    
+    
 
 
 }
