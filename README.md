@@ -7,4 +7,5 @@
 PlayStatus is a simple macOS app that allows the control of Spotify, Apple Music and iTunes playback from the menu bar.
 
 ##
-![PlayStatus_preview](https://user-images.githubusercontent.com/45484873/56968375-bbec2980-6b6b-11e9-89ef-5a597b780dc8.gif)
+![PlayStatus_preview](https://user-images.githubusercontent.com/45484873/57176740-4ed6dd80-6e64-11e9-9393-5481f7db092e.gif)
+
