@@ -806,23 +806,8 @@
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="axesIndependently" image="wallpaper2" id="biU-rt-7Ij"/>
                             </imageView>
-                            <button translatesAutoresizingMaskIntoConstraints="NO" id="itc-zp-nhz">
-                                <rect key="frame" x="282" y="282" width="15" height="15"/>
-                                <constraints>
-                                    <constraint firstAttribute="height" constant="15" id="RpO-iO-1ku"/>
-                                    <constraint firstAttribute="width" constant="15" id="sku-Rg-Jef"/>
-                                </constraints>
-                                <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="NSStopProgressFreestandingTemplate" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="sIM-wC-CcO">
-                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
-                                    <font key="font" metaFont="system"/>
-                                </buttonCell>
-                                <color key="contentTintColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                <connections>
-                                    <action selector="quitButtonClicked:" target="sM2-A5-j4E" id="Qmb-GI-i4N"/>
-                                </connections>
-                            </button>
                             <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Ccf-7o-vis">
-                                <rect key="frame" x="19" y="52" width="262" height="190"/>
+                                <rect key="frame" x="-1" y="0.0" width="301" height="300"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" continuous="YES" refusesFirstResponder="YES" alignment="center" drawsBackground="YES" id="o7o-MF-evj">
                                     <font key="font" size="14" name="AvenirNext-Regular"/>
@@ -914,16 +899,16 @@
                                 <rect key="frame" x="238" y="95" width="39" height="19"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" title="end" id="vcQ-cy-7xJ">
-                                    <font key="font" size="11" name="AvenirNext-Regular"/>
+                                    <font key="font" size="12" name="AvenirNext-Medium"/>
                                     <color key="textColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" red="0.59607843140000005" green="0.59607843140000005" blue="0.61568627450000002" alpha="0.10000000000000001" colorSpace="custom" customColorSpace="sRGB"/>
                                 </textFieldCell>
                             </textField>
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Ql6-Ht-BvX">
-                                <rect key="frame" x="25" y="96" width="44" height="19"/>
+                                <rect key="frame" x="22" y="96" width="44" height="19"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" alignment="left" title="start" id="zYx-Hp-lHa">
-                                    <font key="font" size="11" name="AvenirNext-Regular"/>
+                                    <font key="font" size="12" name="AvenirNext-Medium"/>
                                     <color key="textColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" red="0.59607843140000005" green="0.59607843140000005" blue="0.61568627450000002" alpha="0.10000000000000001" colorSpace="custom" customColorSpace="sRGB"/>
                                 </textFieldCell>
@@ -975,6 +960,38 @@
                                     <action selector="musicButtonClicked:" target="sM2-A5-j4E" id="jWp-Hz-7vf"/>
                                 </connections>
                             </button>
+                            <button translatesAutoresizingMaskIntoConstraints="NO" id="itc-zp-nhz">
+                                <rect key="frame" x="282" y="282" width="15" height="15"/>
+                                <constraints>
+                                    <constraint firstAttribute="height" constant="15" id="RpO-iO-1ku"/>
+                                    <constraint firstAttribute="width" constant="15" id="sku-Rg-Jef"/>
+                                </constraints>
+                                <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="NSStopProgressFreestandingTemplate" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="sIM-wC-CcO">
+                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <color key="contentTintColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                <connections>
+                                    <action selector="quitButtonClicked:" target="sM2-A5-j4E" id="Qmb-GI-i4N"/>
+                                </connections>
+                            </button>
+                            <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="fvP-OO-lLn">
+                                <rect key="frame" x="18" y="2" width="253" height="22"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                                <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" refusesFirstResponder="YES" placeholderString="Type to play song from your iTunes library" id="WXZ-8r-hfQ">
+                                    <font key="font" size="13" name="AvenirNext-Regular"/>
+                                    <color key="textColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="1" colorSpace="custom" customColorSpace="displayP3"/>
+                                    <color key="backgroundColor" red="0.59607843140000005" green="0.59607843140000005" blue="0.61568627450000002" alpha="0.10000000000000001" colorSpace="custom" customColorSpace="sRGB"/>
+                                </textFieldCell>
+                                <userDefinedRuntimeAttributes>
+                                    <userDefinedRuntimeAttribute type="color" keyPath="placeHolderColor">
+                                        <color key="value" name="systemGrayColor" catalog="System" colorSpace="catalog"/>
+                                    </userDefinedRuntimeAttribute>
+                                </userDefinedRuntimeAttributes>
+                                <connections>
+                                    <action selector="songSearchClicked:" target="sM2-A5-j4E" id="MB4-vo-th2"/>
+                                </connections>
+                            </textField>
                         </subviews>
                         <constraints>
                             <constraint firstAttribute="trailing" secondItem="itc-zp-nhz" secondAttribute="trailing" constant="3" id="0Ph-A9-flj"/>
@@ -998,6 +1015,7 @@
                         <outlet property="skipBack" destination="EOz-7s-baV" id="lj1-nb-ek8"/>
                         <outlet property="songDetails" destination="Ccf-7o-vis" id="p1F-oQ-Ig3"/>
                         <outlet property="songName" destination="hgc-gH-kkc" id="Yg8-C7-yXv"/>
+                        <outlet property="songSearchField" destination="fvP-OO-lLn" id="xxk-rx-Qwi"/>
                         <outlet property="startTime" destination="Ql6-Ht-BvX" id="OH7-nH-KYG"/>
                     </connections>
                 </viewController>

@@ -28,6 +28,7 @@ class MusicVC: NSViewController {
     @IBOutlet weak var artistName: NSTextField!
     @IBOutlet weak var songName: NSTextField!
     @IBOutlet weak var musicButton: NSButton!
+    @IBOutlet weak var songSearchField: NSTextField!
     
     var out: NSAppleEventDescriptor?
     var check = 0
@@ -295,8 +296,27 @@ class MusicVC: NSViewController {
         songName.isHidden = true
         artistName.isHidden = true
         musicButton.isHidden = true
+        songSearchField.isHidden = true
         let area = NSTrackingArea.init(rect: albumArt.bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
         albumArt.addTrackingArea(area)
+        
+        
+        let fieldBackgroundColor = NSColor(
+            calibratedHue: 230/360,
+            saturation: 0.35,
+            brightness: 0.85,
+            alpha: 0.3)
+        
+        
+    
+        songSearchField.wantsLayer = true
+        songSearchField.layer?.backgroundColor = CGColor.clear
+        songSearchField.layer?.borderColor = CGColor.init(gray: 0.9, alpha: 0.5)
+        songSearchField.layer?.borderWidth = 1
+        songSearchField.layer?.cornerRadius = 5
+        songSearchField.textColor = NSColor.white
+        songSearchField.drawsBackground = false
+        
         
         checkStatus()
         loadAlbumArtwork()
@@ -306,15 +326,15 @@ class MusicVC: NSViewController {
     
     func createBlurView()
     {
-        var satFilter = CIFilter(name: "CIColorControls")
+        let satFilter = CIFilter(name: "CIColorControls")
         satFilter!.setDefaults()
         satFilter!.setValue(NSNumber(value: 2.0), forKey: "inputSaturation")
         
-        var blurFilter = CIFilter(name: "CIGaussianBlur")
+        let blurFilter = CIFilter(name: "CIGaussianBlur")
         blurFilter!.setDefaults()
-        blurFilter!.setValue(NSNumber(value: 7.0), forKey: "inputRadius")
+        blurFilter!.setValue(NSNumber(value: 4.0), forKey: "inputRadius")
         
-        songDetails.layer?.backgroundFilters = [satFilter, blurFilter]
+        songDetails.layer?.backgroundFilters = [satFilter!, blurFilter!]
         
     }
     
@@ -364,6 +384,7 @@ class MusicVC: NSViewController {
             songName.isHidden = false
             artistName.isHidden = false
             musicButton.isHidden = false
+            songSearchField.isHidden = false
         }else if check == 2{
             createBlurView()
             playButton.isHidden = false
@@ -380,6 +401,7 @@ class MusicVC: NSViewController {
             songName.isHidden = false
             artistName.isHidden = false
             musicButton.isHidden = false
+            songSearchField.isHidden = false
         }
         
     }
@@ -400,6 +422,7 @@ class MusicVC: NSViewController {
         songName.isHidden = true
         artistName.isHidden = true
         musicButton.isHidden = true
+        songSearchField.isHidden = true
     }
     
     @objc func loadAlbumArtwork()
@@ -645,7 +668,39 @@ class MusicVC: NSViewController {
         
     }
     
+    @IBAction func songSearchClicked(_ sender: NSTextField) {
+        let currentDurationScpt = """
+        tell application "iTunes"
+            set search_results to (search library playlist 1 for "\(songSearchField.stringValue)")
+            repeat with t in search_results
+                play t
+            end repeat
+        end tell
+        """
+        
+        
+        if let scriptObject = NSAppleScript(source: currentDurationScpt) {
+            scriptObject.executeAndReturnError(nil)
+        }
+        let appDelegate = NSApplication.shared.delegate as! AppDelegate
+        appDelegate.getSongName()
+        loadAlbumArtwork()
+        songSearchField.stringValue = ""
+        
+    }
     
 
     
+}
+
+
+extension NSTextField{
+    @IBInspectable var placeHolderColor: NSColor? {
+        get {
+            return self.placeHolderColor
+        }
+        set {
+            self.placeholderAttributedString = NSAttributedString(string:self.placeholderString != nil ? self.placeholderString! : "", attributes:[NSAttributedString.Key.foregroundColor: newValue!])
+        }
+    }
 }
