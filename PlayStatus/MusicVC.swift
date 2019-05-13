@@ -33,6 +33,7 @@ class MusicVC: NSViewController {
     var out: NSAppleEventDescriptor?
     var check = 0
     
+    
     let songImageScpt = """
     if application "iTunes" is running then
     -- get the raw bytes of the artwork into a var
@@ -311,7 +312,7 @@ class MusicVC: NSViewController {
     
         songSearchField.wantsLayer = true
         songSearchField.layer?.backgroundColor = CGColor.clear
-        songSearchField.layer?.borderColor = CGColor.init(gray: 0.9, alpha: 0.5)
+        songSearchField.layer?.borderColor = CGColor.white
         songSearchField.layer?.borderWidth = 1
         songSearchField.layer?.cornerRadius = 5
         songSearchField.textColor = NSColor.white
@@ -332,7 +333,7 @@ class MusicVC: NSViewController {
         
         let blurFilter = CIFilter(name: "CIGaussianBlur")
         blurFilter!.setDefaults()
-        blurFilter!.setValue(NSNumber(value: 4.0), forKey: "inputRadius")
+        blurFilter!.setValue(NSNumber(value: 7), forKey: "inputRadius")
         
         songDetails.layer?.backgroundFilters = [satFilter!, blurFilter!]
         
@@ -367,6 +368,7 @@ class MusicVC: NSViewController {
         
     }
     override func mouseEntered(with event: NSEvent) {
+        
         
         if check == 1{
             createBlurView()
@@ -407,6 +409,7 @@ class MusicVC: NSViewController {
     }
     
     override func mouseExited(with event: NSEvent) {
+        
         removeBlurView()
         playButton.isHidden = true
         pauseButton.isHidden = true
@@ -440,7 +443,8 @@ class MusicVC: NSViewController {
             if songName.stringValue == ""
             {
                 albumArt.image = NSImage(named: "wallpaper2")
-                songDetails.stringValue = "No Music Playing"
+//                songDetails.stringValue = "No Music Playing"
+                artistName.stringValue = "No Music Playing"
             }else if imageName.contains("http://"){
                 songDetails.stringValue = ""
                 let url = URL(string: imageName)
