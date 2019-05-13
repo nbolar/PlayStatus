@@ -33,6 +33,10 @@ class MusicVC: NSViewController {
     var out: NSAppleEventDescriptor?
     var check = 0
     
+    private enum FadeType {
+        case fadeIn, fadeOut
+    }
+    
     
     let songImageScpt = """
     if application "iTunes" is running then
@@ -327,15 +331,21 @@ class MusicVC: NSViewController {
     
     func createBlurView()
     {
+        
         let satFilter = CIFilter(name: "CIColorControls")
         satFilter!.setDefaults()
         satFilter!.setValue(NSNumber(value: 2.0), forKey: "inputSaturation")
         
         let blurFilter = CIFilter(name: "CIGaussianBlur")
         blurFilter!.setDefaults()
-        blurFilter!.setValue(NSNumber(value: 7), forKey: "inputRadius")
-        
+        blurFilter!.setValue(NSNumber(value: 3), forKey: "inputRadius")
+
         songDetails.layer?.backgroundFilters = [satFilter!, blurFilter!]
+        let fadeAnim = CABasicAnimation(keyPath: "opacity")
+        fadeAnim.fromValue = 0
+        fadeAnim.toValue = 0.9
+        fadeAnim.duration = 0.2
+        songDetails.layer?.add(fadeAnim, forKey: "opacity")
         
     }
     
@@ -369,7 +379,7 @@ class MusicVC: NSViewController {
     }
     override func mouseEntered(with event: NSEvent) {
         
-        
+        fade(type: .fadeIn)
         if check == 1{
             createBlurView()
             songDetails.isHidden = false
@@ -405,6 +415,17 @@ class MusicVC: NSViewController {
             musicButton.isHidden = false
             songSearchField.isHidden = false
         }
+        
+    }
+    
+    private func fade(type: FadeType = .fadeOut) {
+        
+        let from = type == .fadeOut ? 1 : 0
+        let to = 1 - from
+        
+        
+        
+        
         
     }
     
