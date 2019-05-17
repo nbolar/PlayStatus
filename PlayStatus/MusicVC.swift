@@ -312,7 +312,10 @@ class MusicVC: NSViewController {
             brightness: 0.85,
             alpha: 0.3)
         
-        
+        songDetails.wantsLayer = true
+        songDetails.layer?.borderColor = .black
+        songDetails.layer?.borderWidth = 1
+        songDetails.layer?.cornerRadius = 8
     
         songSearchField.wantsLayer = true
         songSearchField.layer?.backgroundColor = CGColor.clear
@@ -422,15 +425,11 @@ class MusicVC: NSViewController {
         
         let from = type == .fadeOut ? 1 : 0
         let to = 1 - from
-        
-        
-        
-        
-        
+
     }
     
     override func mouseExited(with event: NSEvent) {
-        
+        fade()
         removeBlurView()
         playButton.isHidden = true
         pauseButton.isHidden = true

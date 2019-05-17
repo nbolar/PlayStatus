@@ -807,7 +807,7 @@
                                 <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="axesIndependently" image="wallpaper2" id="biU-rt-7Ij"/>
                             </imageView>
                             <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Ccf-7o-vis">
-                                <rect key="frame" x="-1" y="0.0" width="301" height="300"/>
+                                <rect key="frame" x="0.0" y="0.0" width="300" height="300"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" continuous="YES" refusesFirstResponder="YES" borderStyle="border" alignment="center" drawsBackground="YES" id="o7o-MF-evj">
                                     <font key="font" size="14" name="AvenirNext-Regular"/>
