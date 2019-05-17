@@ -842,7 +842,7 @@
                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Rab-o5-SYr">
                                 <rect key="frame" x="136" y="149" width="30" height="30"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <buttonCell key="cell" type="bevel" title="\" bezelStyle="rounded" image="play" imagePosition="overlaps" alignment="center" imageScaling="proportionallyDown" inset="2" id="ma3-M3-ZDB">
+                                <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="play" imagePosition="overlaps" alignment="center" imageScaling="proportionallyDown" inset="2" id="ma3-M3-ZDB">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                     <font key="font" metaFont="system"/>
                                 </buttonCell>
