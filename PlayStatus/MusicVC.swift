@@ -277,7 +277,8 @@ class MusicVC: NSViewController {
         self.view.layer?.cornerRadius = 8
         songDetails.wantsLayer = true
         songDetails.layer?.backgroundColor = CGColor.init(gray: 0.5, alpha: 0.5)
-//        songDetails.layer?.backgroundColor = .clear
+        songDetails.layer?.borderColor = .black
+        songDetails.layer?.borderWidth = 1
         songDetails.layer?.cornerRadius = 8
         songDetails.layer?.masksToBounds = true
         songDetails.layerUsesCoreImageFilters = true
@@ -306,16 +307,11 @@ class MusicVC: NSViewController {
         albumArt.addTrackingArea(area)
         
         
-        let fieldBackgroundColor = NSColor(
+        _ = NSColor(
             calibratedHue: 230/360,
             saturation: 0.35,
             brightness: 0.85,
             alpha: 0.3)
-        
-        songDetails.wantsLayer = true
-        songDetails.layer?.borderColor = .black
-        songDetails.layer?.borderWidth = 1
-        songDetails.layer?.cornerRadius = 8
     
         songSearchField.wantsLayer = true
         songSearchField.layer?.backgroundColor = CGColor.clear
