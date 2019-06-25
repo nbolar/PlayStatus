@@ -451,6 +451,11 @@ class MusicVC: NSViewController {
         checkStatus()
         trackDuration()
         
+//        let url1 = URL(string: "http://itunes.apple.com/lookup?id=360084272&entity=podcast")
+//        AF.request(url1!).responseJSON { (response1) in
+//            print(response1)
+//        }
+//        
         songName.stringValue = currentSongName ?? ""
         artistName.stringValue = currentSongArtist ?? ""
         if let scriptObject = NSAppleScript(source: songImageScpt) {

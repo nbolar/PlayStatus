@@ -21,7 +21,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastStatusTitle: String = ""
     let popoverView = NSPopover()
     lazy var aboutView: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "aboutWindowController") as? NSWindowController
-    
+    let invisibleWindow = NSWindow(contentRect: NSMakeRect(0, 0, 20, 1), styleMask: .borderless, backing: .buffered, defer: false)
+
     private enum Constants {
         static let statusItemIconLength: CGFloat = 30
         static let statusItemLength: CGFloat = 250
@@ -119,6 +120,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
         statusItem.button?.action = #selector(self.togglePopover(_:))
         _ = Timer.scheduledTimer(timeInterval: 2.0, target: self, selector: #selector(getSongName), userInfo: nil, repeats: true)
+        invisibleWindow.backgroundColor = .clear
+        invisibleWindow.alphaValue = 0
 
 
     }
@@ -216,12 +219,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     
     @objc func displayPopUp() {
+        
+        if let button = statusItem.button {
+            // find the coordinates of the statusBarItem in screen space
+            let buttonRect:NSRect = button.convert(button.bounds, to: nil)
+            let screenRect:NSRect = button.window!.convertToScreen(buttonRect)
+            
+            // calculate the bottom center position (10 is the half of the window width)
+            let posX = screenRect.origin.x + (screenRect.width / 2) - 10
+            let posY = screenRect.origin.y
+
+            // position and show the window
+            invisibleWindow.setFrameOrigin(NSPoint(x: posX, y: posY))
+            invisibleWindow.makeKeyAndOrderFront(self)
+            
+            // position and show the NSPopover
+//            popoverView.show(relativeTo: invisibleWindow.contentView!.frame, of: invisibleWindow.contentView!, preferredEdge: NSRectEdge.minY)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        
         let storyboard = NSStoryboard(name: "Main", bundle: nil)
         guard let vc =  storyboard.instantiateController(withIdentifier: "MusicVC") as? NSViewController else { return }
-        
         popoverView.contentViewController = vc
         popoverView.behavior = .transient
-        popoverView.show(relativeTo: statusItem.button!.bounds, of: statusItem.button!, preferredEdge: .minY)
+//        popoverView.show(relativeTo: statusItem.button!.bounds.offsetBy(dx: 0, dy: 0), of: statusItem.button!, preferredEdge: .minY)
+        popoverView.show(relativeTo: invisibleWindow.contentView!.frame, of: invisibleWindow.contentView!, preferredEdge: NSRectEdge.minY)
         
     }
     
