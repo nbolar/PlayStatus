@@ -22,6 +22,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let popoverView = NSPopover()
     lazy var aboutView: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "aboutWindowController") as? NSWindowController
     let invisibleWindow = NSWindow(contentRect: NSMakeRect(0, 0, 20, 1), styleMask: .borderless, backing: .buffered, defer: false)
+    private var musicController: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "musicViewController") as? NSWindowController
 
     private enum Constants {
         static let statusItemIconLength: CGFloat = 30
@@ -122,6 +123,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         _ = Timer.scheduledTimer(timeInterval: 2.0, target: self, selector: #selector(getSongName), userInfo: nil, repeats: true)
         invisibleWindow.backgroundColor = .clear
         invisibleWindow.alphaValue = 0
+        
+        let storyboard = NSStoryboard(name: "Main", bundle: nil)
+        guard let vc =  storyboard.instantiateController(withIdentifier: "MusicVC") as? NSViewController else { return }
+
+        musicController?.contentViewController = vc
+        musicController?.window?.isOpaque = false
+        musicController?.window?.backgroundColor = .clear
+        musicController?.window?.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)))
 
 
     }
@@ -130,9 +139,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         if event.type == NSEvent.EventType.leftMouseUp
         {
-            if popoverView.isShown
+            if musicController?.window?.isVisible == true
             {
-                popoverView.close()
+                musicController?.close()
             }else{
                 displayPopUp()
             }
@@ -219,31 +228,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     
     @objc func displayPopUp() {
-        
-        if let button = statusItem.button {
-            // find the coordinates of the statusBarItem in screen space
-            let buttonRect:NSRect = button.convert(button.bounds, to: nil)
-            let screenRect:NSRect = button.window!.convertToScreen(buttonRect)
-            
-            // calculate the bottom center position (10 is the half of the window width)
-            let posX = screenRect.origin.x + (screenRect.width / 2) - 10
-            let posY = screenRect.origin.y
 
-            // position and show the window
-            invisibleWindow.setFrameOrigin(NSPoint(x: posX, y: posY))
-            invisibleWindow.makeKeyAndOrderFront(self)
-            
-            // position and show the NSPopover
-//            popoverView.show(relativeTo: invisibleWindow.contentView!.frame, of: invisibleWindow.contentView!, preferredEdge: NSRectEdge.minY)
-            NSApp.activate(ignoringOtherApps: true)
-        }
-        
-        let storyboard = NSStoryboard(name: "Main", bundle: nil)
-        guard let vc =  storyboard.instantiateController(withIdentifier: "MusicVC") as? NSViewController else { return }
-        popoverView.contentViewController = vc
-        popoverView.behavior = .transient
-//        popoverView.show(relativeTo: statusItem.button!.bounds.offsetBy(dx: 0, dy: 0), of: statusItem.button!, preferredEdge: .minY)
-        popoverView.show(relativeTo: invisibleWindow.contentView!.frame, of: invisibleWindow.contentView!, preferredEdge: NSRectEdge.minY)
+        let rectWindow = statusItem.button?.window?.convertToScreen((statusItem.button?.frame)!)
+        let menubarHeight = rectWindow?.height ?? 22
+        let height = musicController?.window?.frame.height ?? 300
+        let xOffset = ((musicController?.window?.contentView?.frame.midX)! - (statusItem.button?.frame.midX)!)
+        let x = (rectWindow?.origin.x)! - xOffset
+        let y = (rectWindow?.origin.y)!
+        musicController?.window?.setFrameOrigin(NSPoint(x: x, y: y-height+menubarHeight))
+        musicController?.showWindow(self)
+
+        NotificationCenter.default.post(name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
         
     }
     

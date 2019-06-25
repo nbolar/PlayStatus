@@ -321,7 +321,7 @@ class MusicVC: NSViewController {
         songSearchField.textColor = NSColor.white
         songSearchField.drawsBackground = false
         
-        
+        NotificationCenter.default.addObserver(self, selector: #selector(loadAlbumArtwork), name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
         checkStatus()
         loadAlbumArtwork()
         _ = Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: #selector(changeSliderPosition), userInfo: nil, repeats: true)

@@ -681,6 +681,26 @@
             <point key="canvasLocation" x="75" y="0.0"/>
         </scene>
         <!--Window Controller-->
+        <scene sceneID="Riq-OV-rim">
+            <objects>
+                <windowController storyboardIdentifier="musicViewController" id="Wdb-s0-Wf6" sceneMemberID="viewController">
+                    <window key="window" title="MusicVC" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" frameAutosaveName="" animationBehavior="default" id="1NI-0T-jwp">
+                        <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
+                        <rect key="contentRect" x="294" y="362" width="480" height="270"/>
+                        <rect key="screenRect" x="0.0" y="0.0" width="1920" height="1177"/>
+                        <connections>
+                            <outlet property="delegate" destination="Wdb-s0-Wf6" id="J5A-EF-CVf"/>
+                        </connections>
+                    </window>
+                    <connections>
+                        <segue destination="sM2-A5-j4E" kind="relationship" relationship="window.shadowedContentViewController" id="j6t-WM-LBD"/>
+                    </connections>
+                </windowController>
+                <customObject id="Evx-Jq-jTO" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="-329" y="583"/>
+        </scene>
+        <!--Window Controller-->
         <scene sceneID="upF-vW-FWb">
             <objects>
                 <windowController storyboardIdentifier="aboutWindowController" id="Uh6-Mz-u3g" sceneMemberID="viewController">
