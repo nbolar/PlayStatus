@@ -861,7 +861,7 @@
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="axesIndependently" image="wallpaper2" id="biU-rt-7Ij"/>
                             </imageView>
-                            <visualEffectView fixedFrame="YES" blendingMode="withinWindow" material="titlebar" state="active" translatesAutoresizingMaskIntoConstraints="NO" id="ngz-Ue-FMn">
+                            <visualEffectView fixedFrame="YES" blendingMode="withinWindow" material="popover" state="active" translatesAutoresizingMaskIntoConstraints="NO" id="ngz-Ue-FMn">
                                 <rect key="frame" x="0.0" y="0.0" width="300" height="300"/>
                                 <autoresizingMask key="autoresizingMask"/>
                             </visualEffectView>
