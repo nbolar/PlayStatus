@@ -11,6 +11,7 @@
 		4E5079CC227D6EAE0002C5AF /* ScrollingStatusItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E5079CA227D6EAD0002C5AF /* ScrollingStatusItemView.swift */; };
 		4E5079CD227D6EAE0002C5AF /* ScrollingTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E5079CB227D6EAE0002C5AF /* ScrollingTextView.swift */; };
 		4E825237227C3A8C003B8296 /* AboutVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E825236227C3A8C003B8296 /* AboutVC.swift */; };
+		4E8D52B322C2C6EF0062E6DB /* SearchVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E8D52B222C2C6EF0062E6DB /* SearchVC.swift */; };
 		4E9F8E7B22719AB500B87B4A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9F8E7A22719AB500B87B4A /* AppDelegate.swift */; };
 		4E9F8E7F22719AB600B87B4A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E9F8E7E22719AB600B87B4A /* Assets.xcassets */; };
 		4E9F8E8222719AB600B87B4A /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4E9F8E8022719AB600B87B4A /* Main.storyboard */; };
@@ -24,6 +25,7 @@
 		4E5079CA227D6EAD0002C5AF /* ScrollingStatusItemView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ScrollingStatusItemView.swift; sourceTree = "<group>"; };
 		4E5079CB227D6EAE0002C5AF /* ScrollingTextView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ScrollingTextView.swift; path = ../../GitHub/SpotMenu/SpotMenu/CustomViews/ScrollingTextView.swift; sourceTree = "<group>"; };
 		4E825236227C3A8C003B8296 /* AboutVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutVC.swift; sourceTree = "<group>"; };
+		4E8D52B222C2C6EF0062E6DB /* SearchVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchVC.swift; sourceTree = "<group>"; };
 		4E9F8E7722719AB500B87B4A /* PlayStatus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PlayStatus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E9F8E7A22719AB500B87B4A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		4E9F8E7E22719AB600B87B4A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -82,6 +84,7 @@
 				4E9F8E7E22719AB600B87B4A /* Assets.xcassets */,
 				4E9F8E8022719AB600B87B4A /* Main.storyboard */,
 				4E26E404227848F5005A53EE /* CustomSliderCell.swift */,
+				4E8D52B222C2C6EF0062E6DB /* SearchVC.swift */,
 				4E825236227C3A8C003B8296 /* AboutVC.swift */,
 				4E9F8E8322719AB600B87B4A /* Info.plist */,
 				4E9F8E8422719AB600B87B4A /* PlayStatus.entitlements */,
@@ -226,6 +229,7 @@
 				4E26E405227848F5005A53EE /* CustomSliderCell.swift in Sources */,
 				4E5079CC227D6EAE0002C5AF /* ScrollingStatusItemView.swift in Sources */,
 				4E9F8E8B2271EECF00B87B4A /* MusicVC.swift in Sources */,
+				4E8D52B322C2C6EF0062E6DB /* SearchVC.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

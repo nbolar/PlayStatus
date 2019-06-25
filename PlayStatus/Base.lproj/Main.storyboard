@@ -721,6 +721,41 @@
             </objects>
             <point key="canvasLocation" x="-280" y="976"/>
         </scene>
+        <!--SearchVC-->
+        <scene sceneID="lGw-lM-5Nz">
+            <objects>
+                <viewController title="SearchVC" storyboardIdentifier="SearchVC" id="79J-r4-55O" customClass="SearchVC" customModule="PlayStatus" customModuleProvider="target" sceneMemberID="viewController">
+                    <view key="view" id="mSI-99-gHe">
+                        <rect key="frame" x="0.0" y="0.0" width="300" height="20"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                        <subviews>
+                            <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="M7M-hu-IQJ">
+                                <rect key="frame" x="0.0" y="0.0" width="304" height="20"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                                <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" refusesFirstResponder="YES" placeholderString="Type to play song from your iTunes library" id="QCQ-NO-9Wq">
+                                    <font key="font" size="13" name="AvenirNext-Regular"/>
+                                    <color key="textColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                                    <color key="backgroundColor" red="0.0" green="0.0" blue="0.0" alpha="0.10000000000000001" colorSpace="custom" customColorSpace="displayP3"/>
+                                </textFieldCell>
+                                <userDefinedRuntimeAttributes>
+                                    <userDefinedRuntimeAttribute type="color" keyPath="placeHolderColor">
+                                        <color key="value" white="1" alpha="0.59999999999999998" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                                    </userDefinedRuntimeAttribute>
+                                </userDefinedRuntimeAttributes>
+                                <connections>
+                                    <action selector="searchSong:" target="79J-r4-55O" id="buf-ct-QsA"/>
+                                </connections>
+                            </textField>
+                        </subviews>
+                    </view>
+                    <connections>
+                        <outlet property="searchTextField" destination="M7M-hu-IQJ" id="mpY-4P-P3x"/>
+                    </connections>
+                </viewController>
+                <customObject id="hNH-CN-wHL" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="495" y="706"/>
+        </scene>
         <!--About View Controller-->
         <scene sceneID="zQ6-Vc-S7K">
             <objects>
@@ -826,6 +861,10 @@
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="axesIndependently" image="wallpaper2" id="biU-rt-7Ij"/>
                             </imageView>
+                            <visualEffectView fixedFrame="YES" blendingMode="withinWindow" material="titlebar" state="active" translatesAutoresizingMaskIntoConstraints="NO" id="ngz-Ue-FMn">
+                                <rect key="frame" x="0.0" y="0.0" width="300" height="300"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                            </visualEffectView>
                             <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Ccf-7o-vis">
                                 <rect key="frame" x="0.0" y="0.0" width="300" height="300"/>
                                 <autoresizingMask key="autoresizingMask"/>
@@ -995,28 +1034,28 @@
                                     <action selector="quitButtonClicked:" target="sM2-A5-j4E" id="Qmb-GI-i4N"/>
                                 </connections>
                             </button>
-                            <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="fvP-OO-lLn">
-                                <rect key="frame" x="40" y="278" width="222" height="18"/>
-                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" placeholderString="Type to play song from iTunes library" id="WXZ-8r-hfQ">
-                                    <font key="font" size="13" name="AvenirNext-Regular"/>
-                                    <color key="textColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="1" colorSpace="custom" customColorSpace="displayP3"/>
-                                    <color key="backgroundColor" red="0.59607843140000005" green="0.59607843140000005" blue="0.61568627450000002" alpha="0.10000000000000001" colorSpace="custom" customColorSpace="sRGB"/>
-                                </textFieldCell>
-                                <userDefinedRuntimeAttributes>
-                                    <userDefinedRuntimeAttribute type="color" keyPath="placeHolderColor">
-                                        <color key="value" red="0.9951923077" green="0.9903846154" blue="1" alpha="0.70042273119999998" colorSpace="custom" customColorSpace="displayP3"/>
-                                    </userDefinedRuntimeAttribute>
-                                </userDefinedRuntimeAttributes>
+                            <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="ypR-X6-aPp">
+                                <rect key="frame" x="280" y="0.0" width="22" height="22"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="22" id="qeu-zX-tZ6"/>
+                                    <constraint firstAttribute="height" constant="22" id="zLT-9I-VHw"/>
+                                </constraints>
+                                <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="NSTouchBarSearchTemplate" imagePosition="overlaps" alignment="center" imageScaling="proportionallyDown" inset="2" id="FNG-B8-MvM">
+                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <color key="contentTintColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                 <connections>
-                                    <action selector="songSearchClicked:" target="sM2-A5-j4E" id="MB4-vo-th2"/>
+                                    <segue destination="79J-r4-55O" kind="popover" popoverAnchorView="ypR-X6-aPp" popoverBehavior="t" preferredEdge="maxY" id="OyZ-Dq-AL3"/>
                                 </connections>
-                            </textField>
+                            </button>
                         </subviews>
                         <constraints>
                             <constraint firstAttribute="trailing" secondItem="itc-zp-nhz" secondAttribute="trailing" constant="3" id="0Ph-A9-flj"/>
                             <constraint firstItem="wCa-ZZ-XgA" firstAttribute="top" secondItem="4c5-fu-f1J" secondAttribute="top" constant="6" id="1O2-yk-bqr"/>
                             <constraint firstItem="itc-zp-nhz" firstAttribute="top" secondItem="4c5-fu-f1J" secondAttribute="top" constant="3" id="8lK-dP-K3U"/>
+                            <constraint firstAttribute="bottom" secondItem="ypR-X6-aPp" secondAttribute="bottom" id="Lf1-0R-uQS"/>
+                            <constraint firstAttribute="trailing" secondItem="ypR-X6-aPp" secondAttribute="trailing" constant="-2" id="RW4-dh-pd6"/>
                             <constraint firstItem="wCa-ZZ-XgA" firstAttribute="leading" secondItem="4c5-fu-f1J" secondAttribute="leading" constant="6" id="hRg-Yv-yfi"/>
                         </constraints>
                     </view>
@@ -1031,12 +1070,13 @@
                         <outlet property="playButton" destination="Rab-o5-SYr" id="9oG-Jw-fbc"/>
                         <outlet property="prevButton" destination="2QB-XB-xo5" id="FaH-xp-xVr"/>
                         <outlet property="quitButton" destination="itc-zp-nhz" id="mGx-cu-2IG"/>
+                        <outlet property="searchButton" destination="ypR-X6-aPp" id="BBc-8W-MrS"/>
                         <outlet property="skipAhead" destination="mu7-Q1-ai1" id="hzi-el-x6D"/>
                         <outlet property="skipBack" destination="EOz-7s-baV" id="lj1-nb-ek8"/>
                         <outlet property="songDetails" destination="Ccf-7o-vis" id="p1F-oQ-Ig3"/>
                         <outlet property="songName" destination="hgc-gH-kkc" id="Yg8-C7-yXv"/>
-                        <outlet property="songSearchField" destination="fvP-OO-lLn" id="xxk-rx-Qwi"/>
                         <outlet property="startTime" destination="Ql6-Ht-BvX" id="OH7-nH-KYG"/>
+                        <outlet property="visualEffectView" destination="ngz-Ue-FMn" id="Gdy-mn-7ad"/>
                     </connections>
                 </viewController>
                 <customObject id="q9Y-sG-mIO" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
@@ -1047,6 +1087,7 @@
     <resources>
         <image name="NSApplicationIcon" width="32" height="32"/>
         <image name="NSStopProgressFreestandingTemplate" width="14" height="14"/>
+        <image name="NSTouchBarSearchTemplate" width="19" height="30"/>
         <image name="NSTouchBarSkipAhead15SecondsTemplate" width="17" height="30"/>
         <image name="NSTouchBarSkipBack15SecondsTemplate" width="17" height="30"/>
         <image name="forward" width="2679" height="1253"/>

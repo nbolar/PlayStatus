@@ -14,7 +14,6 @@ var currentSongArtist: String!
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
 
-//    let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     var songName: String!
     var artistName: String!
     var out: NSAppleEventDescriptor?
@@ -114,9 +113,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
-//        statusItem.length = 250
-//        statusItem.button?.image = NSImage(named: "icon_20")
-//        statusItem.button?.imagePosition = .imageLeft
+
         loadSubviews()
         statusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
         statusItem.button?.action = #selector(self.togglePopover(_:))
@@ -126,7 +123,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         let storyboard = NSStoryboard(name: "Main", bundle: nil)
         guard let vc =  storyboard.instantiateController(withIdentifier: "MusicVC") as? NSViewController else { return }
-
         musicController?.contentViewController = vc
         musicController?.window?.isOpaque = false
         musicController?.window?.backgroundColor = .clear
@@ -188,40 +184,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             var errorDict: NSDictionary? = nil
             out = scriptObject.executeAndReturnError(&errorDict)
             songName = out?.stringValue ?? ""
-            
+            currentSongName = songName
 
         }
         if let scriptObject = NSAppleScript(source: currentTrackArtistScpt) {
             var errorDict: NSDictionary? = nil
             out = scriptObject.executeAndReturnError(&errorDict)
             artistName = out?.stringValue ?? ""
-
+            currentSongArtist = artistName
         }
         
         let statutsItemTitle = "\(artistName!) - \(songName!)"
         
-        if lastStatusTitle != statutsItemTitle {
+        if lastStatusTitle != statutsItemTitle && statutsItemTitle.count != 0 {
             updateTitle(newTitle: statutsItemTitle)
+
         }
         
-        currentSongName = songName
-        currentSongArtist = artistName
-        
-        
-//        if songName != ""
-//        {
-
-////            scrollingStatusItemView.text = "\(artistName!) - \(songName!)"
-//
-//            updateTitle(newTitle: "\(artistName!) - \(songName!)")
-//
-//
-//
-//        }else
-//        {
-//            statusItem.button?.title = ""
-////            updateTitle(newTitle: "")
-//        }
         
     }
     
@@ -261,6 +240,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         lastStatusTitle = newTitle
         scrollingStatusItemView.icon = NSImage(named: "icon_20")
         scrollingStatusItemView.text = newTitle
+        NotificationCenter.default.post(name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
+        
 
         
         if newTitle.count == 0 && statusItem.button != nil {

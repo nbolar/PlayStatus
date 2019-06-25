@@ -28,10 +28,13 @@ class MusicVC: NSViewController {
     @IBOutlet weak var artistName: NSTextField!
     @IBOutlet weak var songName: NSTextField!
     @IBOutlet weak var musicButton: NSButton!
-    @IBOutlet weak var songSearchField: NSTextField!
+    @IBOutlet weak var searchButton: NSButton!
+    @IBOutlet weak var visualEffectView: NSVisualEffectView!
     
     var out: NSAppleEventDescriptor?
     var check = 0
+    var songNameString = ""
+    var artistNameString = ""
     
     private enum FadeType {
         case fadeIn, fadeOut
@@ -276,17 +279,12 @@ class MusicVC: NSViewController {
         self.view.wantsLayer = true
         self.view.layer?.cornerRadius = 8
         songDetails.wantsLayer = true
-        songDetails.layer?.backgroundColor = CGColor.init(gray: 0.5, alpha: 0.5)
         songDetails.layer?.borderColor = .black
         songDetails.layer?.borderWidth = 1
         songDetails.layer?.cornerRadius = 8
         songDetails.layer?.masksToBounds = true
         songDetails.layerUsesCoreImageFilters = true
         songDetails.layer?.needsDisplayOnBoundsChange = true
-        
-        
-        
-        
         
         playButton.isHidden = true
         pauseButton.isHidden = true
@@ -302,7 +300,8 @@ class MusicVC: NSViewController {
         songName.isHidden = true
         artistName.isHidden = true
         musicButton.isHidden = true
-        songSearchField.isHidden = true
+        searchButton.isHidden = true
+        
         let area = NSTrackingArea.init(rect: albumArt.bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
         albumArt.addTrackingArea(area)
         
@@ -312,48 +311,16 @@ class MusicVC: NSViewController {
             saturation: 0.35,
             brightness: 0.85,
             alpha: 0.3)
-    
-        songSearchField.wantsLayer = true
-        songSearchField.layer?.backgroundColor = CGColor.clear
-        songSearchField.layer?.borderColor = CGColor.white
-        songSearchField.layer?.borderWidth = 1
-        songSearchField.layer?.cornerRadius = 5
-        songSearchField.textColor = NSColor.white
-        songSearchField.drawsBackground = false
         
         NotificationCenter.default.addObserver(self, selector: #selector(loadAlbumArtwork), name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
         checkStatus()
         loadAlbumArtwork()
+        fade()
         _ = Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: #selector(changeSliderPosition), userInfo: nil, repeats: true)
+    
         
     }
     
-    func createBlurView()
-    {
-        
-        let satFilter = CIFilter(name: "CIColorControls")
-        satFilter!.setDefaults()
-        satFilter!.setValue(NSNumber(value: 2.0), forKey: "inputSaturation")
-        
-        let blurFilter = CIFilter(name: "CIGaussianBlur")
-        blurFilter!.setDefaults()
-        blurFilter!.setValue(NSNumber(value: 3), forKey: "inputRadius")
-
-        songDetails.layer?.backgroundFilters = [satFilter!, blurFilter!]
-        let fadeAnim = CABasicAnimation(keyPath: "opacity")
-        fadeAnim.fromValue = 0
-        fadeAnim.toValue = 0.9
-        fadeAnim.duration = 0.2
-        songDetails.layer?.add(fadeAnim, forKey: "opacity")
-        
-    }
-    
-    func removeBlurView()
-    {
-        
-        songDetails.layer?.backgroundFilters = .none
-        
-    }
     
     @IBAction func quitButtonClicked(_ sender: Any) {
         NSApp.terminate(self)
@@ -380,7 +347,6 @@ class MusicVC: NSViewController {
         
         fade(type: .fadeIn)
         if check == 1{
-            createBlurView()
             songDetails.isHidden = false
             pauseButton.isHidden = false
             playButton.isHidden = true
@@ -395,9 +361,8 @@ class MusicVC: NSViewController {
             songName.isHidden = false
             artistName.isHidden = false
             musicButton.isHidden = false
-            songSearchField.isHidden = false
+            searchButton.isHidden = false
         }else if check == 2{
-            createBlurView()
             playButton.isHidden = false
             pauseButton.isHidden = true
             songDetails.isHidden = false
@@ -412,21 +377,28 @@ class MusicVC: NSViewController {
             songName.isHidden = false
             artistName.isHidden = false
             musicButton.isHidden = false
-            songSearchField.isHidden = false
+            searchButton.isHidden = false
         }
         
     }
     
     private func fade(type: FadeType = .fadeOut) {
         
-        let from = type == .fadeOut ? 1 : 0
+        let from = type == .fadeOut ? 1 : 0.2
         let to = 1 - from
+        
+        let fadeAnim = CABasicAnimation(keyPath: "opacity")
+        fadeAnim.fromValue = from
+        fadeAnim.toValue = to
+        fadeAnim.duration = 0.2
+        visualEffectView.layer?.add(fadeAnim, forKey: "opacity")
+        
+        visualEffectView.alphaValue = CGFloat(to)
 
     }
     
     override func mouseExited(with event: NSEvent) {
         fade()
-        removeBlurView()
         playButton.isHidden = true
         pauseButton.isHidden = true
         songDetails.isHidden = true
@@ -441,21 +413,14 @@ class MusicVC: NSViewController {
         songName.isHidden = true
         artistName.isHidden = true
         musicButton.isHidden = true
-        songSearchField.isHidden = true
+        searchButton.isHidden = true
     }
     
     @objc func loadAlbumArtwork()
     {
         var out: NSAppleEventDescriptor?
-//        let appDelegate = NSApplication.shared.delegate as! AppDelegate
         checkStatus()
         trackDuration()
-        
-//        let url1 = URL(string: "http://itunes.apple.com/lookup?id=360084272&entity=podcast")
-//        AF.request(url1!).responseJSON { (response1) in
-//            print(response1)
-//        }
-//        
         songName.stringValue = currentSongName ?? ""
         artistName.stringValue = currentSongArtist ?? ""
         if let scriptObject = NSAppleScript(source: songImageScpt) {
@@ -690,27 +655,6 @@ class MusicVC: NSViewController {
             }
         }
         
-        
-    }
-    
-    @IBAction func songSearchClicked(_ sender: NSTextField) {
-        let currentDurationScpt = """
-        tell application "iTunes"
-            set search_results to (search library playlist 1 for "\(songSearchField.stringValue)")
-            repeat with t in search_results
-                play t
-            end repeat
-        end tell
-        """
-        
-        
-        if let scriptObject = NSAppleScript(source: currentDurationScpt) {
-            scriptObject.executeAndReturnError(nil)
-        }
-        let appDelegate = NSApplication.shared.delegate as! AppDelegate
-        appDelegate.getSongName()
-        loadAlbumArtwork()
-        songSearchField.stringValue = ""
         
     }
     
