@@ -87,15 +87,14 @@ class MusicVC: NSViewController {
         return thePath
     on checkSpotify()
         if application "Spotify" is running then
-                tell application "Spotify"
-                    if player state is playing then
-                        play (previous track)
-                    else
-                        return ""
-                    end if
-                end tell
-            else
-                return ""
+            tell application "Spotify"
+                if player state is playing then
+                    return artwork url of current track
+                else
+                    return ""
+                end if
+            end tell
+        end if
     end checkSpotify
     """
     
@@ -165,7 +164,6 @@ class MusicVC: NSViewController {
                 return ""
             end if
         end tell
-        checkSpotify()
     else if application "Spotify" is running then
         tell application "Spotify"
             if player state is playing then
@@ -177,18 +175,6 @@ class MusicVC: NSViewController {
     else
         return ""
     end if
-    on checkSpotify()
-        if application "Spotify" is running then
-                tell application "Spotify"
-                    if player state is playing then
-                        play (previous track)
-                    else
-                        return ""
-                    end if
-                end tell
-            else
-                return ""
-    end checkSpotify
     """
     let playPauseTrackScpt = """
     if application "iTunes" is running then
@@ -215,13 +201,12 @@ class MusicVC: NSViewController {
         tell application "iTunes" to set shuffle enabled to true
         tell application "iTunes" to play
     end if
+
     on checkSpotify()
         if application "Spotify" is running then
             tell application "Spotify"
                 playpause
             end tell
-        else
-            return ""
         end if
     end checkSpotify
     """
