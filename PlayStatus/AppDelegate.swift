@@ -211,7 +211,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let rectWindow = statusItem.button?.window?.convertToScreen((statusItem.button?.frame)!)
         let menubarHeight = rectWindow?.height ?? 22
         let height = musicController?.window?.frame.height ?? 300
-        let xOffset = ((musicController?.window?.contentView?.frame.midX)! - (statusItem.button?.frame.midX)!)
+        let xOffset = ((musicController?.window?.contentView?.frame.minX)! - (statusItem.button?.frame.minX)!)
         let x = (rectWindow?.origin.x)! - xOffset
         let y = (rectWindow?.origin.y)!
         musicController?.window?.setFrameOrigin(NSPoint(x: x, y: y-height+menubarHeight))

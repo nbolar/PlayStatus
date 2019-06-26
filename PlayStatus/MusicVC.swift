@@ -73,6 +73,17 @@ class MusicVC: NSViewController {
             end if
         end tell
     end if
+    on checkSpotify()
+        if application "Spotify" is running then
+            tell application "Spotify"
+                if player state is playing then
+                    return artwork url of current track
+                else
+                    return ""
+                end if
+            end tell
+        end if
+    end checkSpotify
         on convertPathToPOSIXString(thePath)
             tell application "System Events"
                 try
@@ -85,17 +96,6 @@ class MusicVC: NSViewController {
         end convertPathToPOSIXString
         set thePath to convertPathToPOSIXString(fileName)
         return thePath
-    on checkSpotify()
-        if application "Spotify" is running then
-            tell application "Spotify"
-                if player state is playing then
-                    return artwork url of current track
-                else
-                    return ""
-                end if
-            end tell
-        end if
-    end checkSpotify
     """
     
     
@@ -153,6 +153,7 @@ class MusicVC: NSViewController {
                 end tell
             else
                 return ""
+        end if
     end checkSpotify
     """
     let prevTrackScpt = """
@@ -164,6 +165,7 @@ class MusicVC: NSViewController {
                 return ""
             end if
         end tell
+        checkSpotify()
     else if application "Spotify" is running then
         tell application "Spotify"
             if player state is playing then
@@ -175,6 +177,19 @@ class MusicVC: NSViewController {
     else
         return ""
     end if
+    on checkSpotify()
+        if application "Spotify" is running then
+                tell application "Spotify"
+                    if player state is playing then
+                        play (previous track)
+                    else
+                        return ""
+                    end if
+                end tell
+            else
+                return ""
+        end if
+    end checkSpotify
     """
     let playPauseTrackScpt = """
     if application "iTunes" is running then
@@ -220,6 +235,7 @@ class MusicVC: NSViewController {
                 return "not playing"
             end if
         end tell
+        checkSpotify()
     else if application "Spotify" is running then
         tell application "Spotify"
             if player state is playing then
@@ -231,6 +247,17 @@ class MusicVC: NSViewController {
     else
         return "not playing"
     end if
+    on checkSpotify()
+        if application "Spotify" is running then
+            tell application "Spotify"
+                 if player state is playing then
+                    return "playing"
+                else
+                    return "not playing"
+                end if
+            end tell
+        end if
+    end checkSpotify
     """
     
     
@@ -243,6 +270,7 @@ class MusicVC: NSViewController {
                 return ""
             end if
         end tell
+        checkSpotify()
     else if application "Spotify" is running then
         tell application "Spotify"
             if player state is playing then
@@ -254,6 +282,17 @@ class MusicVC: NSViewController {
     else
         return ""
     end if
+    on checkSpotify()
+        if application "Spotify" is running then
+            tell application "Spotify"
+                 if player state is playing then
+                    return "Spotify"
+                else
+                    return ""
+                end if
+            end tell
+        end if
+    end checkSpotify
     """
     
     let skipAheadScpt = """
@@ -265,6 +304,7 @@ class MusicVC: NSViewController {
                 return ""
             end if
         end tell
+        checkSpotify()
     else if application "Spotify" is running then
         tell application "Spotify"
             if player state is playing then
@@ -276,6 +316,17 @@ class MusicVC: NSViewController {
     else
         return ""
     end if
+    on checkSpotify()
+        if application "Spotify" is running then
+            tell application "Spotify"
+                 if player state is playing then
+                    set player position to (player position + 15)
+                else
+                    return ""
+                end if
+            end tell
+        end if
+    end checkSpotify
     """
     
     let skipBackScpt = """
@@ -287,6 +338,7 @@ class MusicVC: NSViewController {
                 return ""
             end if
         end tell
+        checkSpotify()
     else if application "Spotify" is running then
         tell application "Spotify"
             if player state is playing then
@@ -298,6 +350,17 @@ class MusicVC: NSViewController {
     else
         return ""
     end if
+    on checkSpotify()
+        if application "Spotify" is running then
+            tell application "Spotify"
+                 if player state is playing then
+                    set player position to (player position - 15)
+                else
+                    return ""
+                end if
+            end tell
+        end if
+    end checkSpotify
     """
     
     
