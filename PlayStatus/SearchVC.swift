@@ -16,22 +16,22 @@ class SearchVC: NSViewController {
         // Do view setup here.
 
         view.wantsLayer = true
-        view.layer?.cornerRadius = 8
+        view.layer?.cornerRadius = 5
         view.layer?.backgroundColor = NSColor.clear.cgColor
-        view.layer?.borderColor = .black
+        view.layer?.borderColor = NSColor.controlDarkShadowColor.cgColor
         view.layer?.borderWidth = 1
         searchTextField.wantsLayer = true
-        searchTextField.layer?.backgroundColor = CGColor.clear
-        searchTextField.layer?.borderWidth = 1
-        searchTextField.layer?.borderColor = .black
+        searchTextField.layer?.backgroundColor = NSColor.clear.cgColor
         searchTextField.textColor = NSColor.white
         searchTextField.drawsBackground = false
-        searchTextField.resignFirstResponder()
+        
         
     }
     
     override func viewDidAppear() {
+        searchTextField.refusesFirstResponder = true
         searchTextField.placeholderString = "Search to play a song from your iTunes library"
+        searchTextField.placeHolderColor = .lightGray
     }
 
 
