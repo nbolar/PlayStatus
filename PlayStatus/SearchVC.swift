@@ -17,8 +17,12 @@ class SearchVC: NSViewController {
         view.wantsLayer = true
         view.layer?.cornerRadius = 8
         view.layer?.backgroundColor = NSColor.clear.cgColor
+        view.layer?.borderColor = .black
+        view.layer?.borderWidth = 1
         searchTextField.wantsLayer = true
         searchTextField.layer?.backgroundColor = CGColor.clear
+        searchTextField.layer?.borderWidth = 1
+        searchTextField.layer?.borderColor = .black
         searchTextField.textColor = NSColor.white
         searchTextField.drawsBackground = false
     }
