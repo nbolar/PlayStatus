@@ -435,6 +435,7 @@ class MusicVC: NSViewController {
     }
     
     @objc func displayPopUp() {
+        
         searchView?.window?.styleMask = .titled
         searchView?.window?.setFrameOrigin(NSPoint(x: xWidth, y: yHeight))
         searchView?.showWindow(self)
