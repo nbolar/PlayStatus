@@ -721,12 +721,32 @@
             </objects>
             <point key="canvasLocation" x="-280" y="976"/>
         </scene>
+        <!--Window Controller-->
+        <scene sceneID="uZF-ch-viN">
+            <objects>
+                <windowController storyboardIdentifier="searchWindowController" id="gxA-22-GOF" sceneMemberID="viewController">
+                    <window key="window" title="Window" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" animationBehavior="documentWindow" frameAutosaveName="" id="cMP-EN-dkw">
+                        <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
+                        <rect key="contentRect" x="294" y="362" width="480" height="270"/>
+                        <rect key="screenRect" x="0.0" y="0.0" width="1920" height="1177"/>
+                        <connections>
+                            <outlet property="delegate" destination="gxA-22-GOF" id="bbX-8r-xa3"/>
+                        </connections>
+                    </window>
+                    <connections>
+                        <segue destination="79J-r4-55O" kind="relationship" relationship="window.shadowedContentViewController" id="AMB-Rr-VHI"/>
+                    </connections>
+                </windowController>
+                <customObject id="Ub4-Xi-o86" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="690" y="481"/>
+        </scene>
         <!--SearchVC-->
         <scene sceneID="lGw-lM-5Nz">
             <objects>
                 <viewController title="SearchVC" storyboardIdentifier="SearchVC" id="79J-r4-55O" customClass="SearchVC" customModule="PlayStatus" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" id="mSI-99-gHe">
-                        <rect key="frame" x="0.0" y="0.0" width="300" height="20"/>
+                        <rect key="frame" x="0.0" y="0.0" width="300" height="25"/>
                         <autoresizingMask key="autoresizingMask"/>
                         <subviews>
                             <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="M7M-hu-IQJ">
@@ -1046,7 +1066,7 @@
                                 </buttonCell>
                                 <color key="contentTintColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                 <connections>
-                                    <segue destination="79J-r4-55O" kind="popover" popoverAnchorView="ypR-X6-aPp" popoverBehavior="t" preferredEdge="maxY" id="OyZ-Dq-AL3"/>
+                                    <action selector="searchButtonClicked:" target="sM2-A5-j4E" id="ApE-BT-pYi"/>
                                 </connections>
                             </button>
                         </subviews>

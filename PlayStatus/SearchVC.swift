@@ -15,12 +15,15 @@ class SearchVC: NSViewController {
         super.viewDidLoad()
         // Do view setup here.
         view.wantsLayer = true
+        view.layer?.cornerRadius = 8
         view.layer?.backgroundColor = NSColor.clear.cgColor
         searchTextField.wantsLayer = true
         searchTextField.layer?.backgroundColor = CGColor.clear
         searchTextField.textColor = NSColor.white
         searchTextField.drawsBackground = false
     }
+
+
     
     @IBAction func searchSong(_ sender: Any) {
         let currentDurationScpt = """

@@ -30,7 +30,7 @@ class MusicVC: NSViewController {
     @IBOutlet weak var musicButton: NSButton!
     @IBOutlet weak var searchButton: NSButton!
     @IBOutlet weak var visualEffectView: NSVisualEffectView!
-    
+    lazy var searchView: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "searchWindowController") as? NSWindowController
     var out: NSAppleEventDescriptor?
     var check = 0
     var songNameString = ""
@@ -409,6 +409,7 @@ class MusicVC: NSViewController {
             alpha: 0.3)
         
         NotificationCenter.default.addObserver(self, selector: #selector(loadAlbumArtwork), name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(close), name: NSNotification.Name(rawValue: "close"), object: nil)
         checkStatus()
         loadAlbumArtwork()
         fade()
@@ -416,7 +417,28 @@ class MusicVC: NSViewController {
     
         
     }
+    @objc func close(){
+        if searchView?.window?.isVisible == true
+        {
+            searchView?.close()
+        }
+    }
     
+    @IBAction func searchButtonClicked(_ sender: Any) {
+        if searchView?.window?.isVisible == true
+        {
+            searchView?.close()
+        }else{
+            
+            displayPopUp()
+        }
+    }
+    
+    @objc func displayPopUp() {
+        searchView?.window?.styleMask = .titled
+        searchView?.window?.setFrameOrigin(NSPoint(x: xWidth, y: yHeight))
+        searchView?.showWindow(self)
+    }
     
     @IBAction func quitButtonClicked(_ sender: Any) {
         NSApp.terminate(self)
@@ -486,7 +508,7 @@ class MusicVC: NSViewController {
         let fadeAnim = CABasicAnimation(keyPath: "opacity")
         fadeAnim.fromValue = from
         fadeAnim.toValue = to
-        fadeAnim.duration = 0.2
+        fadeAnim.duration = 0.5
         visualEffectView.layer?.add(fadeAnim, forKey: "opacity")
         
         visualEffectView.alphaValue = CGFloat(to)

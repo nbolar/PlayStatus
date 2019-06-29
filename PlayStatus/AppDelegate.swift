@@ -10,6 +10,8 @@ import Cocoa
 
 var currentSongName: String!
 var currentSongArtist: String!
+var yHeight : CGFloat!
+var xWidth : CGFloat!
 
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -138,6 +140,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         {
             if musicController?.window?.isVisible == true
             {
+                NotificationCenter.default.post(name: NSNotification.Name(rawValue: "close"), object: nil)
                 musicController?.close()
             }else{
                 displayPopUp()
@@ -214,8 +217,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let height = musicController?.window?.frame.height ?? 300
         let xOffset = ((musicController?.window?.contentView?.frame.midX)! - (statusItem.button?.frame.midX)!)
         let x = (rectWindow?.origin.x)! - xOffset
+        xWidth = x
         let y = (rectWindow?.origin.y)!
-        musicController?.window?.setFrameOrigin(NSPoint(x: x, y: y-height+menubarHeight))
+        yHeight = y-height+menubarHeight - 42
+        musicController?.window?.setFrameOrigin(NSPoint(x: x, y: y+menubarHeight-height))
         musicController?.showWindow(self)
 
         NotificationCenter.default.post(name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
