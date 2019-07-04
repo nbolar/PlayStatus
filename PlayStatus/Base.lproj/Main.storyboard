@@ -897,7 +897,7 @@
                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="2QB-XB-xo5">
                                 <rect key="frame" x="21" y="144" width="40" height="40"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="previous" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="Qd5-xg-hKR">
+                                <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="rewind" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="Qd5-xg-hKR">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                     <font key="font" metaFont="system"/>
                                 </buttonCell>
@@ -909,7 +909,7 @@
                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Boe-QH-ZYq">
                                 <rect key="frame" x="240" y="144" width="40" height="40"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="forward" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="pGA-Di-7In">
+                                <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="forward1" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="pGA-Di-7In">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                     <font key="font" metaFont="system"/>
                                 </buttonCell>
@@ -919,7 +919,7 @@
                                 </connections>
                             </button>
                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Rab-o5-SYr">
-                                <rect key="frame" x="136" y="149" width="30" height="30"/>
+                                <rect key="frame" x="131" y="144" width="40" height="40"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="play" imagePosition="overlaps" alignment="center" imageScaling="proportionallyDown" inset="2" id="ma3-M3-ZDB">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -930,20 +930,8 @@
                                     <action selector="playPauseButtonClicked:" target="sM2-A5-j4E" id="uwU-Mv-9lb"/>
                                 </connections>
                             </button>
-                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="HjA-sr-knX">
-                                <rect key="frame" x="135" y="144" width="30" height="40"/>
-                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="pause" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="Ctf-af-aXf">
-                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
-                                    <font key="font" metaFont="system"/>
-                                </buttonCell>
-                                <color key="contentTintColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="0.8013698629712328" colorSpace="custom" customColorSpace="displayP3"/>
-                                <connections>
-                                    <action selector="playPauseButtonClicked:" target="sM2-A5-j4E" id="LMb-iu-AbG"/>
-                                </connections>
-                            </button>
                             <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="EOz-7s-baV">
-                                <rect key="frame" x="69" y="140" width="48" height="48"/>
+                                <rect key="frame" x="75" y="142" width="45" height="45"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="NSTouchBarSkipBack15SecondsTemplate" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="p15-Df-Izq">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -955,7 +943,7 @@
                                 </connections>
                             </button>
                             <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mu7-Q1-ai1">
-                                <rect key="frame" x="185" y="140" width="48" height="48"/>
+                                <rect key="frame" x="186" y="142" width="45" height="45"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="NSTouchBarSkipAhead15SecondsTemplate" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="R26-WT-U56">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -1069,6 +1057,18 @@
                                     <action selector="searchButtonClicked:" target="sM2-A5-j4E" id="ApE-BT-pYi"/>
                                 </connections>
                             </button>
+                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="HjA-sr-knX">
+                                <rect key="frame" x="131" y="144" width="40" height="40"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="pause" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="Ctf-af-aXf">
+                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <color key="contentTintColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="0.8013698629712328" colorSpace="custom" customColorSpace="displayP3"/>
+                                <connections>
+                                    <action selector="playPauseButtonClicked:" target="sM2-A5-j4E" id="LMb-iu-AbG"/>
+                                </connections>
+                            </button>
                         </subviews>
                         <constraints>
                             <constraint firstAttribute="trailing" secondItem="itc-zp-nhz" secondAttribute="trailing" constant="3" id="0Ph-A9-flj"/>
@@ -1110,11 +1110,11 @@
         <image name="NSTouchBarSearchTemplate" width="19" height="30"/>
         <image name="NSTouchBarSkipAhead15SecondsTemplate" width="17" height="30"/>
         <image name="NSTouchBarSkipBack15SecondsTemplate" width="17" height="30"/>
-        <image name="forward" width="2679" height="1253"/>
+        <image name="forward1" width="60" height="60"/>
         <image name="music" width="48" height="48"/>
-        <image name="pause" width="1329" height="1553"/>
-        <image name="play" width="1247" height="1246"/>
-        <image name="previous" width="2683" height="1262"/>
+        <image name="pause" width="60" height="60"/>
+        <image name="play" width="60" height="60"/>
+        <image name="rewind" width="60" height="60"/>
         <image name="wallpaper2" width="5470" height="3646"/>
     </resources>
 </document>

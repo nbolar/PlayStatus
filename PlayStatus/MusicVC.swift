@@ -420,6 +420,7 @@ class MusicVC: NSViewController {
     @objc func close(){
         if searchView?.window?.isVisible == true
         {
+            searchView?.resignFirstResponder()
             searchView?.close()
         }
     }
@@ -427,6 +428,7 @@ class MusicVC: NSViewController {
     @IBAction func searchButtonClicked(_ sender: Any) {
         if searchView?.window?.isVisible == true
         {
+            searchView?.resignFirstResponder()
             searchView?.close()
         }else{
             
