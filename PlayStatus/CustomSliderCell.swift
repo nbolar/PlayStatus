@@ -16,8 +16,8 @@ class CustomSliderCell: NSSliderCell {
     
     override func drawBar(inside aRect: NSRect, flipped: Bool) {
         var rect = aRect
-        rect.size.height = CGFloat(2.5)
-        let barRadius = CGFloat(2.5)
+        rect.size.height = CGFloat(4)
+        let barRadius = CGFloat(2)
         let value = CGFloat((self.doubleValue - self.minValue) / (self.maxValue - self.minValue))
         let finalWidth = CGFloat(value * (self.controlView!.frame.size.width - 8))
         var leftRect = rect

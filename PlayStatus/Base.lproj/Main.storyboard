@@ -955,9 +955,9 @@
                                 </connections>
                             </button>
                             <slider verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="SQw-KV-05I">
-                                <rect key="frame" x="19" y="113" width="264" height="19"/>
+                                <rect key="frame" x="21" y="114" width="260" height="15"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <sliderCell key="cell" continuous="YES" state="on" alignment="left" maxValue="100" doubleValue="50" tickMarkPosition="above" sliderType="linear" id="CpD-uP-mmv" customClass="CustomSliderCell" customModule="PlayStatus" customModuleProvider="target"/>
+                                <sliderCell key="cell" controlSize="small" continuous="YES" state="on" alignment="left" maxValue="100" doubleValue="50" tickMarkPosition="above" sliderType="linear" id="CpD-uP-mmv" customClass="CustomSliderCell" customModule="PlayStatus" customModuleProvider="target"/>
                                 <connections>
                                     <action selector="musicSliderChanged:" target="sM2-A5-j4E" id="Csm-xv-22b"/>
                                 </connections>
