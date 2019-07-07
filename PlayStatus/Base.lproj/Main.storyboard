@@ -906,7 +906,7 @@
                                     <action selector="previousButtonClicked:" target="sM2-A5-j4E" id="qZ1-pY-fCz"/>
                                 </connections>
                             </button>
-                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Boe-QH-ZYq">
+                            <button verticalHuggingPriority="750" fixedFrame="YES" springLoaded="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Boe-QH-ZYq">
                                 <rect key="frame" x="240" y="144" width="40" height="40"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="forward1" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="pGA-Di-7In">
@@ -963,7 +963,7 @@
                                 </connections>
                             </slider>
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="CzZ-6c-PPk">
-                                <rect key="frame" x="243" y="95" width="39" height="19"/>
+                                <rect key="frame" x="226" y="95" width="56" height="19"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" title="end" id="vcQ-cy-7xJ">
                                     <font key="font" size="12" name="AvenirNext-Medium"/>
@@ -972,7 +972,7 @@
                                 </textFieldCell>
                             </textField>
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Ql6-Ht-BvX">
-                                <rect key="frame" x="22" y="96" width="44" height="19"/>
+                                <rect key="frame" x="22" y="96" width="57" height="19"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" alignment="left" title="start" id="zYx-Hp-lHa">
                                     <font key="font" size="12" name="AvenirNext-Medium"/>

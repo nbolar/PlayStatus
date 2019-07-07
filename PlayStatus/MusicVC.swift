@@ -756,7 +756,12 @@ class MusicVC: NSViewController {
         if let scriptObject = NSAppleScript(source: currentDurationScpt) {
             out = scriptObject.executeAndReturnError(nil)
             musicSlider.stringValue = out?.stringValue ?? ""
-            startTime.stringValue = String(Int(Double(musicSlider.stringValue)! / 60) % 60) + ":" +  String(format: "%02d", Int(Double(musicSlider.stringValue)!.truncatingRemainder(dividingBy: 60)))
+            if Double(musicSlider.stringValue)! >= 3600{
+                startTime.stringValue = String(Int(Double(musicSlider.stringValue)! / 60) / 60) + ":" + String(format: "%02d", Int(Double(musicSlider.stringValue)! / 60) % 60) + ":" +  String(format: "%02d", Int(Double(musicSlider.stringValue)!.truncatingRemainder(dividingBy: 60)))
+            }else{
+                startTime.stringValue = String(Int(Double(musicSlider.stringValue)! / 60) % 60) + ":" +  String(format: "%02d", Int(Double(musicSlider.stringValue)!.truncatingRemainder(dividingBy: 60)))
+            }
+            
         }
     }
     
