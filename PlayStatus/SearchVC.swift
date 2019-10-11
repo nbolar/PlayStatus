@@ -9,6 +9,7 @@
 import Cocoa
 
 class SearchVC: NSViewController {
+    var itunesMusicName: String!
 
     @IBOutlet weak var searchTextField: NSTextField!
     override func viewDidLoad() {
@@ -24,13 +25,17 @@ class SearchVC: NSViewController {
         searchTextField.layer?.backgroundColor = NSColor.clear.cgColor
         searchTextField.textColor = NSColor.white
         searchTextField.drawsBackground = false
-        
+        if #available(OSX 10.15, *){
+            itunesMusicName = "Music"
+        }else{
+            itunesMusicName = "iTunes"
+        }
         
     }
     
     override func viewDidAppear() {
         searchTextField.refusesFirstResponder = true
-        searchTextField.placeholderString = "Search to play a song from your iTunes library"
+        searchTextField.placeholderString = "Search to play a song from your \(itunesMusicName!) library"
         searchTextField.placeHolderColor = .lightGray
     }
 
@@ -38,7 +43,7 @@ class SearchVC: NSViewController {
     
     @IBAction func searchSong(_ sender: Any) {
         let currentDurationScpt = """
-        tell application "iTunes"
+        tell application "\(itunesMusicName!)"
         set search_results to (search library playlist 1 for "\(searchTextField.stringValue)")
         repeat with t in search_results
         play t

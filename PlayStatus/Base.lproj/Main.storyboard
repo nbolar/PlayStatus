@@ -802,7 +802,7 @@
                                 <rect key="frame" x="92" y="28" width="338" height="127"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <clipView key="contentView" ambiguous="YES" drawsBackground="NO" copiesOnScroll="NO" id="zAi-1N-uW3">
-                                    <rect key="frame" x="0.0" y="0.0" width="338" height="127"/>
+                                    <rect key="frame" x="0.0" y="0.0" width="323" height="127"/>
                                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                     <subviews>
                                         <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="dfv-20-eJ3">
@@ -825,7 +825,7 @@
                                     <autoresizingMask key="autoresizingMask"/>
                                 </scroller>
                                 <scroller key="verticalScroller" wantsLayer="YES" verticalHuggingPriority="750" doubleValue="1" horizontal="NO" id="zON-Xh-za2">
-                                    <rect key="frame" x="322" y="0.0" width="16" height="127"/>
+                                    <rect key="frame" x="323" y="0.0" width="15" height="127"/>
                                     <autoresizingMask key="autoresizingMask"/>
                                 </scroller>
                             </scrollView>
@@ -872,7 +872,7 @@
         <scene sceneID="Tdu-bp-48f">
             <objects>
                 <viewController title="MusicVC" storyboardIdentifier="MusicVC" id="sM2-A5-j4E" customClass="MusicVC" customModule="PlayStatus" customModuleProvider="target" sceneMemberID="viewController">
-                    <view key="view" id="4c5-fu-f1J">
+                    <view key="view" wantsLayer="YES" id="4c5-fu-f1J">
                         <rect key="frame" x="0.0" y="0.0" width="300" height="300"/>
                         <autoresizingMask key="autoresizingMask"/>
                         <subviews>
@@ -881,9 +881,12 @@
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="axesIndependently" image="wallpaper2" id="biU-rt-7Ij"/>
                             </imageView>
-                            <visualEffectView fixedFrame="YES" blendingMode="withinWindow" material="popover" state="active" translatesAutoresizingMaskIntoConstraints="NO" id="ngz-Ue-FMn">
+                            <visualEffectView wantsLayer="YES" fixedFrame="YES" blendingMode="withinWindow" material="popover" state="active" translatesAutoresizingMaskIntoConstraints="NO" id="ngz-Ue-FMn">
                                 <rect key="frame" x="0.0" y="0.0" width="300" height="300"/>
                                 <autoresizingMask key="autoresizingMask"/>
+                                <shadow key="shadow">
+                                    <color key="color" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                                </shadow>
                             </visualEffectView>
                             <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Ccf-7o-vis">
                                 <rect key="frame" x="0.0" y="0.0" width="300" height="300"/>

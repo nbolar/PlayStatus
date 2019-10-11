@@ -13,11 +13,13 @@ var currentSongArtist: String!
 var yHeight : CGFloat!
 var xWidth : CGFloat!
 
+
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     var songName: String!
     var artistName: String!
+    var itunesMusicName: String!
     var out: NSAppleEventDescriptor?
     private var lastStatusTitle: String = ""
     let popoverView = NSPopover()
@@ -54,72 +56,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return view
     }()
     
-    let currentTrackNameScpt = """
-    if application "iTunes" is running then
-        tell application "iTunes"
-            if player state is playing then
-                return name of current track
-            end if
-        end tell
-        checkSpotify()
-    else if application "Spotify" is running then
-        tell application "Spotify"
-            if player state is playing then
-                return name of current track
-            else
-                return ""
-            end if
-        end tell
-    end if
-    on checkSpotify()
-        if application "Spotify" is running then
-            tell application "Spotify"
-                if player state is playing then
-                    return name of current track
-                else
-                    return ""
-                end if
-            end tell
-        end if
-    end checkSpotify
-    """
-    let currentTrackArtistScpt = """
-    if application "iTunes" is running then
-        tell application "iTunes"
-            if player state is playing then
-                return artist of current track
-            end if
-        end tell
-        checkSpotify()
-    else if application "Spotify" is running then
-        tell application "Spotify"
-            if player state is playing then
-                return artist of current track
-            else
-                return ""
-            end if
-        end tell
-    end if
-    on checkSpotify()
-        if application "Spotify" is running then
-            tell application "Spotify"
-                if player state is playing then
-                    return artist of current track
-                else
-                    return ""
-                end if
-            end tell
-        end if
-    end checkSpotify
-    """
-
+    
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
 
-        loadSubviews()
+        
+        if #available(OSX 10.15, *){
+            itunesMusicName = "Music"
+        }else{
+            itunesMusicName = "iTunes"
+        }
+        
         statusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
         statusItem.button?.action = #selector(self.togglePopover(_:))
         _ = Timer.scheduledTimer(timeInterval: 2.0, target: self, selector: #selector(getSongName), userInfo: nil, repeats: true)
+        loadSubviews()
         invisibleWindow.backgroundColor = .clear
         invisibleWindow.alphaValue = 0
         
@@ -133,6 +84,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 
     }
+    
+
+
+
     @objc func togglePopover(_ sender: AnyObject?) {
         let event = NSApp.currentEvent!
         
@@ -183,6 +138,66 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @objc func getSongName()
     {
+        
+        let currentTrackNameScpt = """
+        if application "\(itunesMusicName!)" is running then
+            tell application "\(itunesMusicName!)"
+                if player state is playing then
+                    return name of current track
+                end if
+            end tell
+            checkSpotify()
+        else if application "Spotify" is running then
+            tell application "Spotify"
+                if player state is playing then
+                    return name of current track
+                else
+                    return ""
+                end if
+            end tell
+        end if
+        on checkSpotify()
+            if application "Spotify" is running then
+                tell application "Spotify"
+                    if player state is playing then
+                        return name of current track
+                    else
+                        return ""
+                    end if
+                end tell
+            end if
+        end checkSpotify
+        """
+        
+        let currentTrackArtistScpt = """
+        if application "\(itunesMusicName!)" is running then
+            tell application "\(itunesMusicName!)"
+                if player state is playing then
+                    return artist of current track
+                end if
+            end tell
+            checkSpotify()
+        else if application "Spotify" is running then
+            tell application "Spotify"
+                if player state is playing then
+                    return artist of current track
+                else
+                    return ""
+                end if
+            end tell
+        end if
+        on checkSpotify()
+            if application "Spotify" is running then
+                tell application "Spotify"
+                    if player state is playing then
+                        return artist of current track
+                    else
+                        return ""
+                    end if
+                end tell
+            end if
+        end checkSpotify
+        """
         loadSubviews()
         if let scriptObject = NSAppleScript(source: currentTrackNameScpt) {
             var errorDict: NSDictionary? = nil
@@ -231,7 +246,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     // MARK: - Private methods
     
-    private func loadSubviews() {
+    @objc private func loadSubviews() {
         guard let contentView = contentView else { return }
 
         contentView.addSubview(scrollingStatusItemView)
