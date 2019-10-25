@@ -342,6 +342,7 @@ class MusicVC: NSViewController {
                 
                 let url = URL(string: editedStringURL)
                 AF.request(url!).responseData { (response) in
+                    
                     let json = JSON(response.data as Any)
                     let originalURL = json["results"][0]["artworkUrl100"].stringValue
                     let editedURL = originalURL.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg", options: .literal, range: nil)
@@ -769,7 +770,7 @@ class MusicVC: NSViewController {
             
             if out?.stringValue == "\(itunesMusicName!)"
             {
-                NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/\(itunesMusicName!).app"))
+                NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/\(itunesMusicName!).app"))
                 self.dismiss(nil)
                 
             } else if out?.stringValue == "Spotify"
