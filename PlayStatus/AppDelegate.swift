@@ -138,80 +138,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @objc func getSongName()
     {
-        
-        let currentTrackNameScpt = """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    return name of current track
-                end if
-            end tell
-            checkSpotify()
-        else if application "Spotify" is running then
-            tell application "Spotify"
-                if player state is playing then
-                    return name of current track
-                else
-                    return ""
-                end if
-            end tell
-        end if
-        on checkSpotify()
-            if application "Spotify" is running then
-                tell application "Spotify"
-                    if player state is playing then
-                        return name of current track
-                    else
-                        return ""
-                    end if
-                end tell
-            end if
-        end checkSpotify
-        """
-        
-        let currentTrackArtistScpt = """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    return artist of current track
-                end if
-            end tell
-            checkSpotify()
-        else if application "Spotify" is running then
-            tell application "Spotify"
-                if player state is playing then
-                    return artist of current track
-                else
-                    return ""
-                end if
-            end tell
-        end if
-        on checkSpotify()
-            if application "Spotify" is running then
-                tell application "Spotify"
-                    if player state is playing then
-                        return artist of current track
-                    else
-                        return ""
-                    end if
-                end tell
-            end if
-        end checkSpotify
-        """
+
         loadSubviews()
-        if let scriptObject = NSAppleScript(source: currentTrackNameScpt) {
-            var errorDict: NSDictionary? = nil
-            out = scriptObject.executeAndReturnError(&errorDict)
+        NSAppleScript.go(code: NSAppleScript.songName(), completionHandler: {_,out,_ in
             songName = out?.stringValue ?? ""
             currentSongName = songName
-
-        }
-        if let scriptObject = NSAppleScript(source: currentTrackArtistScpt) {
-            var errorDict: NSDictionary? = nil
-            out = scriptObject.executeAndReturnError(&errorDict)
+            
+        })
+        NSAppleScript.go(code: NSAppleScript.songArtist(), completionHandler: {_,out,_ in
             artistName = out?.stringValue ?? ""
             currentSongArtist = artistName
-        }
+            
+        })
         
         let statutsItemTitle = "\(artistName!) - \(songName!)"
         

@@ -447,6 +447,70 @@ extension NSAppleScript {
         end checkSpotify
         """
     }
+    
+    static func songName() -> String{
+       return  """
+        if application "\(itunesMusicName!)" is running then
+            tell application "\(itunesMusicName!)"
+                if player state is playing then
+                    return name of current track
+                end if
+            end tell
+            checkSpotify()
+        else if application "Spotify" is running then
+            tell application "Spotify"
+                if player state is playing then
+                    return name of current track
+                else
+                    return ""
+                end if
+            end tell
+        end if
+        on checkSpotify()
+            if application "Spotify" is running then
+                tell application "Spotify"
+                    if player state is playing then
+                        return name of current track
+                    else
+                        return ""
+                    end if
+                end tell
+            end if
+        end checkSpotify
+        """
+    }
+    
+    static func songArtist() -> String {
+        return """
+        if application "\(itunesMusicName!)" is running then
+            tell application "\(itunesMusicName!)"
+                if player state is playing then
+                    return artist of current track
+                end if
+            end tell
+            checkSpotify()
+        else if application "Spotify" is running then
+            tell application "Spotify"
+                if player state is playing then
+                    return artist of current track
+                else
+                    return ""
+                end if
+            end tell
+        end if
+        on checkSpotify()
+            if application "Spotify" is running then
+                tell application "Spotify"
+                    if player state is playing then
+                        return artist of current track
+                    else
+                        return ""
+                    end if
+                end tell
+            end if
+        end checkSpotify
+        """
+    }
         
         
 }
