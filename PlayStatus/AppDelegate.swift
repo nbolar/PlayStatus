@@ -221,10 +221,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }else{
                 updateTitle(newTitle: " ")
             }
-            
-
         }
-        
         
     }
     
