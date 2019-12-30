@@ -9,6 +9,7 @@
 import Cocoa
 import Alamofire
 import SwiftyJSON
+import CircularProgressMac
 
 
 class MusicVC: NSViewController {
@@ -35,11 +36,10 @@ class MusicVC: NSViewController {
     var check: Int!
     var songNameString = ""
     var artistNameString = ""
-    var itunesMusicName: String!
     private enum FadeType {
         case fadeIn, fadeOut
     }
-    
+    let circularProgress = CircularProgress(size: 28)
     
 
     
@@ -47,11 +47,7 @@ class MusicVC: NSViewController {
         super.viewDidLoad()
         // Do view setup here.
         
-        if #available(OSX 10.15, *){
-            itunesMusicName = "Music"
-        }else{
-            itunesMusicName = "iTunes"
-        }
+
         
         self.view.wantsLayer = true
         self.view.layer?.cornerRadius = 8
@@ -78,6 +74,13 @@ class MusicVC: NSViewController {
         artistName.isHidden = true
         musicButton.isHidden = true
         searchButton.isHidden = true
+         let labelXPostion:CGFloat = view.bounds.midX - 10
+        let labelYPostion:CGFloat = 3
+        let labelWidth:CGFloat = 28
+        let labelHeight:CGFloat = 28
+        circularProgress.isIndeterminate = true
+        circularProgress.frame = CGRect(x: labelXPostion, y: labelYPostion, width: labelWidth, height: labelHeight)
+        circularProgress.color = .white
         
         let area = NSTrackingArea.init(rect: albumArt.bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
         albumArt.addTrackingArea(area)
@@ -132,53 +135,19 @@ class MusicVC: NSViewController {
     
     func checkStatus()
     {
-        let statusScpt = """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    return "playing"
-                else
-                    return "not playing"
-                end if
-            end tell
-            checkSpotify()
-        else if application "Spotify" is running then
-            tell application "Spotify"
-                if player state is playing then
-                    return "playing"
-                else
-                    return "not playing"
-                end if
-            end tell
-        else
-            return "not playing"
-        end if
-        on checkSpotify()
-            if application "Spotify" is running then
-                tell application "Spotify"
-                     if player state is playing then
-                        return "playing"
-                    else
-                        return "not playing"
-                    end if
-                end tell
-            end if
-        end checkSpotify
-        """
-        if let scriptObject = NSAppleScript(source: statusScpt) {
-            out = scriptObject.executeAndReturnError(nil)
+        NSAppleScript.go(code: NSAppleScript.checkStatus(), completionHandler: {_,out,_ in
             let status = out?.stringValue ?? ""
             
             if status == "playing"
             {
                 check = 1
-
+                
             }else if status == "not playing"
             {
                 check = 2
             }
-        }
-        
+        })
+
         
     }
     override func mouseEntered(with event: NSEvent) {
@@ -256,74 +225,16 @@ class MusicVC: NSViewController {
     
     @objc func loadAlbumArtwork()
     {
-        let songImageScpt = """
-        if application "\(itunesMusicName!)" is running then
-        -- get the raw bytes of the artwork into a var
-            tell application "\(itunesMusicName!)" to tell artwork 1 of current track
-                set srcBytes to raw data
-            -- figure out the proper file extension
-                if format is «class PNG » then
-                    set ext to ".png"
-                else
-                    set ext to ".jpg"
-                end if
-            end tell
-            -- get the filename to ~/Desktop/cover.ext
-            set fileName to (((path to desktop) as text) & "cover" & ext)
-            set saveName to fileName
-            -- write to file
-            set outFile to open for access file fileName with write permission
-            -- truncate the file
-            set eof outFile to 0
-            -- write the image bytes to the file
-            write srcBytes to outFile
-            close access outFile
-            checkSpotify()
-        else if application "Spotify" is running then
-            tell application "Spotify"
-                if player state is playing then
-                    return artwork url of current track
-                else
-                    return ""
-                end if
-            end tell
-        end if
-        on checkSpotify()
-            if application "Spotify" is running then
-                tell application "Spotify"
-                    if player state is playing then
-                        return artwork url of current track
-                    else
-                        return ""
-                    end if
-                end tell
-            end if
-        end checkSpotify
-            on convertPathToPOSIXString(thePath)
-                tell application "System Events"
-                    try
-                        set thePath to path of disk item (thePath as string)
-                    on error
-                        set thePath to path of thePath
-                    end try
-                end tell
-                return POSIX path of thePath
-            end convertPathToPOSIXString
-            set thePath to convertPathToPOSIXString(fileName)
-            return thePath
-        """
-        var out: NSAppleEventDescriptor?
         checkStatus()
         trackDuration()
         songName.stringValue = currentSongName ?? ""
         artistName.stringValue = currentSongArtist ?? ""
-        if let scriptObject = NSAppleScript(source: songImageScpt) {
-            out = scriptObject.executeAndReturnError(nil)
+        NSAppleScript.go(code: NSAppleScript.loadAlbumArtwork(), completionHandler: {_,out,_ in
             let imageName = out?.stringValue ?? ""
             if songName.stringValue == ""
             {
                 albumArt.image = NSImage(named: "wallpaper2")
-//                songDetails.stringValue = "No Music Playing"
+                //                songDetails.stringValue = "No Music Playing"
                 artistName.stringValue = "No Music Playing"
             }else if imageName.contains("http://"){
                 songDetails.stringValue = ""
@@ -332,8 +243,10 @@ class MusicVC: NSViewController {
             }else if imageName != ""{
                 songDetails.stringValue = ""
                 albumArt.image = NSImage(contentsOfFile: imageName)
+                circularProgress.removeFromSuperview()
             }else if imageName == "" && songName.stringValue != ""
             {
+                
                 let editedSongArtist = currentSongArtist.replacingOccurrences(of: "&", with: "+", options: .literal, range: nil)
                 let safeArtistURL = editedSongArtist.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed)!
                 let safeSongURL = currentSongName.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed)!
@@ -348,82 +261,23 @@ class MusicVC: NSViewController {
                     let editedURL = originalURL.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg", options: .literal, range: nil)
                     let imageURL = URL(string: editedURL)
                     self.albumArt.image = NSImage(contentsOf: imageURL ?? URL(string: "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/i/e7981d38-6ee3-496d-a6c0-8710745bdbfc/db6zlbs-68b8cd4f-bf6b-4d39-b9a7-7475cade812f.png")!)
+                    self.circularProgress.removeFromSuperview()
                 }
-
+                
             }
             
-        }
+        } )
         deleteAlbum()
     }
     
     func deleteAlbum()
     {
-        let deleteScpt = """
-        if application "\(itunesMusicName!)" is running then
-            -- get the raw bytes of the artwork into a var
-                tell application "\(itunesMusicName!)" to tell artwork 1 of current track
-                    set srcBytes to raw data
-            -- figure out the proper file extension
-                    if format is «class PNG » then
-                        set ext to ".png"
-                    else
-                        set ext to ".jpg"
-                    end if
-                end tell
 
-            -- get the filename to ~/Desktop/cover.ext
-            set fileName to (((path to desktop) as text) & "cover" & ext)
-
-            tell application "System Events"
-                delete alias fileName
-            end tell
-        end if
-        """
-        if let scriptObject = NSAppleScript(source: deleteScpt) {
-            scriptObject.executeAndReturnError(nil)
-        }
+        NSAppleScript.go(code: NSAppleScript.deleteAlbum(), completionHandler: {_,_,_ in })
     }
     
     @IBAction func previousButtonClicked(_ sender: Any) {
-        let prevTrackScpt = """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    play (previous track)
-                else
-                    return ""
-                end if
-            end tell
-            checkSpotify()
-        else if application "Spotify" is running then
-            tell application "Spotify"
-                if player state is playing then
-                    play (previous track)
-                else
-                    return ""
-                end if
-            end tell
-        else
-            return ""
-        end if
-        on checkSpotify()
-            if application "Spotify" is running then
-                    tell application "Spotify"
-                        if player state is playing then
-                            play (previous track)
-                        else
-                            return ""
-                        end if
-                    end tell
-                else
-                    return ""
-            end if
-        end checkSpotify
-        """
-        if let scriptObject = NSAppleScript(source: prevTrackScpt) {
-            scriptObject.executeAndReturnError(nil)
-
-        }
+        NSAppleScript.go(code: NSAppleScript.prevTrack(), completionHandler: {_,_,_ in })
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
         loadAlbumArtwork()
@@ -431,44 +285,7 @@ class MusicVC: NSViewController {
     
     @IBAction func nextButtonClicked(_ sender: Any) {
     
-        let nextTrackScpt = """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    play (next track)
-                else
-                    return ""
-                end if
-            end tell
-            checkSpotify()
-        else if application "Spotify" is running then
-            tell application "Spotify"
-                if player state is playing then
-                    play (next track)
-                else
-                    return ""
-                end if
-            end tell
-        else
-            return ""
-        end if
-        on checkSpotify()
-            if application "Spotify" is running then
-                    tell application "Spotify"
-                        if player state is playing then
-                            play (next track)
-                        else
-                            return ""
-                        end if
-                    end tell
-                else
-                    return ""
-            end if
-        end checkSpotify
-        """
-        if let scriptObject = NSAppleScript(source: nextTrackScpt) {
-            scriptObject.executeAndReturnError(nil)
-        }
+        NSAppleScript.go(code: NSAppleScript.nextTrack(), completionHandler: {_,_,_ in })
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
         loadAlbumArtwork()
@@ -476,41 +293,8 @@ class MusicVC: NSViewController {
     }
     
     @IBAction func playPauseButtonClicked(_ sender: Any) {
-        let playPauseTrackScpt = """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    pause current track
-                else
-                    if current track exists then
-                        play current track
-                    else
-                        set shuffle enabled to true
-                        play
-                    end if
-                end if
-            end tell
-            checkSpotify()
-        else if application "Spotify" is running then
-            tell application "Spotify"
-                playpause
-            end tell
-        else
-            run application "\(itunesMusicName!)"
-            delay 7
-            tell application "\(itunesMusicName!)" to set shuffle enabled to true
-            tell application "\(itunesMusicName!)" to play
-        end if
-
-        on checkSpotify()
-            if application "Spotify" is running then
-                tell application "Spotify"
-                    playpause
-                end tell
-            end if
-        end checkSpotify
-        """
         if pauseButton.isHidden == true{
+            view.addSubview(circularProgress)
             playButton.isHidden = true
             pauseButton.isHidden = false
         } else if pauseButton.isHidden == false
@@ -518,9 +302,7 @@ class MusicVC: NSViewController {
             playButton.isHidden = false
             pauseButton.isHidden = true
         }
-        if let scriptObject = NSAppleScript(source: playPauseTrackScpt) {
-            scriptObject.executeAndReturnError(nil)
-        }
+        NSAppleScript.go(code: NSAppleScript.playPause(), completionHandler: {_,_,_ in })
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
         loadAlbumArtwork()
@@ -528,42 +310,7 @@ class MusicVC: NSViewController {
     }
     
     @IBAction func skipBackButtonClicked(_ sender: Any) {
-        let skipBackScpt = """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    set player position to (player position - 15)
-                else
-                    return ""
-                end if
-            end tell
-            checkSpotify()
-        else if application "Spotify" is running then
-            tell application "Spotify"
-                if player state is playing then
-                    set player position to (player position - 15)
-                else
-                    return ""
-                end if
-            end tell
-        else
-            return ""
-        end if
-        on checkSpotify()
-            if application "Spotify" is running then
-                tell application "Spotify"
-                     if player state is playing then
-                        set player position to (player position - 15)
-                    else
-                        return ""
-                    end if
-                end tell
-            end if
-        end checkSpotify
-        """
-        if let scriptObject = NSAppleScript(source: skipBackScpt) {
-            scriptObject.executeAndReturnError(nil)
-        }
+        NSAppleScript.go(code: NSAppleScript.skipBack(), completionHandler: {_,_,_ in })
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
         loadAlbumArtwork()
@@ -571,43 +318,7 @@ class MusicVC: NSViewController {
     
     
     @IBAction func skipAheadButtonClicked(_ sender: Any) {
-        let skipAheadScpt = """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    set player position to (player position + 15)
-                else
-                    return ""
-                end if
-            end tell
-            checkSpotify()
-        else if application "Spotify" is running then
-            tell application "Spotify"
-                if player state is playing then
-                    set player position to (player position + 15)
-                else
-                    return ""
-                end if
-            end tell
-        else
-            return ""
-        end if
-        on checkSpotify()
-            if application "Spotify" is running then
-                tell application "Spotify"
-                     if player state is playing then
-                        set player position to (player position + 15)
-                    else
-                        return ""
-                    end if
-                end tell
-            end if
-        end checkSpotify
-        """
-        
-        if let scriptObject = NSAppleScript(source: skipAheadScpt) {
-            scriptObject.executeAndReturnError(nil)
-        }
+        NSAppleScript.go(code: NSAppleScript.skipAhead(), completionHandler: {_,_,_ in })
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
         loadAlbumArtwork()
@@ -615,159 +326,36 @@ class MusicVC: NSViewController {
     
     func trackDuration()
     {
-        let totalDurationScpt = """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    return duration of current track
-                else
-                    return ""
-                end if
-            end tell
-        else if application "Spotify" is running then
-                tell application "Spotify"
-                    if player state is playing then
-                        return duration of current track / 1000
-                    else
-                        return ""
-                    end if
-                end tell
-        end if
-        """
-        if let scriptObject = NSAppleScript(source: totalDurationScpt) {
-            out = scriptObject.executeAndReturnError(nil)
+        NSAppleScript.go(code: NSAppleScript.trackDuration(), completionHandler: {_,out,_ in
             musicSlider.maxValue = Double(out?.stringValue ?? "") ?? 100
-        }
+        })
         
-        
-        let totalDurationMinsScpt = """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    return time of current track
-                else
-                    return ""
-                end if
-            end tell
-        else if application "Spotify" is running then
-                tell application "Spotify"
-                    set tM to round (((duration of current track) / 1000) / 60) rounding down
-                    set tS to round (((duration of current track) / 1000) mod 60) rounding down
-                    set myTime to ((tM as text) & ":" & tS as text)
-                    return myTime
-                end tell
-            end if
-        """
-        if let scriptObject = NSAppleScript(source: totalDurationMinsScpt) {
-            out = scriptObject.executeAndReturnError(nil)
+        NSAppleScript.go(code: NSAppleScript.totalDuration(), completionHandler: {_,out,_ in
             endTime.stringValue = out?.stringValue ?? ""
-        }
+        })
+        
 
     }
     @IBAction func musicSliderChanged(_ sender: Any) {
-        scrubTrack(position: musicSlider.doubleValue)
-    }
-    
-    func scrubTrack(position : Double){
-        let currentDurationScpt = """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    set player position to "\(position)"
-                else
-                    return ""
-                end if
-            end tell
-        else if application "Spotify" is running then
-                tell application "Spotify"
-                    if player state is playing then
-                        set player position to "\(position)"
-                    else
-                        return ""
-                    end if
-                end tell
-        end if
-        """
-
-
-        if let scriptObject = NSAppleScript(source: currentDurationScpt) {
-            scriptObject.executeAndReturnError(nil)
-        }
+        NSAppleScript.go(code: NSAppleScript.scrubTrack(position: musicSlider.doubleValue), completionHandler: {_,_,_ in })
         loadAlbumArtwork()
     }
     
     @objc func changeSliderPosition()
     {
-        let currentDurationScpt = """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    return player position
-                else
-                    return ""
-                end if
-            end tell
-        else if application "Spotify" is running then
-                tell application "Spotify"
-                    if player state is playing then
-                        return player position
-                    else
-                        return ""
-                    end if
-                end tell
-        end if
-        """
-        
-        
-        if let scriptObject = NSAppleScript(source: currentDurationScpt) {
-            out = scriptObject.executeAndReturnError(nil)
+    
+        NSAppleScript.go(code: NSAppleScript.changeSlider(), completionHandler: {_,out,_ in
             musicSlider.stringValue = out?.stringValue ?? ""
             if Double(musicSlider.stringValue)! >= 3600{
                 startTime.stringValue = String(Int(Double(musicSlider.stringValue)! / 60) / 60) + ":" + String(format: "%02d", Int(Double(musicSlider.stringValue)! / 60) % 60) + ":" +  String(format: "%02d", Int(Double(musicSlider.stringValue)!.truncatingRemainder(dividingBy: 60)))
             }else{
                 startTime.stringValue = String(Int(Double(musicSlider.stringValue)! / 60) % 60) + ":" +  String(format: "%02d", Int(Double(musicSlider.stringValue)!.truncatingRemainder(dividingBy: 60)))
             }
-            
-        }
+        })
     }
     
     @IBAction func musicButtonClicked(_ sender: Any) {
-        let appPlayingScpt = """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    return "\(itunesMusicName!)"
-                else
-                    return ""
-                end if
-            end tell
-            checkSpotify()
-        else if application "Spotify" is running then
-            tell application "Spotify"
-                if player state is playing then
-                    return "Spotify"
-                else
-                    return ""
-                end if
-            end tell
-        else
-            return ""
-        end if
-        on checkSpotify()
-            if application "Spotify" is running then
-                tell application "Spotify"
-                     if player state is playing then
-                        return "Spotify"
-                    else
-                        return ""
-                    end if
-                end tell
-            end if
-        end checkSpotify
-        """
-        if let scriptObject = NSAppleScript(source: appPlayingScpt) {
-            out = scriptObject.executeAndReturnError(nil)
-            
+        NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
             if out?.stringValue == "\(itunesMusicName!)"
             {
                 NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/\(itunesMusicName!).app"))
@@ -778,7 +366,7 @@ class MusicVC: NSViewController {
                 NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Spotify.app"))
                 self.dismiss(nil)
             }
-        }
+        })
         
         
     }

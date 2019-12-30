@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4E08E45423B9DB820035A479 /* Scripts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E08E45323B9DB820035A479 /* Scripts.swift */; };
 		4E26E405227848F5005A53EE /* CustomSliderCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E26E404227848F5005A53EE /* CustomSliderCell.swift */; };
 		4E5079CC227D6EAE0002C5AF /* ScrollingStatusItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E5079CA227D6EAD0002C5AF /* ScrollingStatusItemView.swift */; };
 		4E5079CD227D6EAE0002C5AF /* ScrollingTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E5079CB227D6EAE0002C5AF /* ScrollingTextView.swift */; };
@@ -21,6 +22,7 @@
 
 /* Begin PBXFileReference section */
 		0628D03BDC04D109D55FD6B4 /* Pods-PlayStatus.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-PlayStatus.release.xcconfig"; path = "Pods/Target Support Files/Pods-PlayStatus/Pods-PlayStatus.release.xcconfig"; sourceTree = "<group>"; };
+		4E08E45323B9DB820035A479 /* Scripts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scripts.swift; sourceTree = "<group>"; };
 		4E26E404227848F5005A53EE /* CustomSliderCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomSliderCell.swift; sourceTree = "<group>"; };
 		4E5079CA227D6EAD0002C5AF /* ScrollingStatusItemView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ScrollingStatusItemView.swift; sourceTree = "<group>"; };
 		4E5079CB227D6EAE0002C5AF /* ScrollingTextView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ScrollingTextView.swift; path = ../../GitHub/SpotMenu/SpotMenu/CustomViews/ScrollingTextView.swift; sourceTree = "<group>"; };
@@ -90,6 +92,7 @@
 				4E9F8E8422719AB600B87B4A /* PlayStatus.entitlements */,
 				4E5079CA227D6EAD0002C5AF /* ScrollingStatusItemView.swift */,
 				4E5079CB227D6EAE0002C5AF /* ScrollingTextView.swift */,
+				4E08E45323B9DB820035A479 /* Scripts.swift */,
 			);
 			path = PlayStatus;
 			sourceTree = "<group>";
@@ -186,11 +189,13 @@
 			inputPaths = (
 				"${SRCROOT}/Pods/Target Support Files/Pods-PlayStatus/Pods-PlayStatus-frameworks.sh",
 				"${BUILT_PRODUCTS_DIR}/Alamofire/Alamofire.framework",
+				"${BUILT_PRODUCTS_DIR}/CircularProgressMac/CircularProgressMac.framework",
 				"${BUILT_PRODUCTS_DIR}/SwiftyJSON/SwiftyJSON.framework",
 			);
 			name = "[CP] Embed Pods Frameworks";
 			outputPaths = (
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Alamofire.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CircularProgressMac.framework",
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/SwiftyJSON.framework",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -223,6 +228,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4E08E45423B9DB820035A479 /* Scripts.swift in Sources */,
 				4E825237227C3A8C003B8296 /* AboutVC.swift in Sources */,
 				4E5079CD227D6EAE0002C5AF /* ScrollingTextView.swift in Sources */,
 				4E9F8E7B22719AB500B87B4A /* AppDelegate.swift in Sources */,

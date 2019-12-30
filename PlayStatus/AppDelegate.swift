@@ -12,20 +12,20 @@ var currentSongName: String!
 var currentSongArtist: String!
 var yHeight : CGFloat!
 var xWidth : CGFloat!
-
+var itunesMusicName: String! = "iTunes"
 
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     var songName: String!
-    var artistName: String!
-    var itunesMusicName: String!
+    var artistName: String!    
     var out: NSAppleEventDescriptor?
     private var lastStatusTitle: String = ""
     let popoverView = NSPopover()
     lazy var aboutView: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "aboutWindowController") as? NSWindowController
     let invisibleWindow = NSWindow(contentRect: NSMakeRect(0, 0, 20, 1), styleMask: .borderless, backing: .buffered, defer: false)
     private var musicController: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "musicViewController") as? NSWindowController
+
 
     private enum Constants {
         static let statusItemIconLength: CGFloat = 30
@@ -60,12 +60,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
 
-        
         if #available(OSX 10.15, *){
             itunesMusicName = "Music"
         }else{
             itunesMusicName = "iTunes"
         }
+
         
         statusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
         statusItem.button?.action = #selector(self.togglePopover(_:))
