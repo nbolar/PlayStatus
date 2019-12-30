@@ -29,7 +29,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private enum Constants {
         static let statusItemIconLength: CGFloat = 30
-        static let statusItemLength: CGFloat = 250
+        static let statusItemLength: CGFloat = 200
     }
     private lazy var statusItem: NSStatusItem = {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -215,8 +215,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         let statutsItemTitle = "\(artistName!) - \(songName!)"
         
-        if lastStatusTitle != statutsItemTitle && statutsItemTitle.count != 0 {
-            updateTitle(newTitle: statutsItemTitle)
+        if lastStatusTitle != statutsItemTitle && statutsItemTitle.count > 0{
+            if statutsItemTitle != " - "{
+                updateTitle(newTitle: statutsItemTitle)
+            }else{
+                updateTitle(newTitle: " ")
+            }
+            
 
         }
         

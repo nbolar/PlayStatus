@@ -277,6 +277,7 @@ class MusicVC: NSViewController {
     }
     
     @IBAction func previousButtonClicked(_ sender: Any) {
+        view.addSubview(circularProgress)
         NSAppleScript.go(code: NSAppleScript.prevTrack(), completionHandler: {_,_,_ in })
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
@@ -284,7 +285,7 @@ class MusicVC: NSViewController {
     }
     
     @IBAction func nextButtonClicked(_ sender: Any) {
-    
+        view.addSubview(circularProgress)
         NSAppleScript.go(code: NSAppleScript.nextTrack(), completionHandler: {_,_,_ in })
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
