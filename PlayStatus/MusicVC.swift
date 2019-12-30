@@ -236,10 +236,11 @@ class MusicVC: NSViewController {
                 albumArt.image = NSImage(named: "wallpaper2")
                 //                songDetails.stringValue = "No Music Playing"
                 artistName.stringValue = "No Music Playing"
-            }else if imageName.contains("http://"){
+            }else if imageName.contains("https://"){
                 songDetails.stringValue = ""
                 let url = URL(string: imageName)
                 albumArt.image = NSImage(contentsOf: url!)
+                circularProgress.removeFromSuperview()
             }else if imageName != ""{
                 songDetails.stringValue = ""
                 albumArt.image = NSImage(contentsOfFile: imageName)

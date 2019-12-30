@@ -361,6 +361,9 @@ extension NSAppleScript {
                 tell application "Spotify"
                     set tM to round (((duration of current track) / 1000) / 60) rounding down
                     set tS to round (((duration of current track) / 1000) mod 60) rounding down
+                    if tS < 10 then
+                        set tS to (0 & tS as text)
+                    end if
                     set myTime to ((tM as text) & ":" & tS as text)
                     return myTime
                 end tell

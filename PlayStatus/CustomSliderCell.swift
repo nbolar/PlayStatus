@@ -9,9 +9,21 @@
 import Cocoa
 
 class CustomSliderCell: NSSliderCell {
+    override var knobThickness: CGFloat {
+        return knobWidth
+    }
+    
+    let knobWidth: CGFloat = 3.0
+    let knobHeight: CGFloat = 15.0
+    let knobRadius: CGFloat = 2.0
     
     required init(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
+    }
+    var percentage: CGFloat {
+        get {
+                return CGFloat((self.doubleValue - self.minValue) / (self.maxValue - self.minValue))
+        }
     }
     
     override func drawBar(inside aRect: NSRect, flipped: Bool) {
@@ -28,6 +40,25 @@ class CustomSliderCell: NSSliderCell {
         let active = NSBezierPath(roundedRect: leftRect, xRadius: barRadius, yRadius: barRadius)
         NSColor.white.setFill()
         active.fill()
+    }
+    
+    override func drawKnob(_ knobRect: NSRect) {
+        NSColor.white.setFill()
+        NSColor.white.setStroke()
+        
+        let rect = NSMakeRect(round(knobRect.origin.x),
+                              knobRect.origin.y + 0.5 * (knobRect.height - knobHeight),
+                              knobRect.width,
+                              knobHeight)
+        let path = NSBezierPath(roundedRect: rect, xRadius: knobRadius, yRadius: knobRadius)
+        path.fill()
+        path.stroke()
+    }
+    
+    override func knobRect(flipped: Bool) -> NSRect {
+        let pos = percentage * (self.controlView!.frame.size.width - 8)
+        let rect = super.knobRect(flipped: flipped)
+        return NSMakeRect(pos, rect.origin.y, knobWidth, rect.height)
     }
 
 }
