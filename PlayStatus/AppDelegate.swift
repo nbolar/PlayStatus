@@ -118,7 +118,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-
+    @IBAction func searchMenuItem(_ sender: Any) {
+        NotificationCenter.default.post(name: NSNotification.Name(rawValue: "search"), object: nil)
+    }
+    
     func applicationWillTerminate(_ aNotification: Notification) {
         // Insert code here to tear down your application
     }
