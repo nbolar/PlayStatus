@@ -24,12 +24,14 @@ class MusicVC: NSViewController {
     @IBOutlet weak var skipBack: NSButton!
     @IBOutlet weak var skipAhead: NSButton!
     @IBOutlet weak var musicSlider: NSSlider!
+    @IBOutlet weak var trackDurationSliderCell: NSSlider!
     @IBOutlet weak var startTime: NSTextField!
     @IBOutlet weak var endTime: NSTextField!
     @IBOutlet weak var artistName: NSTextField!
     @IBOutlet weak var songName: NSTextField!
     @IBOutlet weak var musicButton: NSButton!
     @IBOutlet weak var searchButton: NSButton!
+    @IBOutlet weak var settingsButton: NSButton!
     @IBOutlet weak var visualEffectView: NSVisualEffectView!
     lazy var searchView: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "searchWindowController") as? NSWindowController
     var out: NSAppleEventDescriptor?
@@ -68,12 +70,14 @@ class MusicVC: NSViewController {
         skipBack.isHidden = true
         skipAhead.isHidden = true
         musicSlider.isHidden = true
+        trackDurationSliderCell.isHidden = false
         startTime.isHidden = true
         endTime.isHidden = true
         songName.isHidden = true
         artistName.isHidden = true
         musicButton.isHidden = true
         searchButton.isHidden = true
+        settingsButton.isHidden = true
          let labelXPostion:CGFloat = view.bounds.midX - 10
         let labelYPostion:CGFloat = 3
         let labelWidth:CGFloat = 28
@@ -146,45 +150,39 @@ class MusicVC: NSViewController {
             }else if status == "not playing"
             {
                 check = 2
+                
             }
         })
 
         
     }
+    func hideUnhide(hide: Bool){
+        songDetails.isHidden = hide
+        
+        prevButton.isHidden = hide
+        nextButton.isHidden = hide
+        quitButton.isHidden = hide
+        skipBack.isHidden = hide
+        skipAhead.isHidden = hide
+        musicSlider.isHidden = hide
+        trackDurationSliderCell.isHidden = !hide
+        startTime.isHidden = hide
+        endTime.isHidden = hide
+        songName.isHidden = hide
+        artistName.isHidden = hide
+        musicButton.isHidden = hide
+        searchButton.isHidden = hide
+        settingsButton.isHidden = hide
+    }
     override func mouseEntered(with event: NSEvent) {
         fade(type: .fadeIn)
         if check == 1{
-            songDetails.isHidden = false
+            hideUnhide(hide: false)
             pauseButton.isHidden = false
-            playButton.isHidden = true
-            prevButton.isHidden = false
-            nextButton.isHidden = false
-            quitButton.isHidden = false
-            skipBack.isHidden = false
-            skipAhead.isHidden = false
-            musicSlider.isHidden = false
-            startTime.isHidden = false
-            endTime.isHidden = false
-            songName.isHidden = false
-            artistName.isHidden = false
-            musicButton.isHidden = false
-            searchButton.isHidden = false
+            
         }else if check == 2{
             playButton.isHidden = false
-            pauseButton.isHidden = true
-            songDetails.isHidden = false
-            prevButton.isHidden = false
-            nextButton.isHidden = false
-            quitButton.isHidden = false
-            skipBack.isHidden = false
-            skipAhead.isHidden = false
-            musicSlider.isHidden = false
-            startTime.isHidden = false
-            endTime.isHidden = false
-            songName.isHidden = false
-            artistName.isHidden = false
-            musicButton.isHidden = false
-            searchButton.isHidden = false
+            hideUnhide(hide: false)
         }
         
     }
@@ -216,12 +214,14 @@ class MusicVC: NSViewController {
         skipBack.isHidden = true
         skipAhead.isHidden = true
         musicSlider.isHidden = true
+        trackDurationSliderCell.isHidden = false
         startTime.isHidden = true
         endTime.isHidden = true
         songName.isHidden = true
         artistName.isHidden = true
         musicButton.isHidden = true
         searchButton.isHidden = true
+        settingsButton.isHidden = true
     }
     
     @objc func loadAlbumArtwork()
@@ -331,6 +331,7 @@ class MusicVC: NSViewController {
     {
         NSAppleScript.go(code: NSAppleScript.trackDuration(), completionHandler: {_,out,_ in
             musicSlider.maxValue = Double(out?.stringValue ?? "") ?? 100
+            trackDurationSliderCell.maxValue = Double(out?.stringValue ?? "") ?? 100
         })
         
         NSAppleScript.go(code: NSAppleScript.totalDuration(), completionHandler: {_,out,_ in
@@ -349,6 +350,7 @@ class MusicVC: NSViewController {
     
         NSAppleScript.go(code: NSAppleScript.changeSlider(), completionHandler: {_,out,_ in
             musicSlider.stringValue = out?.stringValue ?? ""
+            trackDurationSliderCell.stringValue = out?.stringValue ?? ""
             if Double(musicSlider.stringValue)! >= 3600{
                 startTime.stringValue = String(Int(Double(musicSlider.stringValue)! / 60) / 60) + ":" + String(format: "%02d", Int(Double(musicSlider.stringValue)! / 60) % 60) + ":" +  String(format: "%02d", Int(Double(musicSlider.stringValue)!.truncatingRemainder(dividingBy: 60)))
             }else{

@@ -180,6 +180,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         yHeight = y-height+menubarHeight - 42
         musicController?.window?.setFrameOrigin(NSPoint(x: x, y: y+menubarHeight-height))
         musicController?.showWindow(self)
+        NSRunningApplication.current.activate(options: NSApplication.ActivationOptions.activateIgnoringOtherApps)
 
         NotificationCenter.default.post(name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
         

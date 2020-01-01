@@ -683,6 +683,7 @@
                 <customObject id="Voe-Tx-rLC" customClass="AppDelegate" customModule="PlayStatus" customModuleProvider="target"/>
                 <customObject id="YLy-65-1bz" customClass="NSFontManager"/>
                 <customObject id="Ady-hI-5gd" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
+                <customObject id="4Mm-oF-QJK" customClass="SUUpdater"/>
             </objects>
             <point key="canvasLocation" x="75" y="0.0"/>
         </scene>
@@ -858,7 +859,7 @@
                                 <rect key="frame" x="166" y="164" width="80" height="11"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" placeholderString="version" id="bCd-yO-oQf">
-                                    <font key="font" metaFont="menu" size="9"/>
+                                    <font key="font" metaFont="label" size="9"/>
                                     <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                                 </textFieldCell>
@@ -873,6 +874,57 @@
                 <customObject id="dfo-AH-2e9" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
             </objects>
             <point key="canvasLocation" x="504" y="968"/>
+        </scene>
+        <!--SettingsVC-->
+        <scene sceneID="YXr-Yx-ehD">
+            <objects>
+                <viewController id="rLC-8w-dS1" customClass="SettingsVC" customModule="PlayStatus" customModuleProvider="target" sceneMemberID="viewController">
+                    <view key="view" id="MUQ-3L-UpP">
+                        <rect key="frame" x="0.0" y="0.0" width="150" height="50"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                        <subviews>
+                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="5oM-x8-22O">
+                                <rect key="frame" x="16" y="18" width="119" height="18"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="check" title="Launch at Login" bezelStyle="regularSquare" imagePosition="left" inset="2" id="7JB-B7-5ne">
+                                    <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <connections>
+                                    <action selector="launchButtonClicked:" target="rLC-8w-dS1" id="lol-Hh-GRs"/>
+                                </connections>
+                            </button>
+                            <button hidden="YES" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="M4E-aa-EMX">
+                                <rect key="frame" x="-1" y="-30" width="152" height="32"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="push" title="Check for updates" bezelStyle="rounded" alignment="center" enabled="NO" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="QhS-lH-seG">
+                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <connections>
+                                    <action selector="updateButtonClicked:" target="rLC-8w-dS1" id="mQk-iE-Apd"/>
+                                </connections>
+                            </button>
+                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="6BV-WI-eDW">
+                                <rect key="frame" x="35" y="2" width="80" height="11"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="center" placeholderString="version" id="0fU-w8-PJH">
+                                    <font key="font" metaFont="label" size="9"/>
+                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                            </textField>
+                        </subviews>
+                    </view>
+                    <connections>
+                        <outlet property="login" destination="5oM-x8-22O" id="WTs-Mh-s47"/>
+                        <outlet property="updateButton" destination="M4E-aa-EMX" id="P3W-Cz-mcC"/>
+                        <outlet property="versionText" destination="6BV-WI-eDW" id="7O0-0n-zxo"/>
+                    </connections>
+                </viewController>
+                <customObject id="hkX-AP-kdW" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="157" y="1350"/>
         </scene>
         <!--MusicVC-->
         <scene sceneID="Tdu-bp-48f">
@@ -1078,14 +1130,36 @@
                                     <action selector="playPauseButtonClicked:" target="sM2-A5-j4E" id="LMb-iu-AbG"/>
                                 </connections>
                             </button>
+                            <slider verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="cWY-Dq-SSP">
+                                <rect key="frame" x="-1" y="-4" width="303" height="15"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <sliderCell key="cell" controlSize="small" continuous="YES" state="on" alignment="left" maxValue="100" doubleValue="50" tickMarkPosition="above" sliderType="linear" id="UDp-FV-p2x" customClass="TrackDurationCell" customModule="PlayStatus" customModuleProvider="target"/>
+                            </slider>
+                            <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="8A7-eN-bal">
+                                <rect key="frame" x="2" y="2" width="22" height="22"/>
+                                <constraints>
+                                    <constraint firstAttribute="height" constant="22" id="HHL-ke-Y1P"/>
+                                    <constraint firstAttribute="width" constant="22" id="xD5-O2-MDd"/>
+                                </constraints>
+                                <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="NSActionTemplate" imagePosition="overlaps" alignment="center" borderStyle="border" transparent="YES" imageScaling="proportionallyDown" inset="2" id="Ofn-Zx-L8g">
+                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <color key="contentTintColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="0.80000000000000004" colorSpace="custom" customColorSpace="displayP3"/>
+                                <connections>
+                                    <segue destination="rLC-8w-dS1" kind="popover" popoverAnchorView="8A7-eN-bal" popoverBehavior="t" preferredEdge="minX" id="p4e-zd-AUw"/>
+                                </connections>
+                            </button>
                         </subviews>
                         <constraints>
                             <constraint firstAttribute="trailing" secondItem="itc-zp-nhz" secondAttribute="trailing" constant="3" id="0Ph-A9-flj"/>
                             <constraint firstItem="wCa-ZZ-XgA" firstAttribute="top" secondItem="4c5-fu-f1J" secondAttribute="top" constant="6" id="1O2-yk-bqr"/>
+                            <constraint firstAttribute="bottom" secondItem="8A7-eN-bal" secondAttribute="bottom" constant="2" id="55Z-An-Y3a"/>
                             <constraint firstItem="itc-zp-nhz" firstAttribute="top" secondItem="4c5-fu-f1J" secondAttribute="top" constant="3" id="8lK-dP-K3U"/>
                             <constraint firstAttribute="bottom" secondItem="ypR-X6-aPp" secondAttribute="bottom" id="Lf1-0R-uQS"/>
                             <constraint firstAttribute="trailing" secondItem="ypR-X6-aPp" secondAttribute="trailing" constant="-2" id="RW4-dh-pd6"/>
                             <constraint firstItem="wCa-ZZ-XgA" firstAttribute="leading" secondItem="4c5-fu-f1J" secondAttribute="leading" constant="6" id="hRg-Yv-yfi"/>
+                            <constraint firstItem="8A7-eN-bal" firstAttribute="leading" secondItem="4c5-fu-f1J" secondAttribute="leading" constant="2" id="lta-AB-miw"/>
                         </constraints>
                     </view>
                     <connections>
@@ -1100,11 +1174,13 @@
                         <outlet property="prevButton" destination="2QB-XB-xo5" id="FaH-xp-xVr"/>
                         <outlet property="quitButton" destination="itc-zp-nhz" id="mGx-cu-2IG"/>
                         <outlet property="searchButton" destination="ypR-X6-aPp" id="BBc-8W-MrS"/>
+                        <outlet property="settingsButton" destination="8A7-eN-bal" id="J05-p2-KTd"/>
                         <outlet property="skipAhead" destination="mu7-Q1-ai1" id="hzi-el-x6D"/>
                         <outlet property="skipBack" destination="EOz-7s-baV" id="lj1-nb-ek8"/>
                         <outlet property="songDetails" destination="Ccf-7o-vis" id="p1F-oQ-Ig3"/>
                         <outlet property="songName" destination="hgc-gH-kkc" id="Yg8-C7-yXv"/>
                         <outlet property="startTime" destination="Ql6-Ht-BvX" id="OH7-nH-KYG"/>
+                        <outlet property="trackDurationSliderCell" destination="cWY-Dq-SSP" id="6TF-JP-YTb"/>
                         <outlet property="visualEffectView" destination="ngz-Ue-FMn" id="Gdy-mn-7ad"/>
                     </connections>
                 </viewController>
@@ -1114,6 +1190,7 @@
         </scene>
     </scenes>
     <resources>
+        <image name="NSActionTemplate" width="14" height="14"/>
         <image name="NSApplicationIcon" width="32" height="32"/>
         <image name="NSStopProgressFreestandingTemplate" width="14" height="14"/>
         <image name="NSTouchBarSearchTemplate" width="19" height="30"/>

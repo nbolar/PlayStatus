@@ -8,7 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		4E08E45423B9DB820035A479 /* Scripts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E08E45323B9DB820035A479 /* Scripts.swift */; };
+		4E2433E623BC6DA7009F8DBB /* TrackDurationCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E2433E523BC6DA7009F8DBB /* TrackDurationCell.swift */; };
 		4E26E405227848F5005A53EE /* CustomSliderCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E26E404227848F5005A53EE /* CustomSliderCell.swift */; };
+		4E37882923BC7ADE0020FC26 /* SettingsVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E37882823BC7ADE0020FC26 /* SettingsVC.swift */; };
 		4E5079CC227D6EAE0002C5AF /* ScrollingStatusItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E5079CA227D6EAD0002C5AF /* ScrollingStatusItemView.swift */; };
 		4E5079CD227D6EAE0002C5AF /* ScrollingTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E5079CB227D6EAE0002C5AF /* ScrollingTextView.swift */; };
 		4E825237227C3A8C003B8296 /* AboutVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E825236227C3A8C003B8296 /* AboutVC.swift */; };
@@ -23,7 +25,9 @@
 /* Begin PBXFileReference section */
 		0628D03BDC04D109D55FD6B4 /* Pods-PlayStatus.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-PlayStatus.release.xcconfig"; path = "Pods/Target Support Files/Pods-PlayStatus/Pods-PlayStatus.release.xcconfig"; sourceTree = "<group>"; };
 		4E08E45323B9DB820035A479 /* Scripts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scripts.swift; sourceTree = "<group>"; };
+		4E2433E523BC6DA7009F8DBB /* TrackDurationCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackDurationCell.swift; sourceTree = "<group>"; };
 		4E26E404227848F5005A53EE /* CustomSliderCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomSliderCell.swift; sourceTree = "<group>"; };
+		4E37882823BC7ADE0020FC26 /* SettingsVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsVC.swift; sourceTree = "<group>"; };
 		4E5079CA227D6EAD0002C5AF /* ScrollingStatusItemView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ScrollingStatusItemView.swift; sourceTree = "<group>"; };
 		4E5079CB227D6EAE0002C5AF /* ScrollingTextView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ScrollingTextView.swift; path = ../../GitHub/SpotMenu/SpotMenu/CustomViews/ScrollingTextView.swift; sourceTree = "<group>"; };
 		4E825236227C3A8C003B8296 /* AboutVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutVC.swift; sourceTree = "<group>"; };
@@ -86,6 +90,7 @@
 				4E9F8E7E22719AB600B87B4A /* Assets.xcassets */,
 				4E9F8E8022719AB600B87B4A /* Main.storyboard */,
 				4E26E404227848F5005A53EE /* CustomSliderCell.swift */,
+				4E2433E523BC6DA7009F8DBB /* TrackDurationCell.swift */,
 				4E8D52B222C2C6EF0062E6DB /* SearchVC.swift */,
 				4E825236227C3A8C003B8296 /* AboutVC.swift */,
 				4E9F8E8322719AB600B87B4A /* Info.plist */,
@@ -93,6 +98,7 @@
 				4E5079CA227D6EAD0002C5AF /* ScrollingStatusItemView.swift */,
 				4E5079CB227D6EAE0002C5AF /* ScrollingTextView.swift */,
 				4E08E45323B9DB820035A479 /* Scripts.swift */,
+				4E37882823BC7ADE0020FC26 /* SettingsVC.swift */,
 			);
 			path = PlayStatus;
 			sourceTree = "<group>";
@@ -190,12 +196,18 @@
 				"${SRCROOT}/Pods/Target Support Files/Pods-PlayStatus/Pods-PlayStatus-frameworks.sh",
 				"${BUILT_PRODUCTS_DIR}/Alamofire/Alamofire.framework",
 				"${BUILT_PRODUCTS_DIR}/CircularProgressMac/CircularProgressMac.framework",
+				"${BUILT_PRODUCTS_DIR}/LoginServiceKit/LoginServiceKit.framework",
+				"${PODS_ROOT}/Sparkle/Sparkle.framework",
+				"${PODS_ROOT}/Sparkle/Sparkle.framework.dSYM",
 				"${BUILT_PRODUCTS_DIR}/SwiftyJSON/SwiftyJSON.framework",
 			);
 			name = "[CP] Embed Pods Frameworks";
 			outputPaths = (
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Alamofire.framework",
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CircularProgressMac.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/LoginServiceKit.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Sparkle.framework",
+				"${DWARF_DSYM_FOLDER_PATH}/Sparkle.framework.dSYM",
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/SwiftyJSON.framework",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -233,9 +245,11 @@
 				4E5079CD227D6EAE0002C5AF /* ScrollingTextView.swift in Sources */,
 				4E9F8E7B22719AB500B87B4A /* AppDelegate.swift in Sources */,
 				4E26E405227848F5005A53EE /* CustomSliderCell.swift in Sources */,
+				4E2433E623BC6DA7009F8DBB /* TrackDurationCell.swift in Sources */,
 				4E5079CC227D6EAE0002C5AF /* ScrollingStatusItemView.swift in Sources */,
 				4E9F8E8B2271EECF00B87B4A /* MusicVC.swift in Sources */,
 				4E8D52B322C2C6EF0062E6DB /* SearchVC.swift in Sources */,
+				4E37882923BC7ADE0020FC26 /* SettingsVC.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -377,7 +391,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KALT4PNG4U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = PlayStatus/Info.plist;
@@ -385,7 +399,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bolar.PlayStatus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -402,7 +416,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KALT4PNG4U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = PlayStatus/Info.plist;
@@ -410,7 +424,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bolar.PlayStatus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
