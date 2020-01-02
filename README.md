@@ -14,7 +14,6 @@ PlayStatus is a simple macOS app that allows the control of Spotify, Apple Music
 ### Note : 
 The search functionality works only for songs present in the iTunes or Music(macOS 10.15+) library.
 
-##
 
 ## Releases:
 
