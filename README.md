@@ -21,5 +21,5 @@ The search functionality works only for songs present in the iTunes or Music(mac
  - [Version 1.3](https://github.com/nbolar/PlayStatus/releases/tag/v1.3)
  - [Version 1.2](https://github.com/nbolar/PlayStatus/releases/tag/v1.2)
  - [Version 1.1](https://github.com/nbolar/PlayStatus/releases/tag/v1.1)
- - [Version 1.1](https://github.com/nbolar/PlayStatus/releases/tag/v1.0)
+ - [Version 1.0](https://github.com/nbolar/PlayStatus/releases/tag/v1.0)
 
