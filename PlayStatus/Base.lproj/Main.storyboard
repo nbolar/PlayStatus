@@ -70,6 +70,24 @@
                                                 <action selector="searchMenuItem:" target="Voe-Tx-rLC" id="PS2-UJ-2JW"/>
                                             </connections>
                                         </menuItem>
+                                        <menuItem title="Play/Pause" keyEquivalent=" " id="ONC-iR-c1W">
+                                            <modifierMask key="keyEquivalentModifierMask"/>
+                                            <connections>
+                                                <action selector="playPauseMenuItem:" target="Voe-Tx-rLC" id="Rfr-0h-RfS"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Next Track" keyEquivalent="n" id="pdp-aF-4Rf">
+                                            <modifierMask key="keyEquivalentModifierMask"/>
+                                            <connections>
+                                                <action selector="nextTrackMenuItem:" target="Voe-Tx-rLC" id="yQ0-tq-wCr"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Previous Track" keyEquivalent="b" id="Lc1-hq-CDp">
+                                            <modifierMask key="keyEquivalentModifierMask"/>
+                                            <connections>
+                                                <action selector="previousTrackMenuItem:" target="Voe-Tx-rLC" id="o8D-Tf-2V2"/>
+                                            </connections>
+                                        </menuItem>
                                         <menuItem title="Open…" keyEquivalent="o" id="IAo-SY-fd9">
                                             <connections>
                                                 <action selector="openDocument:" target="Ady-hI-5gd" id="bVn-NM-KNZ"/>
@@ -859,7 +877,7 @@
                                 <rect key="frame" x="166" y="164" width="80" height="11"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" placeholderString="version" id="bCd-yO-oQf">
-                                    <font key="font" metaFont="label" size="9"/>
+                                    <font key="font" metaFont="menu" size="9"/>
                                     <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                                 </textFieldCell>
@@ -909,7 +927,7 @@
                                 <rect key="frame" x="35" y="2" width="80" height="11"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" alignment="center" placeholderString="version" id="0fU-w8-PJH">
-                                    <font key="font" metaFont="label" size="9"/>
+                                    <font key="font" metaFont="menu" size="9"/>
                                     <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                                 </textFieldCell>

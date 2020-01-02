@@ -20,6 +20,7 @@ class AboutVC: NSViewController {
             let version = info["CFBundleShortVersionString"] as? String ?? "?"
             versionText.stringValue = "Version \(version)"
         }
+        
         descriptionField.stringValue = """
     MIT License
 

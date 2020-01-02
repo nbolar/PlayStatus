@@ -13,7 +13,8 @@ import CircularProgressMac
 
 
 class MusicVC: NSViewController {
-
+    static let shared = MusicVC()
+    
     @IBOutlet weak var albumArt: NSImageView!
     @IBOutlet weak var songDetails: NSTextField!
     @IBOutlet weak var pauseButton: NSButton!
@@ -99,6 +100,9 @@ class MusicVC: NSViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(loadAlbumArtwork), name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(close), name: NSNotification.Name(rawValue: "close"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(searchButtonClicked(_:)), name: NSNotification.Name(rawValue: "search"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(playPauseButtonClicked(_:)), name: NSNotification.Name(rawValue: "playPause"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(previousButtonClicked(_:)), name: NSNotification.Name(rawValue: "previousTrack"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(nextButtonClicked(_:)), name: NSNotification.Name(rawValue: "nextTrack"), object: nil)
         checkStatus()
         loadAlbumArtwork()
         fade()
@@ -376,6 +380,9 @@ class MusicVC: NSViewController {
         
     }
     
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
 
     
 }

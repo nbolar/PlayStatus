@@ -69,14 +69,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         statusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
         statusItem.button?.action = #selector(self.togglePopover(_:))
+        
         _ = Timer.scheduledTimer(timeInterval: 2.0, target: self, selector: #selector(getSongName), userInfo: nil, repeats: true)
         loadSubviews()
         invisibleWindow.backgroundColor = .clear
         invisibleWindow.alphaValue = 0
         
-        let storyboard = NSStoryboard(name: "Main", bundle: nil)
-        guard let vc =  storyboard.instantiateController(withIdentifier: "MusicVC") as? NSViewController else { return }
-        musicController?.contentViewController = vc
         musicController?.window?.isOpaque = false
         musicController?.window?.backgroundColor = .clear
         musicController?.window?.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)))
@@ -112,10 +110,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(withTitle: "About", action: #selector(aboutMenu), keyEquivalent: "")
             menu.addItem(NSMenuItem(title: "Quit PlayStatus", action: #selector(self.quitApp), keyEquivalent: "q"))
 
-            statusItem.popUpMenu(menu)
-
+            statusItem.menu = menu
+            statusItem.button?.performClick(nil)
+            statusItem.menu = nil
             
         }
+        
+    }
+    @IBAction func playPauseMenuItem(_ sender: Any) {
+        NotificationCenter.default.post(name: NSNotification.Name(rawValue: "playPause"), object: nil)
+        
+    }
+    
+    @IBAction func nextTrackMenuItem(_ sender: Any) {
+        NotificationCenter.default.post(name: NSNotification.Name(rawValue: "nextTrack"), object: nil)
+    }
+    
+    
+    @IBAction func previousTrackMenuItem(_ sender: Any) {
+        NotificationCenter.default.post(name: NSNotification.Name(rawValue: "previousTrack"), object: nil)
     }
     
     @IBAction func searchMenuItem(_ sender: Any) {
@@ -130,6 +143,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     {
         aboutView?.showWindow(self)
         aboutView?.window?.makeKeyAndOrderFront(self)
+        aboutView?.window?.center()
         NSApp.activate(ignoringOtherApps: true)
     }
     
