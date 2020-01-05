@@ -39,7 +39,5 @@
 	<string>Main</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
-	<key>SUFeedURL</key>
-	<string>https://s3.us-east-2.amazonaws.com/com.bolar.playstatus/sparkletestcast.xml</string>
 </dict>
 </plist>

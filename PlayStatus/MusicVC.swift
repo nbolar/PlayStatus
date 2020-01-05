@@ -302,12 +302,22 @@ class MusicVC: NSViewController {
     @IBAction func playPauseButtonClicked(_ sender: Any) {
         if pauseButton.isHidden == true{
             view.addSubview(circularProgress)
-            playButton.isHidden = true
-            pauseButton.isHidden = false
+            if !songDetails.isHidden {
+                playButton.isHidden = true
+                pauseButton.isHidden = false
+            }
+            
         } else if pauseButton.isHidden == false
         {
-            playButton.isHidden = false
-            pauseButton.isHidden = true
+            
+            if !songDetails.isHidden{
+                playButton.isHidden = false
+                pauseButton.isHidden = true
+            }
+
+        }
+        if (trackDurationSliderCell.doubleValue != 0){
+            circularProgress.removeFromSuperview()
         }
         NSAppleScript.go(code: NSAppleScript.playPause(), completionHandler: {_,_,_ in })
         let appDelegate = NSApplication.shared.delegate as! AppDelegate

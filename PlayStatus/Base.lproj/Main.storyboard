@@ -76,13 +76,13 @@
                                                 <action selector="playPauseMenuItem:" target="Voe-Tx-rLC" id="Rfr-0h-RfS"/>
                                             </connections>
                                         </menuItem>
-                                        <menuItem title="Next Track" keyEquivalent="n" id="pdp-aF-4Rf">
+                                        <menuItem title="Next Track" keyEquivalent="" id="pdp-aF-4Rf">
                                             <modifierMask key="keyEquivalentModifierMask"/>
                                             <connections>
                                                 <action selector="nextTrackMenuItem:" target="Voe-Tx-rLC" id="yQ0-tq-wCr"/>
                                             </connections>
                                         </menuItem>
-                                        <menuItem title="Previous Track" keyEquivalent="b" id="Lc1-hq-CDp">
+                                        <menuItem title="Previous Track" keyEquivalent="" id="Lc1-hq-CDp">
                                             <modifierMask key="keyEquivalentModifierMask"/>
                                             <connections>
                                                 <action selector="previousTrackMenuItem:" target="Voe-Tx-rLC" id="o8D-Tf-2V2"/>
@@ -701,7 +701,6 @@
                 <customObject id="Voe-Tx-rLC" customClass="AppDelegate" customModule="PlayStatus" customModuleProvider="target"/>
                 <customObject id="YLy-65-1bz" customClass="NSFontManager"/>
                 <customObject id="Ady-hI-5gd" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
-                <customObject id="4Mm-oF-QJK" customClass="SUUpdater"/>
             </objects>
             <point key="canvasLocation" x="75" y="0.0"/>
         </scene>
