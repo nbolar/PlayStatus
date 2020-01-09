@@ -13,10 +13,9 @@ class CustomSliderCell: NSSliderCell {
         return knobWidth
     }
     
-    let knobWidth: CGFloat = 3.0
-    let knobHeight: CGFloat = 15.0
-    let knobRadius: CGFloat = 2.0
-    
+    let knobWidth: CGFloat = 8.0
+    let knobHeight: CGFloat = 8.0
+    let knobRadius: CGFloat = 4.0
     required init(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
     }

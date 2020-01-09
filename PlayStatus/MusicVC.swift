@@ -234,53 +234,30 @@ class MusicVC: NSViewController {
         trackDuration()
         songName.stringValue = currentSongName ?? ""
         artistName.stringValue = currentSongArtist ?? ""
-        NSAppleScript.go(code: NSAppleScript.loadAlbumArtwork(), completionHandler: {_,out,_ in
-            let imageName = out?.stringValue ?? ""
-            if songName.stringValue == ""
-            {
-                albumArt.image = NSImage(named: "wallpaper2")
-                //                songDetails.stringValue = "No Music Playing"
-                artistName.stringValue = "No Music Playing"
-            }else if imageName.contains("https://"){
-                songDetails.stringValue = ""
-                let url = URL(string: imageName)
-                albumArt.image = NSImage(contentsOf: url!)
-                circularProgress.removeFromSuperview()
-            }else if imageName != ""{
-                songDetails.stringValue = ""
-                albumArt.image = NSImage(contentsOfFile: imageName)
-                circularProgress.removeFromSuperview()
-            }else if imageName == "" && songName.stringValue != ""
-            {
+        
+        if songName.stringValue != ""
+        {
+            
+            let editedSongArtist = currentSongArtist.replacingOccurrences(of: "&", with: "+", options: .literal, range: nil)
+            let safeArtistURL = editedSongArtist.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed)!
+            let safeSongURL = currentSongName.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed)!
+            let stringURL = "https://itunes.apple.com/search?term=\(safeArtistURL)+\(safeSongURL)&country=us&limit=1"
+            let editedStringURL = stringURL.replacingOccurrences(of: " ", with: "+", options: .literal, range: nil)
+            
+            let url = URL(string: editedStringURL)
+            AF.request(url!).responseData { (response) in
                 
-                let editedSongArtist = currentSongArtist.replacingOccurrences(of: "&", with: "+", options: .literal, range: nil)
-                let safeArtistURL = editedSongArtist.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed)!
-                let safeSongURL = currentSongName.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed)!
-                let stringURL = "https://itunes.apple.com/search?term=\(safeArtistURL)+\(safeSongURL)&country=us&limit=1"
-                let editedStringURL = stringURL.replacingOccurrences(of: " ", with: "+", options: .literal, range: nil)
-                
-                let url = URL(string: editedStringURL)
-                AF.request(url!).responseData { (response) in
-                    
-                    let json = JSON(response.data as Any)
-                    let originalURL = json["results"][0]["artworkUrl100"].stringValue
-                    let editedURL = originalURL.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg", options: .literal, range: nil)
-                    let imageURL = URL(string: editedURL)
-                    self.albumArt.image = NSImage(contentsOf: imageURL ?? URL(string: "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/i/e7981d38-6ee3-496d-a6c0-8710745bdbfc/db6zlbs-68b8cd4f-bf6b-4d39-b9a7-7475cade812f.png")!)
-                    self.circularProgress.removeFromSuperview()
-                }
-                
+                let json = JSON(response.data as Any)
+                let originalURL = json["results"][0]["artworkUrl100"].stringValue
+                let editedURL = originalURL.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg", options: .literal, range: nil)
+                let imageURL = URL(string: editedURL)
+                self.albumArt.image = NSImage(contentsOf: imageURL ?? URL(string: "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/i/e7981d38-6ee3-496d-a6c0-8710745bdbfc/db6zlbs-68b8cd4f-bf6b-4d39-b9a7-7475cade812f.png")!)
+                self.circularProgress.removeFromSuperview()
             }
             
-        } )
-        deleteAlbum()
+        }
     }
     
-    func deleteAlbum()
-    {
-
-        NSAppleScript.go(code: NSAppleScript.deleteAlbum(), completionHandler: {_,_,_ in })
-    }
     
     @IBAction func previousButtonClicked(_ sender: Any) {
         view.addSubview(circularProgress)

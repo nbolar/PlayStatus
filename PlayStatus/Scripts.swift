@@ -30,7 +30,7 @@ extension NSAppleScript {
                     if player state is playing then
                         return "playing"
                     else
-                        return "not playing"
+                        
                     end if
                 end tell
                 checkSpotify()
@@ -58,6 +58,7 @@ extension NSAppleScript {
             end checkSpotify
             """
         }
+    
     
     static func loadAlbumArtwork() -> String{
         return """
@@ -332,9 +333,10 @@ extension NSAppleScript {
                 if player state is playing then
                     return duration of current track
                 else
-                    return ""
+                    
                 end if
             end tell
+            checkSpotify()
         else if application "Spotify" is running then
                 tell application "Spotify"
                     if player state is playing then
@@ -344,6 +346,17 @@ extension NSAppleScript {
                     end if
                 end tell
         end if
+        on checkSpotify()
+            if application "Spotify" is running then
+                tell application "Spotify"
+                     if player state is playing then
+                        return duration of current track / 1000
+                    else
+                        return ""
+                    end if
+                end tell
+            end if
+        end checkSpotify
         """
     }
     
@@ -354,9 +367,10 @@ extension NSAppleScript {
                 if player state is playing then
                     return time of current track
                 else
-                    return ""
+                    
                 end if
             end tell
+         checkSpotify()
         else if application "Spotify" is running then
                 tell application "Spotify"
                     set tM to round (((duration of current track) / 1000) / 60) rounding down
@@ -368,6 +382,19 @@ extension NSAppleScript {
                     return myTime
                 end tell
             end if
+        on checkSpotify()
+            if application "Spotify" is running then
+                tell application "Spotify"
+                    set tM to round (((duration of current track) / 1000) / 60) rounding down
+                    set tS to round (((duration of current track) / 1000) mod 60) rounding down
+                    if tS < 10 then
+                        set tS to (0 & tS as text)
+                    end if
+                    set myTime to ((tM as text) & ":" & tS as text)
+                    return myTime
+                end tell
+            end if
+        end checkSpotify
         """
     }
     
@@ -378,9 +405,10 @@ extension NSAppleScript {
                 if player state is playing then
                     set player position to "\(position)"
                 else
-                    return ""
+                    
                 end if
             end tell
+        checkSpotify()
         else if application "Spotify" is running then
                 tell application "Spotify"
                     if player state is playing then
@@ -390,6 +418,17 @@ extension NSAppleScript {
                     end if
                 end tell
         end if
+        on checkSpotify()
+           if application "Spotify" is running then
+               tell application "Spotify"
+                   if player state is playing then
+                        set player position to "\(position)"
+                    else
+                        return ""
+                    end if
+               end tell
+           end if
+        end checkSpotify
         """
     }
     
@@ -400,9 +439,10 @@ extension NSAppleScript {
                 if player state is playing then
                     return player position
                 else
-                    return ""
+                    
                 end if
             end tell
+        checkSpotify()
         else if application "Spotify" is running then
                 tell application "Spotify"
                     if player state is playing then
@@ -412,6 +452,17 @@ extension NSAppleScript {
                     end if
                 end tell
         end if
+        on checkSpotify()
+           if application "Spotify" is running then
+               tell application "Spotify"
+                    if player state is playing then
+                        return player position
+                    else
+                        return ""
+                   end if
+               end tell
+           end if
+        end checkSpotify
         """
     }
     
