@@ -20,6 +20,7 @@ The search functionality works only for songs present in the iTunes or Music(mac
 
 ## Releases:
 
+ - [Version 1.5](https://github.com/nbolar/PlayStatus/releases/tag/v1.5)
  - [Version 1.4](https://github.com/nbolar/PlayStatus/releases/tag/v1.4)
  - [Version 1.3](https://github.com/nbolar/PlayStatus/releases/tag/v1.3)
  - [Version 1.2](https://github.com/nbolar/PlayStatus/releases/tag/v1.2)
