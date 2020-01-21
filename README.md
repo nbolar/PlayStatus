@@ -17,6 +17,13 @@ The search functionality works only for songs present in the iTunes or Music(mac
 ## Installation
 - Download and unzip the most recent [release](https://github.com/nbolar/PlayStatus/releases/latest/download/PlayStatus.app.zip).
 - Drag and drop the app into the Applications Folder.
+- On opening the app for the first time, you should see the dialog box below. PLease click on "Allow" inorder for the app to control your music app of choice.
+<img width="420" alt="Screen Shot 2020-01-20 at 10 32 53 PM" src="https://user-images.githubusercontent.com/45484873/72773327-cf955f80-3bd4-11ea-85bc-f4b0e131d188.png">
+
+
+## Note:
+No information at all is logged and everything is local to your device. Since the app uses Apple Script to push actions to another app, it requires the user's permission to do so. Should you have any concerns please get in touch by reporting an issue or you can check out the most recent code available.
+
 
 ## Releases:
 
