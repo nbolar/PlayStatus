@@ -9,6 +9,7 @@
 import Cocoa
 
 var currentSongName: String!
+var currentAlbumName: String!
 var currentSongArtist: String!
 var yHeight : CGFloat!
 var xWidth : CGFloat!
@@ -69,6 +70,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         statusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
         statusItem.button?.action = #selector(self.togglePopover(_:))
+        if let info = Bundle.main.infoDictionary {
+            let version = info["CFBundleShortVersionString"] as? String ?? "?"
+            statusItem.button?.toolTip = "PlayStatus v\(version)"
+        }
         
         _ = Timer.scheduledTimer(timeInterval: 2.0, target: self, selector: #selector(getSongName), userInfo: nil, repeats: true)
         loadSubviews()
@@ -107,6 +112,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let menu = NSMenu()
             menu.addItem(NSMenuItem(title: "PlayStatus version \(appVersion ?? "")", action: nil, keyEquivalent: ""))
             menu.addItem(NSMenuItem.separator())
+            menu.addItem(withTitle: "Report Issues", action: #selector(issues), keyEquivalent: "")
             menu.addItem(withTitle: "About", action: #selector(aboutMenu), keyEquivalent: "")
             menu.addItem(NSMenuItem(title: "Quit PlayStatus", action: #selector(self.quitApp), keyEquivalent: "q"))
 
@@ -147,6 +153,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
     
+    @objc func issues()
+    {
+        let url = URL(string: "https://github.com/nbolar/PlayStatus/issues")!
+        NSWorkspace.shared.open(url)
+    }
+    
     @objc func quitApp()
     {
         NSApp.terminate(self)
@@ -165,6 +177,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSAppleScript.go(code: NSAppleScript.songArtist(), completionHandler: {_,out,_ in
             artistName = out?.stringValue ?? ""
             currentSongArtist = artistName
+            
+        })
+        NSAppleScript.go(code: NSAppleScript.albumName(), completionHandler: {_,out,_ in
+            currentAlbumName = out?.stringValue ?? ""
             
         })
         

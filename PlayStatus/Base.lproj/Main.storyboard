@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="15702" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
+<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="15705" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
     <dependencies>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="15702"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="15705"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
@@ -701,6 +701,7 @@
                 <customObject id="Voe-Tx-rLC" customClass="AppDelegate" customModule="PlayStatus" customModuleProvider="target"/>
                 <customObject id="YLy-65-1bz" customClass="NSFontManager"/>
                 <customObject id="Ady-hI-5gd" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
+                <customObject id="1UC-nn-hWm" customClass="SUUpdater"/>
             </objects>
             <point key="canvasLocation" x="75" y="0.0"/>
         </scene>
@@ -876,7 +877,7 @@
                                 <rect key="frame" x="166" y="164" width="80" height="11"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" placeholderString="version" id="bCd-yO-oQf">
-                                    <font key="font" metaFont="menu" size="9"/>
+                                    <font key="font" metaFont="label" size="9"/>
                                     <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                                 </textFieldCell>
@@ -897,11 +898,11 @@
             <objects>
                 <viewController id="rLC-8w-dS1" customClass="SettingsVC" customModule="PlayStatus" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" id="MUQ-3L-UpP">
-                        <rect key="frame" x="0.0" y="0.0" width="150" height="50"/>
+                        <rect key="frame" x="0.0" y="0.0" width="150" height="100"/>
                         <autoresizingMask key="autoresizingMask"/>
                         <subviews>
                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="5oM-x8-22O">
-                                <rect key="frame" x="16" y="18" width="119" height="18"/>
+                                <rect key="frame" x="16" y="68" width="119" height="18"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="check" title="Launch at Login" bezelStyle="regularSquare" imagePosition="left" inset="2" id="7JB-B7-5ne">
                                     <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
@@ -912,9 +913,9 @@
                                 </connections>
                             </button>
                             <button hidden="YES" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="M4E-aa-EMX">
-                                <rect key="frame" x="-1" y="-30" width="152" height="32"/>
+                                <rect key="frame" x="-1" y="20" width="152" height="32"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <buttonCell key="cell" type="push" title="Check for updates" bezelStyle="rounded" alignment="center" enabled="NO" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="QhS-lH-seG">
+                                <buttonCell key="cell" type="push" title="Check for updates" bezelStyle="rounded" alignment="center" state="on" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="QhS-lH-seG">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                     <font key="font" metaFont="system"/>
                                 </buttonCell>
@@ -926,7 +927,7 @@
                                 <rect key="frame" x="35" y="2" width="80" height="11"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" alignment="center" placeholderString="version" id="0fU-w8-PJH">
-                                    <font key="font" metaFont="menu" size="9"/>
+                                    <font key="font" metaFont="label" size="9"/>
                                     <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                                 </textFieldCell>
@@ -956,7 +957,7 @@
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="axesIndependently" image="wallpaper2" id="biU-rt-7Ij"/>
                             </imageView>
-                            <visualEffectView wantsLayer="YES" fixedFrame="YES" blendingMode="withinWindow" material="popover" state="active" translatesAutoresizingMaskIntoConstraints="NO" id="ngz-Ue-FMn">
+                            <visualEffectView wantsLayer="YES" fixedFrame="YES" blendingMode="withinWindow" material="dark" state="active" translatesAutoresizingMaskIntoConstraints="NO" id="ngz-Ue-FMn">
                                 <rect key="frame" x="0.0" y="0.0" width="300" height="300"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <shadow key="shadow">
@@ -973,7 +974,7 @@
                                 </textFieldCell>
                             </textField>
                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="2QB-XB-xo5">
-                                <rect key="frame" x="21" y="144" width="40" height="40"/>
+                                <rect key="frame" x="20" y="149" width="30" height="30"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="rewind" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="Qd5-xg-hKR">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -982,18 +983,6 @@
                                 <color key="contentTintColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="0.8013698629712328" colorSpace="custom" customColorSpace="displayP3"/>
                                 <connections>
                                     <action selector="previousButtonClicked:" target="sM2-A5-j4E" id="qZ1-pY-fCz"/>
-                                </connections>
-                            </button>
-                            <button verticalHuggingPriority="750" fixedFrame="YES" springLoaded="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Boe-QH-ZYq">
-                                <rect key="frame" x="240" y="144" width="40" height="40"/>
-                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="forward1" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="pGA-Di-7In">
-                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
-                                    <font key="font" metaFont="system"/>
-                                </buttonCell>
-                                <color key="contentTintColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="0.8013698629712328" colorSpace="custom" customColorSpace="displayP3"/>
-                                <connections>
-                                    <action selector="nextButtonClicked:" target="sM2-A5-j4E" id="VTE-PC-eFN"/>
                                 </connections>
                             </button>
                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Rab-o5-SYr">
@@ -1009,7 +998,7 @@
                                 </connections>
                             </button>
                             <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="EOz-7s-baV">
-                                <rect key="frame" x="75" y="142" width="45" height="45"/>
+                                <rect key="frame" x="78" y="142" width="20" height="45"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="NSTouchBarSkipBack15SecondsTemplate" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="p15-Df-Izq">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -1021,7 +1010,7 @@
                                 </connections>
                             </button>
                             <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mu7-Q1-ai1">
-                                <rect key="frame" x="186" y="142" width="45" height="45"/>
+                                <rect key="frame" x="186" y="142" width="25" height="45"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="NSTouchBarSkipAhead15SecondsTemplate" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="R26-WT-U56">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -1158,13 +1147,25 @@
                                     <constraint firstAttribute="height" constant="22" id="HHL-ke-Y1P"/>
                                     <constraint firstAttribute="width" constant="22" id="xD5-O2-MDd"/>
                                 </constraints>
-                                <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="NSActionTemplate" imagePosition="overlaps" alignment="center" borderStyle="border" transparent="YES" imageScaling="proportionallyDown" inset="2" id="Ofn-Zx-L8g">
+                                <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="NSActionTemplate" imagePosition="overlaps" alignment="center" imageScaling="proportionallyDown" inset="2" id="Ofn-Zx-L8g">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                     <font key="font" metaFont="system"/>
                                 </buttonCell>
-                                <color key="contentTintColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="0.80000000000000004" colorSpace="custom" customColorSpace="displayP3"/>
+                                <color key="contentTintColor" red="0.99999600649999998" green="1" blue="1" alpha="0.80000000000000004" colorSpace="custom" customColorSpace="sRGB"/>
                                 <connections>
                                     <segue destination="rLC-8w-dS1" kind="popover" popoverAnchorView="8A7-eN-bal" popoverBehavior="t" preferredEdge="minX" id="p4e-zd-AUw"/>
+                                </connections>
+                            </button>
+                            <button verticalHuggingPriority="750" fixedFrame="YES" springLoaded="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Boe-QH-ZYq">
+                                <rect key="frame" x="250" y="149" width="30" height="30"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="bevel" bezelStyle="rounded" image="forward1" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="pGA-Di-7In">
+                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <color key="contentTintColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="0.8013698629712328" colorSpace="custom" customColorSpace="displayP3"/>
+                                <connections>
+                                    <action selector="nextButtonClicked:" target="sM2-A5-j4E" id="VTE-PC-eFN"/>
                                 </connections>
                             </button>
                         </subviews>

@@ -166,26 +166,33 @@ class MusicVC: NSViewController {
         prevButton.isHidden = hide
         nextButton.isHidden = hide
         quitButton.isHidden = hide
-        skipBack.isHidden = hide
-        skipAhead.isHidden = hide
-        musicSlider.isHidden = hide
+//        skipBack.isHidden = hide
+//        skipAhead.isHidden = hide
         trackDurationSliderCell.isHidden = !hide
-        startTime.isHidden = hide
-        endTime.isHidden = hide
         songName.isHidden = hide
         artistName.isHidden = hide
         musicButton.isHidden = hide
         searchButton.isHidden = hide
         settingsButton.isHidden = hide
+        NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
+            musicButton.toolTip = "Open \(out?.stringValue ?? "")"
+        })
+        
     }
     override func mouseEntered(with event: NSEvent) {
         fade(type: .fadeIn)
         if check == 1{
             hideUnhide(hide: false)
             pauseButton.isHidden = false
+            startTime.isHidden = false
+            endTime.isHidden = false
+            musicSlider.isHidden = false
             
         }else if check == 2{
             playButton.isHidden = false
+            startTime.isHidden = true
+            endTime.isHidden = true
+            musicSlider.isHidden = true
             hideUnhide(hide: false)
         }
         
@@ -199,7 +206,7 @@ class MusicVC: NSViewController {
         let fadeAnim = CABasicAnimation(keyPath: "opacity")
         fadeAnim.fromValue = from
         fadeAnim.toValue = to
-        fadeAnim.duration = 0.5
+        fadeAnim.duration = 0.3
         visualEffectView.layer?.add(fadeAnim, forKey: "opacity")
         
         visualEffectView.alphaValue = CGFloat(to)
@@ -235,26 +242,40 @@ class MusicVC: NSViewController {
         songName.stringValue = currentSongName ?? ""
         artistName.stringValue = currentSongArtist ?? ""
         
+        
         if songName.stringValue != ""
         {
+            NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
+                if out?.stringValue == "Spotify"{
+                    NSAppleScript.go(code: NSAppleScript.loadSpotifyAlbumArtwork(), completionHandler: {_,out,_ in
+                        
+                        let imageURL = URL(string: (out?.stringValue!)!)
+                        self.albumArt.image = NSImage(contentsOf: imageURL ?? URL(string: "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/i/e7981d38-6ee3-496d-a6c0-8710745bdbfc/db6zlbs-68b8cd4f-bf6b-4d39-b9a7-7475cade812f.png")!)
+                        self.circularProgress.removeFromSuperview()
+                    })
+                    
+                }else{
+                    let editedSongArtist = currentSongArtist.replacingOccurrences(of: "&", with: "+", options: .literal, range: nil)
+                    let safeArtistURL = editedSongArtist.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed)!
+                    let safeSongURL = currentSongName.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed)!
+                    let stringURL = "https://itunes.apple.com/search?term=\(safeArtistURL)+\(safeSongURL)&country=us&limit=1"
+                    let editedStringURL = stringURL.replacingOccurrences(of: " ", with: "+", options: .literal, range: nil)
+                    
+                    let url = URL(string: editedStringURL)
+                    AF.request(url!).responseData { (response) in
+                        
+                        let json = JSON(response.data as Any)
+                        let originalURL = json["results"][0]["artworkUrl100"].stringValue
+                        let editedURL = originalURL.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg", options: .literal, range: nil)
+                        let imageURL = URL(string: editedURL)
+                        self.albumArt.image = NSImage(contentsOf: imageURL ?? URL(string: "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/i/e7981d38-6ee3-496d-a6c0-8710745bdbfc/db6zlbs-68b8cd4f-bf6b-4d39-b9a7-7475cade812f.png")!)
+                        self.circularProgress.removeFromSuperview()
+                    }
+                }
+            })
             
-            let editedSongArtist = currentSongArtist.replacingOccurrences(of: "&", with: "+", options: .literal, range: nil)
-            let safeArtistURL = editedSongArtist.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed)!
-            let safeSongURL = currentSongName.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed)!
-            let stringURL = "https://itunes.apple.com/search?term=\(safeArtistURL)+\(safeSongURL)&country=us&limit=1"
-            let editedStringURL = stringURL.replacingOccurrences(of: " ", with: "+", options: .literal, range: nil)
-            
-            let url = URL(string: editedStringURL)
-            AF.request(url!).responseData { (response) in
-                
-                let json = JSON(response.data as Any)
-                let originalURL = json["results"][0]["artworkUrl100"].stringValue
-                let editedURL = originalURL.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg", options: .literal, range: nil)
-                let imageURL = URL(string: editedURL)
-                self.albumArt.image = NSImage(contentsOf: imageURL ?? URL(string: "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/i/e7981d38-6ee3-496d-a6c0-8710745bdbfc/db6zlbs-68b8cd4f-bf6b-4d39-b9a7-7475cade812f.png")!)
-                self.circularProgress.removeFromSuperview()
-            }
-            
+        }else{
+            albumArt.image = NSImage(contentsOf: URL(string: "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/i/e7981d38-6ee3-496d-a6c0-8710745bdbfc/db6zlbs-68b8cd4f-bf6b-4d39-b9a7-7475cade812f.png")!)
         }
     }
     

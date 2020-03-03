@@ -18,7 +18,7 @@ class SettingsVC: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do view setup here.
-
+        updateButton.isHidden = false
         login.state = LoginServiceKit.isExistLoginItems() ? .on : .off
         if let info = Bundle.main.infoDictionary {
             let version = info["CFBundleShortVersionString"] as? String ?? "?"
@@ -37,6 +37,7 @@ class SettingsVC: NSViewController {
     
     @IBAction func updateButtonClicked(_ sender: Any) {
         let updater = SUUpdater.shared()
+        updater?.feedURL = URL(string: "https://s3.us-east-2.amazonaws.com/com.bolar.playstatus/appcast.xml")
         updater?.checkForUpdates(self)
     }
     

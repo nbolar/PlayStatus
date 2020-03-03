@@ -35,10 +35,10 @@ class TrackDurationCell: NSSliderCell {
         var leftRect = rect
         leftRect.size.width = finalWidth
         let bg = NSBezierPath(roundedRect: rect, xRadius: barRadius, yRadius: barRadius)
-        NSColor.gray.withAlphaComponent(0.4).setFill()
+        NSColor.gray.withAlphaComponent(0.5).setFill()
         bg.fill()
         let active = NSBezierPath(roundedRect: leftRect, xRadius: barRadius, yRadius: barRadius)
-        NSColor.white.withAlphaComponent(0.3).setFill()
+        NSColor.white.withAlphaComponent(0.4).setFill()
         active.fill()
     }
     
