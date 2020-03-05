@@ -1099,10 +1099,10 @@
                                 </textFieldCell>
                             </textField>
                             <button translatesAutoresizingMaskIntoConstraints="NO" id="wCa-ZZ-XgA">
-                                <rect key="frame" x="6" y="279" width="15" height="15"/>
+                                <rect key="frame" x="3" y="277" width="20" height="20"/>
                                 <constraints>
-                                    <constraint firstAttribute="height" constant="15" id="JHg-hZ-Cgz"/>
-                                    <constraint firstAttribute="width" constant="15" id="MnZ-vl-lt4"/>
+                                    <constraint firstAttribute="height" constant="20" id="JHg-hZ-Cgz"/>
+                                    <constraint firstAttribute="width" constant="20" id="MnZ-vl-lt4"/>
                                 </constraints>
                                 <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="music" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="J2i-Fa-6ui">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -1190,12 +1190,12 @@
                         </subviews>
                         <constraints>
                             <constraint firstAttribute="trailing" secondItem="itc-zp-nhz" secondAttribute="trailing" constant="3" id="0Ph-A9-flj"/>
-                            <constraint firstItem="wCa-ZZ-XgA" firstAttribute="top" secondItem="4c5-fu-f1J" secondAttribute="top" constant="6" id="1O2-yk-bqr"/>
+                            <constraint firstItem="wCa-ZZ-XgA" firstAttribute="top" secondItem="4c5-fu-f1J" secondAttribute="top" constant="3" id="1O2-yk-bqr"/>
                             <constraint firstAttribute="bottom" secondItem="8A7-eN-bal" secondAttribute="bottom" constant="2" id="55Z-An-Y3a"/>
                             <constraint firstItem="itc-zp-nhz" firstAttribute="top" secondItem="4c5-fu-f1J" secondAttribute="top" constant="3" id="8lK-dP-K3U"/>
                             <constraint firstAttribute="bottom" secondItem="ypR-X6-aPp" secondAttribute="bottom" id="Lf1-0R-uQS"/>
                             <constraint firstAttribute="trailing" secondItem="ypR-X6-aPp" secondAttribute="trailing" constant="-2" id="RW4-dh-pd6"/>
-                            <constraint firstItem="wCa-ZZ-XgA" firstAttribute="leading" secondItem="4c5-fu-f1J" secondAttribute="leading" constant="6" id="hRg-Yv-yfi"/>
+                            <constraint firstItem="wCa-ZZ-XgA" firstAttribute="leading" secondItem="4c5-fu-f1J" secondAttribute="leading" constant="3" id="hRg-Yv-yfi"/>
                             <constraint firstItem="8A7-eN-bal" firstAttribute="leading" secondItem="4c5-fu-f1J" secondAttribute="leading" constant="2" id="lta-AB-miw"/>
                         </constraints>
                     </view>

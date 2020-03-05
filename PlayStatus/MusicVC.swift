@@ -7,8 +7,6 @@
 //
 
 import Cocoa
-import Alamofire
-import SwiftyJSON
 import CircularProgressMac
 
 
@@ -43,7 +41,6 @@ class MusicVC: NSViewController {
         case fadeIn, fadeOut
     }
     let circularProgress = CircularProgress(size: 28)
-    
 
     
     override func viewDidLoad() {
@@ -247,7 +244,7 @@ class MusicVC: NSViewController {
         {
             NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
                 if out?.stringValue == "Spotify"{
-                    NotificationCenter.default.post(name: NSNotification.Name(rawValue: "spotify"), object: nil)
+                    musicButton.image = NSImage(named: "spotify2")
                     NSAppleScript.go(code: NSAppleScript.loadSpotifyAlbumArtwork(), completionHandler: {_,out,_ in
                         
                         let imageURL = URL(string: (out?.stringValue ?? ""))
@@ -256,27 +253,47 @@ class MusicVC: NSViewController {
                     })
                     
                 }else{
+                    musicButton.image = NSImage(named: "itunes2")
                     let editedSongArtist = currentSongArtist.replacingOccurrences(of: "&", with: "+", options: .literal, range: nil)
                     let safeArtistURL = editedSongArtist.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed)!
                     let safeSongURL = currentSongName.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed)!
-                    let stringURL = "https://itunes.apple.com/search?term=\(safeArtistURL)+\(safeSongURL)&country=us&limit=1"
+                    let safeAlbumURL = currentAlbumName.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed) ?? safeSongURL
+                    let stringURL = "https://itunes.apple.com/search?term=\(safeArtistURL)+\(safeAlbumURL)&country=us&limit=1"
                     let editedStringURL = stringURL.replacingOccurrences(of: " ", with: "+", options: .literal, range: nil)
                     
                     let url = URL(string: editedStringURL)
-                    AF.request(url!).responseData { (response) in
-                        
-                        let json = JSON(response.data as Any)
-                        let originalURL = json["results"][0]["artworkUrl100"].stringValue
-                        let editedURL = originalURL.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg", options: .literal, range: nil)
-                        let imageURL = URL(string: editedURL)
-                        self.albumArt.image = NSImage(contentsOf: imageURL ?? URL(string: "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/i/e7981d38-6ee3-496d-a6c0-8710745bdbfc/db6zlbs-68b8cd4f-bf6b-4d39-b9a7-7475cade812f.png")!)
-                        self.circularProgress.removeFromSuperview()
-                    }
+                    URLSession.shared.dataTask(with:url!, completionHandler: {(data, response, error) in
+                        guard let data = data, error == nil else { return }
+
+                        do {
+                            let json = try JSONSerialization.jsonObject(with: data, options: .allowFragments) as? [String:Any]
+                            let posts = json!["results"] as? [[String: Any]] ?? []
+                            if posts.count != 0{
+                                let originalURL = posts[0]["artworkUrl100"] as! String
+                                let editedURL = originalURL.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg", options: .literal, range: nil)
+                                let imageURL = URL(string: editedURL)!
+                                DispatchQueue.main.async {
+                                    self.albumArt.image = NSImage(contentsOf: imageURL )
+                                    self.circularProgress.removeFromSuperview()
+                                }
+                            }else{
+                                DispatchQueue.main.async {
+                                    self.albumArt.image = NSImage(contentsOf: URL(string: "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/i/e7981d38-6ee3-496d-a6c0-8710745bdbfc/db6zlbs-68b8cd4f-bf6b-4d39-b9a7-7475cade812f.png")!)
+                                    self.circularProgress.removeFromSuperview()
+                                }
+                            }
+                            
+
+                        } catch {
+                            print(error)
+                        }
+                    }).resume()
                 }
             })
             
         }else{
-            albumArt.image = NSImage(contentsOf: URL(string: "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/i/e7981d38-6ee3-496d-a6c0-8710745bdbfc/db6zlbs-68b8cd4f-bf6b-4d39-b9a7-7475cade812f.png")!)
+            albumArt.image = NSImage(named: "wallpaper2")
+//            albumArt.image = NSImage(contentsOf: URL(string: "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/i/e7981d38-6ee3-496d-a6c0-8710745bdbfc/db6zlbs-68b8cd4f-bf6b-4d39-b9a7-7475cade812f.png")!)
         }
     }
     
@@ -374,14 +391,15 @@ class MusicVC: NSViewController {
     
     @IBAction func musicButtonClicked(_ sender: Any) {
         NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
-            if out?.stringValue == "\(itunesMusicName!)"
-            {
-                NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/\(itunesMusicName!).app"))
-                self.dismiss(nil)
-                
-            } else if out?.stringValue == "Spotify"
+            if out?.stringValue == "Spotify"
             {
                 NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Spotify.app"))
+                self.dismiss(nil)
+                
+                
+            } else
+            {
+                NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/\(itunesMusicName!).app"))
                 self.dismiss(nil)
             }
         })

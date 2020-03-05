@@ -2,11 +2,11 @@
   "images" : [
     {
       "idiom" : "universal",
-      "filename" : "wallpaper2 copy.jpeg",
       "scale" : "1x"
     },
     {
       "idiom" : "universal",
+      "filename" : "icons8-itunes-50.png",
       "scale" : "2x"
     },
     {
@@ -17,5 +17,8 @@
   "info" : {
     "version" : 1,
     "author" : "xcode"
+  },
+  "properties" : {
+    "template-rendering-intent" : "template"
   }
 }
