@@ -806,16 +806,16 @@
             <objects>
                 <viewController title="About View Controller" storyboardIdentifier="AboutVC" id="md2-IF-ABi" customClass="AboutVC" customModule="PlayStatus" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" id="q9h-dG-Lhb">
-                        <rect key="frame" x="0.0" y="0.0" width="450" height="200"/>
+                        <rect key="frame" x="0.0" y="0.0" width="450" height="220"/>
                         <autoresizingMask key="autoresizingMask"/>
                         <subviews>
                             <imageView horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="1kR-gd-aqS">
-                                <rect key="frame" x="20" y="118" width="64" height="64"/>
+                                <rect key="frame" x="20" y="138" width="64" height="64"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="proportionallyDown" image="NSApplicationIcon" id="lrt-0v-IvN"/>
                             </imageView>
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="lq8-XI-7RP">
-                                <rect key="frame" x="90" y="163" width="72" height="17"/>
+                                <rect key="frame" x="90" y="182" width="72" height="17"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" title="PlayStatus" id="Qf5-k4-5w5">
                                     <font key="font" metaFont="systemSemibold" size="13"/>
@@ -824,10 +824,10 @@
                                 </textFieldCell>
                             </textField>
                             <scrollView fixedFrame="YES" borderType="none" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" translatesAutoresizingMaskIntoConstraints="NO" id="g2u-ZP-bMf">
-                                <rect key="frame" x="92" y="28" width="338" height="127"/>
+                                <rect key="frame" x="92" y="34" width="338" height="140"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <clipView key="contentView" ambiguous="YES" drawsBackground="NO" copiesOnScroll="NO" id="zAi-1N-uW3">
-                                    <rect key="frame" x="0.0" y="0.0" width="338" height="127"/>
+                                    <rect key="frame" x="0.0" y="0.0" width="338" height="140"/>
                                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                     <subviews>
                                         <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="dfv-20-eJ3">
@@ -850,12 +850,40 @@
                                     <autoresizingMask key="autoresizingMask"/>
                                 </scroller>
                                 <scroller key="verticalScroller" wantsLayer="YES" verticalHuggingPriority="750" doubleValue="1" horizontal="NO" id="zON-Xh-za2">
-                                    <rect key="frame" x="322" y="0.0" width="16" height="127"/>
+                                    <rect key="frame" x="322" y="0.0" width="16" height="140"/>
                                     <autoresizingMask key="autoresizingMask"/>
                                 </scroller>
                             </scrollView>
+                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="2gn-CK-J0p">
+                                <rect key="frame" x="166" y="182" width="80" height="11"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                                <textFieldCell key="cell" lineBreakMode="clipping" placeholderString="version" id="bCd-yO-oQf">
+                                    <font key="font" metaFont="label" size="9"/>
+                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                            </textField>
+                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="B66-H6-G4P">
+                                <rect key="frame" x="18" y="7" width="155" height="13"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <gestureRecognizers>
+                                    <clickGestureRecognizer delaysPrimaryMouseButtonEvents="YES" numberOfClicksRequired="1" id="452-MO-efm">
+                                        <connections>
+                                            <action selector="iconsClicked:" target="md2-IF-ABi" id="aqO-km-RRY"/>
+                                        </connections>
+                                    </clickGestureRecognizer>
+                                </gestureRecognizers>
+                                <textFieldCell key="cell" controlSize="small" lineBreakMode="clipping" title="Spotify/iTunes icons by Icons8" allowsEditingTextAttributes="YES" id="aq5-Hq-Uzh">
+                                    <font key="font" metaFont="systemMedium" size="10"/>
+                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                                <connections>
+                                    <action selector="iconsClicked:" target="md2-IF-ABi" id="3zw-sw-DIY"/>
+                                </connections>
+                            </textField>
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="oi4-GC-yUL">
-                                <rect key="frame" x="268" y="6" width="164" height="14"/>
+                                <rect key="frame" x="268" y="7" width="164" height="14"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <gestureRecognizers>
                                     <clickGestureRecognizer delaysPrimaryMouseButtonEvents="YES" numberOfClicksRequired="1" id="67R-Ul-te9">
@@ -872,15 +900,6 @@
                                 <connections>
                                     <action selector="repoClicked:" target="md2-IF-ABi" id="8gi-iP-JU5"/>
                                 </connections>
-                            </textField>
-                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="2gn-CK-J0p">
-                                <rect key="frame" x="166" y="164" width="80" height="11"/>
-                                <autoresizingMask key="autoresizingMask"/>
-                                <textFieldCell key="cell" lineBreakMode="clipping" placeholderString="version" id="bCd-yO-oQf">
-                                    <font key="font" metaFont="label" size="9"/>
-                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
-                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                </textFieldCell>
                             </textField>
                         </subviews>
                     </view>

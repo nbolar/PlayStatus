@@ -12,7 +12,7 @@ typealias StatusItemLengthUpdate = (CGFloat) -> ()
 
 class ScrollingStatusItemView: NSView {
     private enum Constants {
-        static let padding: CGFloat = 6
+        static let padding: CGFloat = 5
         static let iconSize: CGFloat = 23
         static let defaultWidth: CGFloat = 150
         static let defaultSpeed: Double = 0.04
@@ -54,7 +54,7 @@ class ScrollingStatusItemView: NSView {
     private var length: CGFloat? {
         didSet {
             guard let length = length else { return }
-            scrollingTextView.length = length
+            scrollingTextView.length = length 
         }
     }
 
@@ -114,7 +114,7 @@ private extension ScrollingStatusItemView {
         addSubview(scrollingTextView)
 
         NSLayoutConstraint.activate([
-            scrollingTextView.rightAnchor.constraint(equalTo: rightAnchor),
+            scrollingTextView.rightAnchor.constraint(equalTo: rightAnchor, constant: -6),
             scrollingTextView.topAnchor.constraint(equalTo: topAnchor),
             scrollingTextView.bottomAnchor.constraint(equalTo: bottomAnchor),
             scrollingTextView.leftAnchor.constraint(equalTo: iconImageView.rightAnchor)])

@@ -21,13 +21,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var songName: String!
     var artistName: String!    
     var out: NSAppleEventDescriptor?
+    var iconName: String!
     private var lastStatusTitle: String = ""
     let popoverView = NSPopover()
     lazy var aboutView: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "aboutWindowController") as? NSWindowController
     let invisibleWindow = NSWindow(contentRect: NSMakeRect(0, 0, 20, 1), styleMask: .borderless, backing: .buffered, defer: false)
     private var musicController: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "musicViewController") as? NSWindowController
 
-
+    
+    
     private enum Constants {
         static let statusItemIconLength: CGFloat = 30
         static let statusItemLength: CGFloat = 200
@@ -79,17 +81,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         loadSubviews()
         invisibleWindow.backgroundColor = .clear
         invisibleWindow.alphaValue = 0
+        iconName = "icon_20"
         
         musicController?.window?.isOpaque = false
         musicController?.window?.backgroundColor = .clear
         musicController?.window?.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)))
+//        NotificationCenter.default.addObserver(self, selector: #selector(spotifyPlaying), name: NSNotification.Name(rawValue: "spotify"), object: nil)
 
 
 
     }
     
 
-
+    @objc func spotifyPlaying(){
+        iconName = "play"
+    }
 
     @objc func togglePopover(_ sender: AnyObject?) {
         let event = NSApp.currentEvent!
@@ -169,6 +175,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     {
 
         loadSubviews()
+        NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
+        if out?.stringValue == "Spotify"{
+                iconName = "spotify"
+            }
+        else{
+            iconName = "itunes"
+            }
+        })
+            
         NSAppleScript.go(code: NSAppleScript.songName(), completionHandler: {_,out,_ in
             songName = out?.stringValue ?? ""
             currentSongName = songName
@@ -233,8 +248,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func updateTitle(newTitle: String) {
         lastStatusTitle = newTitle
-        scrollingStatusItemView.icon = NSImage(named: "icon_20")
+        scrollingStatusItemView.icon = NSImage(named: "\(iconName!)")
         scrollingStatusItemView.text = newTitle
+        
         NotificationCenter.default.post(name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
         
 

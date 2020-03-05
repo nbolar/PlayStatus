@@ -247,9 +247,10 @@ class MusicVC: NSViewController {
         {
             NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
                 if out?.stringValue == "Spotify"{
+                    NotificationCenter.default.post(name: NSNotification.Name(rawValue: "spotify"), object: nil)
                     NSAppleScript.go(code: NSAppleScript.loadSpotifyAlbumArtwork(), completionHandler: {_,out,_ in
                         
-                        let imageURL = URL(string: (out?.stringValue!)!)
+                        let imageURL = URL(string: (out?.stringValue ?? ""))
                         self.albumArt.image = NSImage(contentsOf: imageURL ?? URL(string: "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/i/e7981d38-6ee3-496d-a6c0-8710745bdbfc/db6zlbs-68b8cd4f-bf6b-4d39-b9a7-7475cade812f.png")!)
                         self.circularProgress.removeFromSuperview()
                     })
