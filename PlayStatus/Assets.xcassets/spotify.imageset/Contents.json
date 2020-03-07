@@ -3,11 +3,13 @@
     {
       "idiom" : "universal",
       "filename" : "icons8-spotify-20.png",
+      "compression-type" : "lossless",
       "scale" : "1x"
     },
     {
       "idiom" : "universal",
       "filename" : "icons8-spotify-40.png",
+      "compression-type" : "lossless",
       "scale" : "2x"
     },
     {
