@@ -4,7 +4,7 @@
 [![Platform](http://img.shields.io/badge/platform-macOS-black.svg?style=flat)](https://developer.apple.com/resources/)
 [![Platform](https://img.shields.io/badge/swift-4.2-orange.svg?style=flat)](https://swift.org/blog/swift-4-2-released/)
 [![Open Source Love svg1](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/nbolar/playstatus/)
-[![Github All Releases](https://img.shields.io/github/downloads/nbolar/PlayStatus/total.svg)](https://github.com/nbolar/PlayStatus/releases/latest/download/PlayStatus.app.zip))
+[![Github All Releases](https://img.shields.io/github/downloads/nbolar/PlayStatus/total.svg)](https://github.com/nbolar/PlayStatus/releases/latest/download/PlayStatus.app.zip)
 
 PlayStatus is a simple macOS app that allows the control of Spotify, Apple Music(macOS 10.15+) and iTunes including iTunes Radio/Beats1 playback from the menu bar.
 
