@@ -13,7 +13,7 @@ PlayStatus is a simple macOS app that allows the control of Spotify, Apple Music
 
 
 
-##### PS: The search functionality works only for songs present in the iTunes or Music(macOS 10.15+) library. An internet connection is needed for album artwok loading for Spotify and in some instances iTunes/Music app.
+##### PS: The search functionality works only for songs present in the iTunes or Music(macOS 10.15+) library. An internet connection is needed to load album artwork for Spotify and in some instances iTunes/Music app.
 
 ## Installation
 - Download and unzip the most recent [release](https://github.com/nbolar/PlayStatus/releases/latest/download/PlayStatus.app.zip).
