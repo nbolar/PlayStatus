@@ -1,6 +1,6 @@
 # ![playstatus_header](https://user-images.githubusercontent.com/45484873/56880861-09cb3980-6a67-11e9-9d45-037a9165b212.png)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) 
-[![Version: 1.7.2](https://img.shields.io/badge/Version-1.7.2-green.svg)](https://github.com/nbolar/PlayStatus/releases/tag/v1.7.2) 
+[![Version: 1.8](https://img.shields.io/badge/Version-1.8-green.svg)](https://github.com/nbolar/PlayStatus/releases/tag/v1.8) 
 [![Platform](http://img.shields.io/badge/platform-macOS-black.svg?style=flat)](https://developer.apple.com/resources/)
 [![Platform](https://img.shields.io/badge/swift-4.2-orange.svg?style=flat)](https://swift.org/blog/swift-4-2-released/)
 [![Open Source Love svg1](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/nbolar/playstatus/)
@@ -13,7 +13,7 @@ PlayStatus is a simple macOS app that allows the control of Spotify, Apple Music
 
 
 
-##### PS: The search functionality works only for songs present in the iTunes or Music(macOS 10.15+) library.
+##### PS: The search functionality works only for songs present in the iTunes or Music(macOS 10.15+) library. An internet connection is needed for album artwok loading for Spotify and in some instances iTunes/Music app.
 
 ## Installation
 - Download and unzip the most recent [release](https://github.com/nbolar/PlayStatus/releases/latest/download/PlayStatus.app.zip).
@@ -28,6 +28,7 @@ No information at all is logged and everything is local to your device. Since th
 
 ## [Releases](https://github.com/nbolar/PlayStatus/releases):
 
+ - [Version 1.8](https://github.com/nbolar/PlayStatus/releases/tag/v1.8)
  - [Version 1.7.2](https://github.com/nbolar/PlayStatus/releases/tag/v1.7.2)
  - [Version 1.7.1](https://github.com/nbolar/PlayStatus/releases/tag/v1.7.1)
  - [Version 1.7](https://github.com/nbolar/PlayStatus/releases/tag/v1.7)
