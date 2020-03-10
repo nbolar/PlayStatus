@@ -114,7 +114,7 @@ private extension ScrollingStatusItemView {
         addSubview(scrollingTextView)
 
         NSLayoutConstraint.activate([
-            scrollingTextView.rightAnchor.constraint(equalTo: rightAnchor, constant: -6),
+            scrollingTextView.rightAnchor.constraint(equalTo: rightAnchor, constant: -5),
             scrollingTextView.topAnchor.constraint(equalTo: topAnchor),
             scrollingTextView.bottomAnchor.constraint(equalTo: bottomAnchor),
             scrollingTextView.leftAnchor.constraint(equalTo: iconImageView.rightAnchor)])

@@ -59,6 +59,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return view
     }()
     
+    var currentTrack: String? {
+        didSet {
+            if oldValue != currentTrack {
+                NotificationCenter.default.post(name: NSNotification.Name(rawValue: "newSong"), object: nil)
+            }
+            
+        }
+    }
     
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
@@ -250,8 +258,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         lastStatusTitle = newTitle
         scrollingStatusItemView.icon = NSImage(named: "\(iconName!)")
         scrollingStatusItemView.text = newTitle
+        currentTrack = newTitle
         
-        NotificationCenter.default.post(name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
+//        NotificationCenter.default.post(name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
         
 
         

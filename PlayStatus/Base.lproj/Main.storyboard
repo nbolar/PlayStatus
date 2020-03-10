@@ -976,7 +976,7 @@
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="axesIndependently" image="wallpaper2" id="biU-rt-7Ij"/>
                             </imageView>
-                            <visualEffectView wantsLayer="YES" fixedFrame="YES" blendingMode="withinWindow" material="dark" state="active" translatesAutoresizingMaskIntoConstraints="NO" id="ngz-Ue-FMn">
+                            <visualEffectView wantsLayer="YES" appearanceType="vibrantDark" fixedFrame="YES" blendingMode="withinWindow" material="menu" state="active" translatesAutoresizingMaskIntoConstraints="NO" id="ngz-Ue-FMn">
                                 <rect key="frame" x="0.0" y="0.0" width="300" height="300"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <shadow key="shadow">
@@ -989,7 +989,7 @@
                                 <textFieldCell key="cell" continuous="YES" refusesFirstResponder="YES" borderStyle="border" alignment="center" drawsBackground="YES" id="o7o-MF-evj">
                                     <font key="font" size="14" name="AvenirNext-Regular"/>
                                     <color key="textColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="1" colorSpace="custom" customColorSpace="displayP3"/>
-                                    <color key="backgroundColor" red="0.0" green="0.0" blue="0.0" alpha="0.40000000000000002" colorSpace="custom" customColorSpace="displayP3"/>
+                                    <color key="backgroundColor" red="0.0" green="0.0" blue="0.0" alpha="0.29999999999999999" colorSpace="custom" customColorSpace="displayP3"/>
                                 </textFieldCell>
                             </textField>
                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="2QB-XB-xo5">
@@ -1238,6 +1238,6 @@
         <image name="pause" width="60" height="60"/>
         <image name="play" width="60" height="60"/>
         <image name="rewind" width="60" height="60"/>
-        <image name="wallpaper2" width="5470" height="3646"/>
+        <image name="wallpaper2" width="300" height="300"/>
     </resources>
 </document>

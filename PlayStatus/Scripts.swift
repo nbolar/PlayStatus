@@ -23,6 +23,20 @@ extension NSAppleScript {
     }
 }
 extension NSAppleScript {
+    
+    static func itunesArtwork() ->String{
+        return """
+        if application "Music" is running then
+        tell application "Music"
+        if player state is playing then
+            if exists artworks of current track then
+                return (get data of artwork 1 of current track)
+            end if
+        end if
+        end tell
+        end if
+        """
+    }
         static func checkStatus()-> String{
             return """
             if application "\(itunesMusicName!)" is running then
