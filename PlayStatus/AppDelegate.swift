@@ -100,12 +100,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     }
     
+    func applicationWillResignActive(_ notification: Notification) {
+        if musicController?.window?.isVisible == true
+        {
+            NotificationCenter.default.post(name: NSNotification.Name(rawValue: "close"), object: nil)
+            musicController?.close()
+        }
+    }
+    
 
     @objc func spotifyPlaying(){
         iconName = "play"
     }
 
-    @objc func togglePopover(_ sender: AnyObject?) {
+    @objc func togglePopover(_ sender: Any?) {
         let event = NSApp.currentEvent!
         
         if event.type == NSEvent.EventType.leftMouseUp
