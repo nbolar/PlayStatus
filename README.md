@@ -42,4 +42,4 @@ No information at all is logged and everything is local to your device. Since th
  - [Version 1.0](https://github.com/nbolar/PlayStatus/releases/tag/v1.0)
 
 ## Credits:
-- Scrolling menu bar courtesy [@Nicholas Bellucci](https://github.com/NicholasBellucci).
+- Scrolling menu bar courtesy [@Nicholas Bellucci](https://github.com/NicholasBellucci/WhatsNext).
