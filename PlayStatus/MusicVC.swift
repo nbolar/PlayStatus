@@ -43,9 +43,12 @@ class MusicVC: NSViewController {
     private enum SongType {
         case newSong, oldSong
     }
+    private enum AppType {
+        case spotify, itunes
+    }
     let circularProgress = CircularProgress(size: 28)
     var newSong = false
-    
+    private var app: AppType = .itunes
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do view setup here.
@@ -53,8 +56,7 @@ class MusicVC: NSViewController {
         
         
         
-        self.view.wantsLayer = true
-        self.view.layer?.cornerRadius = 8
+
         
         
         
@@ -71,16 +73,20 @@ class MusicVC: NSViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(playPauseButtonClicked(_:)), name: NSNotification.Name(rawValue: "playPause"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(previousButtonClicked(_:)), name: NSNotification.Name(rawValue: "previousTrack"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(nextButtonClicked(_:)), name: NSNotification.Name(rawValue: "nextTrack"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(loadingSplash), name: NSNotification.Name(rawValue: "loadingSplash"), object: nil)
+        
         setupUI()
-//        checkStatus()
-//        loadAlbumArtwork()
-//        fade()
+        //        checkStatus()
+        //        loadAlbumArtwork()
+        //        fade()
         
         _ = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(changeSliderPosition), userInfo: nil, repeats: true)
         
         
     }
     func setupUI(){
+        self.view.wantsLayer = true
+        self.view.layer?.cornerRadius = 8
         songDetails.wantsLayer = true
         songDetails.layer?.borderColor = .black
         songDetails.layer?.borderWidth = 1
@@ -89,6 +95,21 @@ class MusicVC: NSViewController {
         songDetails.layerUsesCoreImageFilters = true
         songDetails.layer?.needsDisplayOnBoundsChange = true
         
+        
+        let labelXPostion:CGFloat = view.bounds.midX - 10
+        let labelYPostion:CGFloat = 3
+        let labelWidth:CGFloat = 28
+        let labelHeight:CGFloat = 28
+        circularProgress.isIndeterminate = true
+        circularProgress.frame = CGRect(x: labelXPostion, y: labelYPostion, width: labelWidth, height: labelHeight)
+        circularProgress.color = .white
+        view.layer?.backgroundColor = NSColor.init(white: 1, alpha: 0.8).cgColor
+        let area = NSTrackingArea.init(rect: albumArt.bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
+        albumArt.addTrackingArea(area)
+        hideEverything()
+    }
+    
+    func hideEverything(){
         playButton.isHidden = true
         pauseButton.isHidden = true
         songDetails.isHidden = true
@@ -106,16 +127,7 @@ class MusicVC: NSViewController {
         musicButton.isHidden = true
         searchButton.isHidden = true
         settingsButton.isHidden = true
-        let labelXPostion:CGFloat = view.bounds.midX - 10
-        let labelYPostion:CGFloat = 3
-        let labelWidth:CGFloat = 28
-        let labelHeight:CGFloat = 28
-        circularProgress.isIndeterminate = true
-        circularProgress.frame = CGRect(x: labelXPostion, y: labelYPostion, width: labelWidth, height: labelHeight)
-        circularProgress.color = .white
-        view.layer?.backgroundColor = NSColor.init(white: 1, alpha: 0.8).cgColor
-        let area = NSTrackingArea.init(rect: albumArt.bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
-        albumArt.addTrackingArea(area)
+        visualEffectView.isHidden = true
     }
     
     @objc func close(){
@@ -150,20 +162,7 @@ class MusicVC: NSViewController {
     
     func checkStatus()
     {
-        NSAppleScript.go(code: NSAppleScript.checkStatus(), completionHandler: {_,out,_ in
-            let status = out?.stringValue ?? ""
-            
-            if status == "playing"
-            {
-                check = 1
-                
-            }else if status == "not playing"
-            {
-                check = 2
-                
-            }
-        })
-        
+        check = MusicController.shared.checkPlayerStatus()
         
     }
     func hideUnhide(hide: Bool){
@@ -178,11 +177,13 @@ class MusicVC: NSViewController {
         songName.isHidden = hide
         artistName.isHidden = hide
         musicButton.isHidden = hide
-        searchButton.isHidden = hide
+        visualEffectView.isHidden = hide
         settingsButton.isHidden = hide
-        NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
-            musicButton.toolTip = "Open \(out?.stringValue ?? "")"
-        })
+        if app == .spotify {
+            searchButton.isHidden = true
+        }else{
+            searchButton.isHidden = false
+        }
         
     }
     override func mouseEntered(with event: NSEvent) {
@@ -216,34 +217,23 @@ class MusicVC: NSViewController {
         visualEffectView.layer?.add(fadeAnim, forKey: "opacity")
         
         visualEffectView.alphaValue = CGFloat(to)
-
+        
     }
     
     override func mouseExited(with event: NSEvent) {
         
         fade()
-        playButton.isHidden = true
-        pauseButton.isHidden = true
-        songDetails.isHidden = true
-        prevButton.isHidden = true
-        nextButton.isHidden = true
-        quitButton.isHidden = true
-        skipBack.isHidden = true
-        skipAhead.isHidden = true
-        musicSlider.isHidden = true
-        trackDurationSliderCell.isHidden = false
-        startTime.isHidden = true
-        endTime.isHidden = true
-        songName.isHidden = true
-        artistName.isHidden = true
-        musicButton.isHidden = true
-        searchButton.isHidden = true
-        settingsButton.isHidden = true
+        hideEverything()
     }
     
     @objc func newSongArtwork(){
         newSong = true
+//        view.addSubview(circularProgress)
         loadAlbumArtwork()
+    }
+    @objc func loadingSplash(){
+        
+        view.addSubview(circularProgress)
     }
     
     @objc func loadAlbumArtwork()
@@ -256,84 +246,11 @@ class MusicVC: NSViewController {
         
         if songName.stringValue != ""
         {
-            NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
-                if out?.stringValue == "Spotify"{
-                    musicButton.image = NSImage(named: "spotify2")
-                    NSAppleScript.go(code: NSAppleScript.loadSpotifyAlbumArtwork(), completionHandler: {_,out,_ in
-                        
-                        let imageURL = URL(string: (out?.stringValue ?? ""))
-                        if imageURL?.absoluteString == ""
-                        {
-                            noArtwork()
-                        }else{
-                            if newSong{
-                                newArtworkURL(url: imageURL!)
-                            }else{
-                                self.albumArt.image = NSImage(contentsOf: imageURL!)
-                            }
-                        }
-                        
-                        self.circularProgress.removeFromSuperview()
-                    })
-                    
-                }else{
-                    musicButton.image = NSImage(named: "itunes2")
-                    NSAppleScript.go(code: NSAppleScript.itunesArtwork(), completionHandler: {_,output,_ in
-                        if output?.data.count != 0{
-                            self.circularProgress.removeFromSuperview()
-                            if self.newSong{
-                                self.fade(type: .fadeIn, duration: .newSong)
-                                self.albumArt.image = NSImage(data: (output?.data)!)
-                                self.fade(type: .fadeOut, duration: .newSong)
-                                self.newSong = false
-                            }else{
-                                self.albumArt.image = NSImage(data: (output?.data)!)
-                            }
-                            self.circularProgress.removeFromSuperview()
-                        }else{
-                            let editedSongArtist = currentSongArtist.replacingOccurrences(of: "&", with: "+", options: .literal, range: nil)
-                            let safeArtistURL = editedSongArtist.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed) ?? ""
-                            let safeSongURL = currentSongName.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed) ?? ""
-                            let safeAlbumURL = currentAlbumName.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed) ?? ""
-                            let stringURL = "https://itunes.apple.com/search?term=\(safeArtistURL)+\(safeAlbumURL)+\(safeSongURL)&country=us&limit=1"
-                            let editedStringURL = stringURL.replacingOccurrences(of: " ", with: "+", options: .literal, range: nil)
-                            
-                            let url = URL(string: editedStringURL)
-                            URLSession.shared.dataTask(with:url!, completionHandler: {(data, response, error) in
-                                guard let data = data, error == nil else { return }
-                                
-                                do {
-                                    let json = try JSONSerialization.jsonObject(with: data, options: .allowFragments) as? [String:Any]
-                                    let posts = json!["results"] as? [[String: Any]] ?? []
-                                    if posts.count != 0{
-                                        let originalURL = posts[0]["artworkUrl100"] as! String
-                                        let editedURL = originalURL.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg", options: .literal, range: nil)
-                                        let imageURL = URL(string: editedURL)!
-                                        DispatchQueue.main.async {
-                                            if self.newSong{
-                                                self.newArtworkURL(url: imageURL)
-                                            }else{
-                                                self.albumArt.image = NSImage(contentsOf: imageURL)
-                                            }
-                                            self.circularProgress.removeFromSuperview()
-                                        }
-                                    }else{
-                                        DispatchQueue.main.async {
-                                            self.noArtwork()
-                                        }
-                                    }
-                                    
-                                    
-                                } catch {
-                                    print(error)
-                                }
-                            }).resume()
-                        }
-                        
-                    })
-
-                }
-            })
+            if MusicController.shared.musicApp() == "Spotify"{
+                spotifyArtwork()
+            }else{
+                iTunesArtwork()
+            }
             
         }else{
             
@@ -353,6 +270,88 @@ class MusicVC: NSViewController {
         self.albumArt.image = NSImage(contentsOf: url)
         self.fade(type: .fadeOut, duration: .newSong)
         self.newSong = false
+    }
+    
+    func spotifyArtwork(){
+        musicButton.image = NSImage(named: "spotify2")
+        app = .spotify
+        NSAppleScript.go(code: NSAppleScript.loadSpotifyAlbumArtwork(), completionHandler: {_,out,_ in
+            
+            let imageURL = URL(string: (out?.stringValue ?? ""))
+            if imageURL?.absoluteString == ""
+            {
+                noArtwork()
+            }else{
+                if newSong{
+                    newArtworkURL(url: imageURL!)
+                }else{
+                    self.albumArt.image = NSImage(contentsOf: imageURL!)
+                }
+            }
+            
+            self.circularProgress.removeFromSuperview()
+        })
+    }
+    
+    func iTunesArtwork(){
+        musicButton.image = NSImage(named: "itunes2")
+        NSAppleScript.go(code: NSAppleScript.itunesArtwork(), completionHandler: {_,output,_ in
+            if output?.data.count != 0{
+                self.circularProgress.removeFromSuperview()
+                if self.newSong{
+                    self.fade(type: .fadeIn, duration: .newSong)
+                    self.albumArt.image = NSImage(data: (output?.data)!)
+                    self.fade(type: .fadeOut, duration: .newSong)
+                    self.newSong = false
+                }else{
+                    self.albumArt.image = NSImage(data: (output?.data)!)
+                }
+                self.circularProgress.removeFromSuperview()
+            }else{
+                downloadMusicArtwork()
+            }
+            
+        })
+    }
+    
+    func downloadMusicArtwork(){
+        let editedSongArtist = currentSongArtist.replacingOccurrences(of: "&", with: "+", options: .literal, range: nil)
+        let safeArtistURL = editedSongArtist.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed) ?? ""
+        let safeSongURL = currentSongName.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed) ?? ""
+        let safeAlbumURL = currentAlbumName.addingPercentEncoding(withAllowedCharacters: NSCharacterSet.urlQueryAllowed) ?? ""
+        let stringURL = "https://itunes.apple.com/search?term=\(safeArtistURL)+\(safeAlbumURL)+\(safeSongURL)&country=us&limit=1"
+        let editedStringURL = stringURL.replacingOccurrences(of: " ", with: "+", options: .literal, range: nil)
+        
+        let url = URL(string: editedStringURL)
+        URLSession.shared.dataTask(with:url!, completionHandler: {(data, response, error) in
+            guard let data = data, error == nil else { return }
+            
+            do {
+                let json = try JSONSerialization.jsonObject(with: data, options: .allowFragments) as? [String:Any]
+                let posts = json!["results"] as? [[String: Any]] ?? []
+                if posts.count != 0{
+                    let originalURL = posts[0]["artworkUrl100"] as! String
+                    let editedURL = originalURL.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg", options: .literal, range: nil)
+                    let imageURL = URL(string: editedURL)!
+                    DispatchQueue.main.async {
+                        if self.newSong{
+                            self.newArtworkURL(url: imageURL)
+                        }else{
+                            self.albumArt.image = NSImage(contentsOf: imageURL)
+                        }
+                        self.circularProgress.removeFromSuperview()
+                    }
+                }else{
+                    DispatchQueue.main.async {
+                        self.noArtwork()
+                    }
+                }
+                
+                
+            } catch {
+                print(error)
+            }
+        }).resume()
     }
     
     @IBAction func previousButtonClicked(_ sender: Any) {
@@ -408,36 +407,30 @@ class MusicVC: NSViewController {
         
     }
     
-   /* @IBAction func skipBackButtonClicked(_ sender: Any) {
-        NSAppleScript.go(code: NSAppleScript.skipBack(), completionHandler: {_,_,_ in })
-        let appDelegate = NSApplication.shared.delegate as! AppDelegate
-        appDelegate.getSongName()
-        loadAlbumArtwork()
-    }
-    
-    
-    @IBAction func skipAheadButtonClicked(_ sender: Any) {
-        NSAppleScript.go(code: NSAppleScript.skipAhead(), completionHandler: {_,_,_ in })
-        let appDelegate = NSApplication.shared.delegate as! AppDelegate
-        appDelegate.getSongName()
-        loadAlbumArtwork()
-    }*/
+    /* @IBAction func skipBackButtonClicked(_ sender: Any) {
+     NSAppleScript.go(code: NSAppleScript.skipBack(), completionHandler: {_,_,_ in })
+     let appDelegate = NSApplication.shared.delegate as! AppDelegate
+     appDelegate.getSongName()
+     loadAlbumArtwork()
+     }
+     
+     
+     @IBAction func skipAheadButtonClicked(_ sender: Any) {
+     NSAppleScript.go(code: NSAppleScript.skipAhead(), completionHandler: {_,_,_ in })
+     let appDelegate = NSApplication.shared.delegate as! AppDelegate
+     appDelegate.getSongName()
+     loadAlbumArtwork()
+     }*/
     
     func trackDuration()
     {
-        NSAppleScript.go(code: NSAppleScript.trackDuration(), completionHandler: {_,out,_ in
-            musicSlider.maxValue = Double(out?.stringValue ?? "") ?? 100
-            trackDurationSliderCell.maxValue = Double(out?.stringValue ?? "") ?? 100
-        })
-        
-        NSAppleScript.go(code: NSAppleScript.totalDuration(), completionHandler: {_,out,_ in
-            endTime.stringValue = out?.stringValue ?? ""
-        })
-        
+        musicSlider.maxValue = MusicController.shared.trackDuration()
+        trackDurationSliderCell.maxValue = MusicController.shared.trackDuration()
+        endTime.stringValue = MusicController.shared.endTime()
         
     }
     @IBAction func musicSliderChanged(_ sender: Any) {
-        NSAppleScript.go(code: NSAppleScript.scrubTrack(position: musicSlider.doubleValue), completionHandler: {_,_,_ in })
+        MusicController.shared.sliderChanged(musicSlider: musicSlider.doubleValue)
     }
     
     @objc func changeSliderPosition()
@@ -455,18 +448,14 @@ class MusicVC: NSViewController {
     }
     
     @IBAction func musicButtonClicked(_ sender: Any) {
-        NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
-            if out?.stringValue == "Spotify"
-            {
-                NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Spotify.app"))
-                self.dismiss(nil)
-            } else
-            {
-                NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/\(itunesMusicName!).app"))
-                self.dismiss(nil)
-            }
-        })
-        
+        if MusicController.shared.musicApp() == "Spotify"
+        {
+            NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Spotify.app"))
+        } else
+        {
+            NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/\(itunesMusicName!).app"))
+        }
+        self.dismiss(nil)
         
     }
     

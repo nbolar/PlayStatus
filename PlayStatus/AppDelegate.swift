@@ -15,7 +15,7 @@ var yHeight : CGFloat!
 var xWidth : CGFloat!
 var itunesMusicName: String! = "iTunes"
 
-@NSApplicationMain
+
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     var songName: String!
@@ -80,10 +80,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         statusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
         statusItem.button?.action = #selector(self.togglePopover(_:))
-        if let info = Bundle.main.infoDictionary {
-            let version = info["CFBundleShortVersionString"] as? String ?? "?"
-            statusItem.button?.toolTip = "PlayStatus v\(version)"
-        }
         
         _ = Timer.scheduledTimer(timeInterval: 2.0, target: self, selector: #selector(getSongName), userInfo: nil, repeats: true)
         loadSubviews()
@@ -94,11 +90,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         musicController?.window?.isOpaque = false
         musicController?.window?.backgroundColor = .clear
         musicController?.window?.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)))
-//        NotificationCenter.default.addObserver(self, selector: #selector(spotifyPlaying), name: NSNotification.Name(rawValue: "spotify"), object: nil)
+
 
 
 
     }
+
     
     func applicationWillResignActive(_ notification: Notification) {
         if musicController?.window?.isVisible == true
@@ -108,10 +105,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-
-    @objc func spotifyPlaying(){
-        iconName = "play"
-    }
 
     @objc func togglePopover(_ sender: Any?) {
         let event = NSApp.currentEvent!
@@ -151,6 +144,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @IBAction func nextTrackMenuItem(_ sender: Any) {
+        
         NotificationCenter.default.post(name: NSNotification.Name(rawValue: "nextTrack"), object: nil)
     }
     
@@ -268,8 +262,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         scrollingStatusItemView.text = newTitle
         currentTrack = newTitle
         
-//        NotificationCenter.default.post(name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
-        
 
         
         if newTitle.count == 0 && statusItem.button != nil {
@@ -277,7 +269,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
 
 
 }

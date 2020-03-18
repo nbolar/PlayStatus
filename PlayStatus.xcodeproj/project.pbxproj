@@ -13,8 +13,10 @@
 		4E37882923BC7ADE0020FC26 /* SettingsVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E37882823BC7ADE0020FC26 /* SettingsVC.swift */; };
 		4E5079CC227D6EAE0002C5AF /* ScrollingStatusItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E5079CA227D6EAD0002C5AF /* ScrollingStatusItemView.swift */; };
 		4E5079CD227D6EAE0002C5AF /* ScrollingTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E5079CB227D6EAE0002C5AF /* ScrollingTextView.swift */; };
+		4E780603241A1E4E00A56D7F /* MediaController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E780602241A1E4E00A56D7F /* MediaController.swift */; };
 		4E825237227C3A8C003B8296 /* AboutVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E825236227C3A8C003B8296 /* AboutVC.swift */; };
 		4E8D52B322C2C6EF0062E6DB /* SearchVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E8D52B222C2C6EF0062E6DB /* SearchVC.swift */; };
+		4E917F17241B340A002469FF /* MusicController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E917F16241B340A002469FF /* MusicController.swift */; };
 		4E9F8E7B22719AB500B87B4A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9F8E7A22719AB500B87B4A /* AppDelegate.swift */; };
 		4E9F8E7F22719AB600B87B4A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E9F8E7E22719AB600B87B4A /* Assets.xcassets */; };
 		4E9F8E8222719AB600B87B4A /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4E9F8E8022719AB600B87B4A /* Main.storyboard */; };
@@ -30,8 +32,10 @@
 		4E37882823BC7ADE0020FC26 /* SettingsVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsVC.swift; sourceTree = "<group>"; };
 		4E5079CA227D6EAD0002C5AF /* ScrollingStatusItemView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ScrollingStatusItemView.swift; sourceTree = "<group>"; };
 		4E5079CB227D6EAE0002C5AF /* ScrollingTextView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ScrollingTextView.swift; path = ../../GitHub/SpotMenu/SpotMenu/CustomViews/ScrollingTextView.swift; sourceTree = "<group>"; };
+		4E780602241A1E4E00A56D7F /* MediaController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaController.swift; sourceTree = "<group>"; };
 		4E825236227C3A8C003B8296 /* AboutVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutVC.swift; sourceTree = "<group>"; };
 		4E8D52B222C2C6EF0062E6DB /* SearchVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchVC.swift; sourceTree = "<group>"; };
+		4E917F16241B340A002469FF /* MusicController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicController.swift; sourceTree = "<group>"; };
 		4E9F8E7722719AB500B87B4A /* PlayStatus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PlayStatus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E9F8E7A22719AB500B87B4A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		4E9F8E7E22719AB600B87B4A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -85,6 +89,8 @@
 		4E9F8E7922719AB500B87B4A /* PlayStatus */ = {
 			isa = PBXGroup;
 			children = (
+				4E780602241A1E4E00A56D7F /* MediaController.swift */,
+				4E917F16241B340A002469FF /* MusicController.swift */,
 				4E9F8E7A22719AB500B87B4A /* AppDelegate.swift */,
 				4E9F8E8A2271EECF00B87B4A /* MusicVC.swift */,
 				4E9F8E7E22719AB600B87B4A /* Assets.xcassets */,
@@ -130,6 +136,8 @@
 			dependencies = (
 			);
 			name = PlayStatus;
+			packageProductDependencies = (
+			);
 			productName = PlayStatus;
 			productReference = 4E9F8E7722719AB500B87B4A /* PlayStatus.app */;
 			productType = "com.apple.product-type.application";
@@ -166,6 +174,8 @@
 				Base,
 			);
 			mainGroup = 4E9F8E6E22719AB500B87B4A;
+			packageReferences = (
+			);
 			productRefGroup = 4E9F8E7822719AB500B87B4A /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -255,10 +265,12 @@
 				4E5079CD227D6EAE0002C5AF /* ScrollingTextView.swift in Sources */,
 				4E9F8E7B22719AB500B87B4A /* AppDelegate.swift in Sources */,
 				4E26E405227848F5005A53EE /* CustomSliderCell.swift in Sources */,
+				4E917F17241B340A002469FF /* MusicController.swift in Sources */,
 				4E2433E623BC6DA7009F8DBB /* TrackDurationCell.swift in Sources */,
 				4E5079CC227D6EAE0002C5AF /* ScrollingStatusItemView.swift in Sources */,
 				4E9F8E8B2271EECF00B87B4A /* MusicVC.swift in Sources */,
 				4E8D52B322C2C6EF0062E6DB /* SearchVC.swift in Sources */,
+				4E780603241A1E4E00A56D7F /* MediaController.swift in Sources */,
 				4E37882923BC7ADE0020FC26 /* SettingsVC.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -401,7 +413,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = KALT4PNG4U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = PlayStatus/Info.plist;
@@ -410,7 +422,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
-				MARKETING_VERSION = 1.8.1;
+				MARKETING_VERSION = 1.8.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bolar.PlayStatus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -427,7 +439,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = KALT4PNG4U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = PlayStatus/Info.plist;
@@ -436,7 +448,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
-				MARKETING_VERSION = 1.8.1;
+				MARKETING_VERSION = 1.8.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bolar.PlayStatus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

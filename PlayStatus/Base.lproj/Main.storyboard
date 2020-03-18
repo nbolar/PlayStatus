@@ -1104,7 +1104,7 @@
                                     <constraint firstAttribute="height" constant="20" id="JHg-hZ-Cgz"/>
                                     <constraint firstAttribute="width" constant="20" id="MnZ-vl-lt4"/>
                                 </constraints>
-                                <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="music" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="J2i-Fa-6ui">
+                                <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="itunes2" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="J2i-Fa-6ui">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                     <font key="font" metaFont="system"/>
                                 </buttonCell>
@@ -1234,7 +1234,7 @@
         <image name="NSTouchBarSkipAhead15SecondsTemplate" width="17" height="30"/>
         <image name="NSTouchBarSkipBack15SecondsTemplate" width="17" height="30"/>
         <image name="forward1" width="60" height="60"/>
-        <image name="music" width="48" height="48"/>
+        <image name="itunes2" width="25" height="25"/>
         <image name="pause" width="60" height="60"/>
         <image name="play" width="60" height="60"/>
         <image name="rewind" width="60" height="60"/>
