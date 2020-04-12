@@ -1,3 +1,5 @@
+// From NicholasBellucci
+
 import Cocoa
 
 open class ScrollingTextView: NSView {
@@ -17,7 +19,7 @@ open class ScrollingTextView: NSView {
 
     /// Spacing between the tail and head of the scrolling text
     open var spacing: CGFloat = 20
-    
+
     /// Length of the scrolling text view
     open var length: CGFloat = 0 {
         didSet {
@@ -33,7 +35,7 @@ open class ScrollingTextView: NSView {
     }
 
     /// Speed at which the text scrolls. This number is divided by 100.
-    open var speed: Double = 4 {
+    open var speed: Double = 3 {
         didSet {
             updateTraits()
         }
@@ -144,6 +146,6 @@ extension ScrollingTextView {
 
     override open func layout() {
         super.layout()
-        point.y = (frame.height - stringSize.height) / 2
+        point.y = (frame.height - stringSize.height) / 2 + 1
     }
 }
