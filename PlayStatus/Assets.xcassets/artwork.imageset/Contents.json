@@ -1,25 +1,21 @@
 {
   "images" : [
     {
-      "idiom" : "universal",
-      "filename" : "artwork.jpg",
-      "compression-type" : "lossless",
+      "idiom" : "mac",
       "scale" : "1x"
     },
     {
-      "idiom" : "universal",
+      "compression-type" : "gpu-optimized-smallest",
+      "filename" : "artwork.jpg",
+      "idiom" : "mac",
       "scale" : "2x"
-    },
-    {
-      "idiom" : "universal",
-      "scale" : "3x"
     }
   ],
   "info" : {
-    "version" : 1,
-    "author" : "xcode"
+    "author" : "xcode",
+    "version" : 1
   },
   "properties" : {
-    "compression-type" : "lossless"
+    "compression-type" : "gpu-optimized-smallest"
   }
 }

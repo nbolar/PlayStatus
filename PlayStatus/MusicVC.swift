@@ -9,7 +9,6 @@
 import Cocoa
 import CircularProgressMac
 
-
 class MusicVC: NSViewController {
     static let shared = MusicVC()
     
@@ -32,11 +31,13 @@ class MusicVC: NSViewController {
     @IBOutlet weak var searchButton: NSButton!
     @IBOutlet weak var settingsButton: NSButton!
     @IBOutlet weak var visualEffectView: NSVisualEffectView!
+    private var settingsController: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "settingsWindowController") as? NSWindowController
     lazy var searchView: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "searchWindowController") as? NSWindowController
     var out: NSAppleEventDescriptor?
     var check: Int!
     var songNameString = ""
     var artistNameString = ""
+    private var timer : Timer!
     private enum FadeType {
         case fadeIn, fadeOut
     }
@@ -53,20 +54,13 @@ class MusicVC: NSViewController {
         super.viewDidLoad()
         // Do view setup here.
         
-        
-        
-        
-
-        
-        
-        
         _ = NSColor(
             calibratedHue: 230/360,
             saturation: 0.35,
             brightness: 0.85,
             alpha: 0.3)
         
-        NotificationCenter.default.addObserver(self, selector: #selector(loadAlbumArtwork), name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
+//        NotificationCenter.default.addObserver(self, selector: #selector(loadAlbumArtwork), name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(newSongArtwork), name: NSNotification.Name(rawValue: "newSong"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(close), name: NSNotification.Name(rawValue: "close"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(searchButtonClicked(_:)), name: NSNotification.Name(rawValue: "search"), object: nil)
@@ -74,16 +68,27 @@ class MusicVC: NSViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(previousButtonClicked(_:)), name: NSNotification.Name(rawValue: "previousTrack"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(nextButtonClicked(_:)), name: NSNotification.Name(rawValue: "nextTrack"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(loadingSplash), name: NSNotification.Name(rawValue: "loadingSplash"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(removeSplash), name: NSNotification.Name(rawValue: "removeSplash"), object: nil)
+        
         
         setupUI()
         //        checkStatus()
         //        loadAlbumArtwork()
         //        fade()
         
-        _ = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(changeSliderPosition), userInfo: nil, repeats: true)
-        
         
     }
+    override func viewDidAppear() {
+        loadAlbumArtwork()
+        timer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(changeSliderPosition), userInfo: nil, repeats: true)
+        timer.fire()
+    }
+    override func viewWillDisappear() {
+        timer.invalidate()
+        timer = nil
+        
+    }
+    
     func setupUI(){
         self.view.wantsLayer = true
         self.view.layer?.cornerRadius = 8
@@ -94,7 +99,7 @@ class MusicVC: NSViewController {
         songDetails.layer?.masksToBounds = true
         songDetails.layerUsesCoreImageFilters = true
         songDetails.layer?.needsDisplayOnBoundsChange = true
-        
+        trackDurationSliderCell.isHidden = true
         
         let labelXPostion:CGFloat = view.bounds.midX - 10
         let labelYPostion:CGFloat = 3
@@ -119,7 +124,7 @@ class MusicVC: NSViewController {
         skipBack.isHidden = true
         skipAhead.isHidden = true
         musicSlider.isHidden = true
-        trackDurationSliderCell.isHidden = false
+//        trackDurationSliderCell.isHidden = false
         startTime.isHidden = true
         endTime.isHidden = true
         songName.isHidden = true
@@ -173,7 +178,7 @@ class MusicVC: NSViewController {
         quitButton.isHidden = hide
         //        skipBack.isHidden = hide
         //        skipAhead.isHidden = hide
-        trackDurationSliderCell.isHidden = !hide
+//        trackDurationSliderCell.isHidden = !hide
         songName.isHidden = hide
         artistName.isHidden = hide
         musicButton.isHidden = hide
@@ -187,6 +192,7 @@ class MusicVC: NSViewController {
         
     }
     override func mouseEntered(with event: NSEvent) {
+        
         fade(type: .fadeIn)
         if check == 1{
             hideUnhide(hide: false)
@@ -228,12 +234,19 @@ class MusicVC: NSViewController {
     
     @objc func newSongArtwork(){
         newSong = true
-//        view.addSubview(circularProgress)
-        loadAlbumArtwork()
+        if view.window!.isVisible {
+            loadAlbumArtwork()
+        }
+        
     }
     @objc func loadingSplash(){
         
         view.addSubview(circularProgress)
+    }
+    
+    @objc func removeSplash(){
+        
+        circularProgress.removeFromSuperview()
     }
     
     @objc func loadAlbumArtwork()
@@ -242,7 +255,6 @@ class MusicVC: NSViewController {
         trackDuration()
         songName.stringValue = currentSongName ?? ""
         artistName.stringValue = currentSongArtist ?? ""
-        
         
         if songName.stringValue != ""
         {
@@ -253,12 +265,15 @@ class MusicVC: NSViewController {
             }
             
         }else{
-            
-            albumArt.image = NSImage(named: "wallpaper2")
+            DispatchQueue.main.async {
+                self.noArtwork()
+            }
+//            albumArt.image = NSImage(named: "artwork")
         }
     }
     
     func noArtwork(){
+        
         self.fade(type: .fadeIn, duration: .newSong)
         self.albumArt.image = NSImage(named: "artwork")
         self.fade(type: .fadeOut, duration: .newSong)
@@ -295,6 +310,7 @@ class MusicVC: NSViewController {
     
     func iTunesArtwork(){
         musicButton.image = NSImage(named: "itunes2")
+//        albumArt.image?.recache()
         NSAppleScript.go(code: NSAppleScript.itunesArtwork(), completionHandler: {_,output,_ in
             if output?.data.count != 0{
                 self.circularProgress.removeFromSuperview()
@@ -305,6 +321,8 @@ class MusicVC: NSViewController {
                     self.newSong = false
                 }else{
                     self.albumArt.image = NSImage(data: (output?.data)!)
+
+//                    albumArt.image?.recache()
                 }
                 self.circularProgress.removeFromSuperview()
             }else{
@@ -338,6 +356,7 @@ class MusicVC: NSViewController {
                             self.newArtworkURL(url: imageURL)
                         }else{
                             self.albumArt.image = NSImage(contentsOf: imageURL)
+//                            self.albumArt.image?.recache()
                         }
                         self.circularProgress.removeFromSuperview()
                     }
@@ -403,7 +422,9 @@ class MusicVC: NSViewController {
         NSAppleScript.go(code: NSAppleScript.playPause(), completionHandler: {_,_,_ in })
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
-        loadAlbumArtwork()
+        if view.window!.isVisible {
+            loadAlbumArtwork()
+        }
         
     }
     
@@ -438,7 +459,8 @@ class MusicVC: NSViewController {
         
         NSAppleScript.go(code: NSAppleScript.changeSlider(), completionHandler: {_,out,_ in
             musicSlider.stringValue = out?.stringValue ?? ""
-            trackDurationSliderCell.stringValue = out?.stringValue ?? ""
+//            trackDurationSliderCell.stringValue = out?.stringValue ?? ""
+            
             if Double(musicSlider.stringValue)! >= 3600{
                 startTime.stringValue = String(Int(Double(musicSlider.stringValue)! / 60) / 60) + ":" + String(format: "%02d", Int(Double(musicSlider.stringValue)! / 60) % 60) + ":" +  String(format: "%02d", Int(Double(musicSlider.stringValue)!.truncatingRemainder(dividingBy: 60)))
             }else{
@@ -459,10 +481,17 @@ class MusicVC: NSViewController {
         
     }
     
+//    @IBAction func settingsClicked(_ sender: Any) {
+//        settingsController?.showWindow(self)
+//        settingsController?.window?.makeKeyAndOrderFront(self)
+//        settingsController?.window?.center()
+//        NSApp.activate(ignoringOtherApps: true)
+//    }
+    
     deinit {
         NotificationCenter.default.removeObserver(self)
+        
     }
-    
     
 }
 

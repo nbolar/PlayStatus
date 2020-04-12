@@ -1,0 +1,32 @@
+PODS:
+  - CircularProgressMac (2.0.0)
+  - LoginServiceKit (2.1.0)
+  - Sparkle (1.22.0)
+
+DEPENDENCIES:
+  - CircularProgressMac
+  - LoginServiceKit (from `https://github.com/Clipy/LoginServiceKit.git`)
+  - Sparkle
+
+SPEC REPOS:
+  https://github.com/cocoapods/specs.git:
+    - CircularProgressMac
+    - Sparkle
+
+EXTERNAL SOURCES:
+  LoginServiceKit:
+    :git: https://github.com/Clipy/LoginServiceKit.git
+
+CHECKOUT OPTIONS:
+  LoginServiceKit:
+    :commit: 0b25f256e07ca110c2883f4f5072a7fe525b5805
+    :git: https://github.com/Clipy/LoginServiceKit.git
+
+SPEC CHECKSUMS:
+  CircularProgressMac: a444b6c592363993b01993ac2c99847d60d10898
+  LoginServiceKit: 889b5d83f237eb22d93f22fb0a210a0a99d89510
+  Sparkle: 593ac2e677c07bcb6c3b22d621240e7cbedaab57
+
+PODFILE CHECKSUM: bff007e282921d2564be718ec9be76bcc47493e5
+
+COCOAPODS: 1.5.2

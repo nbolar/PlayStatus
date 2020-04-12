@@ -436,8 +436,6 @@ extension NSAppleScript {
             tell application "Spotify"
                 if player state is playing then
                     return "Spotify"
-                else
-                    return ""
                 end if
             end tell
         else
@@ -448,10 +446,10 @@ extension NSAppleScript {
                 tell application "Spotify"
                      if player state is playing then
                         return "Spotify"
-                    else
-                        return ""
                     end if
                 end tell
+            else
+                return ""
             end if
         end checkSpotify
         """

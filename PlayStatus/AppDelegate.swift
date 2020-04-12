@@ -8,6 +8,7 @@
 
 import Cocoa
 
+
 var currentSongName: String!
 var currentAlbumName: String!
 var currentSongArtist: String!
@@ -27,12 +28,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     lazy var aboutView: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "aboutWindowController") as? NSWindowController
     let invisibleWindow = NSWindow(contentRect: NSMakeRect(0, 0, 20, 1), styleMask: .borderless, backing: .buffered, defer: false)
     private var musicController: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "musicViewController") as? NSWindowController
-
-    
-    
+    private var timer: Timer?
+    let newStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    let notificationCenter = NSWorkspace.shared.notificationCenter
     private enum Constants {
         static let statusItemIconLength: CGFloat = 30
-        static let statusItemLength: CGFloat = 200
+        static var statusItemLength: CGFloat = 300
     }
     private lazy var statusItem: NSStatusItem = {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -45,7 +46,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         view.lengthHandler = handleLength
         return view
     }()
-    
+
     private lazy var handleLength: StatusItemLengthUpdate = { length in
         if length < Constants.statusItemLength {
             self.statusItem.length = length
@@ -53,18 +54,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.statusItem.length = Constants.statusItemLength
         }
     }
-    
+
     private lazy var contentView: NSView? = {
         let view = (statusItem.value(forKey: "window") as? NSWindow)?.contentView
         return view
     }()
-    
+
     var currentTrack: String? {
         didSet {
             if oldValue != currentTrack {
                 NotificationCenter.default.post(name: NSNotification.Name(rawValue: "newSong"), object: nil)
+            }else{
+                 NotificationCenter.default.post(name: NSNotification.Name(rawValue: "removeSplash"), object: nil)
             }
-            
+
         }
     }
     
@@ -78,23 +81,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         
-        statusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
-        statusItem.button?.action = #selector(self.togglePopover(_:))
         
-        _ = Timer.scheduledTimer(timeInterval: 2.0, target: self, selector: #selector(getSongName), userInfo: nil, repeats: true)
-        loadSubviews()
+        
+        timer = Timer.scheduledTimer(timeInterval: 1.0, target: self, selector: #selector(getSongName), userInfo: nil, repeats: true)
+        notificationCenter.addObserver(self, selector: #selector(AppDelegate.wakeUpListener), name: NSWorkspace.didWakeNotification, object: nil)
+        notificationCenter.addObserver(self, selector: #selector(AppDelegate.sleepListener), name: NSWorkspace.willSleepNotification, object: nil)
         invisibleWindow.backgroundColor = .clear
         invisibleWindow.alphaValue = 0
-        iconName = "icon_20"
-        
+        iconName = "itunes"
+//        scrollingStatusItemView.icon = NSImage(named: "\(iconName!)")
         musicController?.window?.isOpaque = false
         musicController?.window?.backgroundColor = .clear
         musicController?.window?.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)))
-
-
-
+//        NotificationCenter.default.addObserver(self, selector: #selector(getSongName), name: NSNotification.Name(rawValue: "getSongName"), object: nil)
+//        getSongName()
+        
+//        statusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
+//        statusItem.button?.action = #selector(self.togglePopover(_:))
+        loadStatusItem()
 
     }
+    
+    func loadStatusItem(){
+        if UserDefaults.standard.bool(forKey: "scrollable") == false {
+            newStatusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
+            newStatusItem.button?.action = #selector(self.togglePopover(_:))
+        }else{
+            statusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
+            statusItem.button?.action = #selector(self.togglePopover(_:))
+            loadSubviews()
+        }
+    }
+
 
     
     func applicationWillResignActive(_ notification: Notification) {
@@ -116,7 +134,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 NotificationCenter.default.post(name: NSNotification.Name(rawValue: "close"), object: nil)
                 musicController?.close()
             }else{
-                displayPopUp()
+                if UserDefaults.standard.bool(forKey: "scrollable") == false {
+                    displayPopUp(status: newStatusItem)
+                }else{
+                    displayPopUp(status: statusItem)
+                }
             }
             
         }else if event.type == NSEvent.EventType.rightMouseUp{
@@ -131,9 +153,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(withTitle: "About", action: #selector(aboutMenu), keyEquivalent: "")
             menu.addItem(NSMenuItem(title: "Quit PlayStatus", action: #selector(self.quitApp), keyEquivalent: "q"))
 
-            statusItem.menu = menu
-            statusItem.button?.performClick(nil)
-            statusItem.menu = nil
+            if UserDefaults.standard.bool(forKey: "scrollable") == false {
+                newStatusItem.menu = menu
+                newStatusItem.button?.performClick(nil)
+                newStatusItem.menu = nil
+                
+            }else{
+                statusItem.menu = menu
+                statusItem.button?.performClick(nil)
+                statusItem.menu = nil
+                
+            }
+            
             
         }
         
@@ -181,19 +212,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
     }
     
+    @objc func clearTimer(){
+        timer?.invalidate()
+        timer = nil
+    }
+    
+    
+    
     @objc func getSongName()
     {
 
-        loadSubviews()
+        loadStatusItem()
+        
         NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
-        if out?.stringValue == "Spotify"{
+            if out?.stringValue == "Spotify"{
                 iconName = "spotify"
             }
-        else{
-            iconName = "itunes"
+            else{
+                iconName = "itunes"
+            }
+            
+            if out?.stringValue != ""{
+                getNowPlayingSong()
+//                loadSubviews()
             }
         })
             
+        
+    }
+    
+    func getNowPlayingSong(){
+        
         NSAppleScript.go(code: NSAppleScript.songName(), completionHandler: {_,out,_ in
             songName = out?.stringValue ?? ""
             currentSongName = songName
@@ -209,26 +258,49 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
         })
         
-        let statutsItemTitle = "\(artistName!) - \(songName!)"
-        
+        let statutsItemTitle = musicBarTitle()
         if lastStatusTitle != statutsItemTitle && statutsItemTitle.count > 0{
-            if statutsItemTitle != " - "{
+            
+            if statutsItemTitle != "  - "{
                 updateTitle(newTitle: statutsItemTitle)
             }else{
                 updateTitle(newTitle: " ")
             }
         }
+    }
+
+    
+    func scrollableTitleChanged(){
+        let statutsItemTitle = musicBarTitle()
+        
+        if statutsItemTitle != "  - "{
+            updateTitle(newTitle: statutsItemTitle)
+        }else{
+            updateTitle(newTitle: " ")
+        }
         
     }
     
+    func musicBarTitle()->String{
+        switch UserDefaults.standard.integer(forKey: "options") {
+        case 0:
+            return " \(artistName!)"
+        case 1:
+            return " \(songName!)"
+        case 2:
+            return " \(artistName!) - \(songName!)"
+        default:
+            return " \(artistName!) - \(songName!)"
+        }
+    }
     
     
-    @objc func displayPopUp() {
+    @objc func displayPopUp(status: NSStatusItem) {
 
-        let rectWindow = statusItem.button?.window?.convertToScreen((statusItem.button?.frame)!)
+        let rectWindow = status.button?.window?.convertToScreen((status.button?.frame)!)
         let menubarHeight = rectWindow?.height ?? 22
         let height = musicController?.window?.frame.height ?? 300
-        let xOffset = ((musicController?.window?.contentView?.frame.midX)! - (statusItem.button?.frame.midX)!)
+        let xOffset = ((musicController?.window?.contentView?.frame.midX)! - (status.button?.frame.midX)!)
         let x = (rectWindow?.origin.x)! - xOffset
         xWidth = x
         let y = (rectWindow?.origin.y)!
@@ -236,10 +308,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         musicController?.window?.setFrameOrigin(NSPoint(x: x, y: y+menubarHeight-height))
         musicController?.showWindow(self)
         NSRunningApplication.current.activate(options: NSApplication.ActivationOptions.activateIgnoringOtherApps)
-
-        NotificationCenter.default.post(name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
         
     }
+    
     
     
     
@@ -256,17 +327,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             scrollingStatusItemView.rightAnchor.constraint(equalTo: contentView.rightAnchor)])
     }
     
+    
     private func updateTitle(newTitle: String) {
-        lastStatusTitle = newTitle
-        scrollingStatusItemView.icon = NSImage(named: "\(iconName!)")
-        scrollingStatusItemView.text = newTitle
-        currentTrack = newTitle
         
+        if UserDefaults.standard.bool(forKey: "scrollable") == false {
+            loadStatusItem()
+            scrollingStatusItemView.removeFromSuperview()
+            newStatusItem.button?.title = newTitle
+            currentTrack = newTitle
+            newStatusItem.button?.image = NSImage(named: "itunes")
+            newStatusItem.button?.imagePosition = .imageLeft
+            
+            
+        }else{
+            loadStatusItem()
+            loadSubviews()
+            newStatusItem.button?.title = ""
+            newStatusItem.button?.image = .none
+            currentTrack = newTitle
+            lastStatusTitle = newTitle
+            scrollingStatusItemView.icon = NSImage(named: "\(iconName!)")
+            scrollingStatusItemView.text = newTitle
 
-        
-        if newTitle.count == 0 && statusItem.button != nil {
-            statusItem.length = scrollingStatusItemView.hasImage ? Constants.statusItemLength : 0
+            if newTitle.count == 0 && statusItem.button != nil {
+                statusItem.length = scrollingStatusItemView.hasImage ? Constants.statusItemLength : 0
+            }
         }
+        
+        
+    }
+    @objc func wakeUpListener(){
+        
+        timer = Timer.scheduledTimer(timeInterval: 1.0, target: self, selector: #selector(getSongName), userInfo: nil, repeats: true)
+        
+    }
+    @objc func sleepListener(){
+        
+        timer?.invalidate()
+        timer = nil
     }
     
     deinit {
@@ -275,4 +373,3 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 
 }
-

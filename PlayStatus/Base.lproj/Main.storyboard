@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="15705" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
+<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="16096" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
     <dependencies>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="15705"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="16096"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
@@ -747,6 +747,27 @@
             <point key="canvasLocation" x="-280" y="976"/>
         </scene>
         <!--Window Controller-->
+        <scene sceneID="ckf-rd-EU8">
+            <objects>
+                <windowController storyboardIdentifier="settingsWindowController" id="wli-Ld-zOS" sceneMemberID="viewController">
+                    <window key="window" title="Preferences" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" restorable="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" frameAutosaveName="" animationBehavior="default" titlebarAppearsTransparent="YES" id="pPm-RG-2B9">
+                        <windowStyleMask key="styleMask" titled="YES" closable="YES" texturedBackground="YES"/>
+                        <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
+                        <rect key="contentRect" x="425" y="461" width="480" height="270"/>
+                        <rect key="screenRect" x="0.0" y="0.0" width="2560" height="1417"/>
+                        <connections>
+                            <outlet property="delegate" destination="wli-Ld-zOS" id="50V-ew-IwY"/>
+                        </connections>
+                    </window>
+                    <connections>
+                        <segue destination="rLC-8w-dS1" kind="relationship" relationship="window.shadowedContentViewController" id="Lc9-GR-GOX"/>
+                    </connections>
+                </windowController>
+                <customObject id="cNH-Xf-jj0" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="-288" y="1365"/>
+        </scene>
+        <!--Window Controller-->
         <scene sceneID="uZF-ch-viN">
             <objects>
                 <windowController storyboardIdentifier="searchWindowController" id="gxA-22-GOF" sceneMemberID="viewController">
@@ -826,12 +847,12 @@
                             <scrollView fixedFrame="YES" borderType="none" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" translatesAutoresizingMaskIntoConstraints="NO" id="g2u-ZP-bMf">
                                 <rect key="frame" x="92" y="34" width="338" height="140"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <clipView key="contentView" ambiguous="YES" drawsBackground="NO" copiesOnScroll="NO" id="zAi-1N-uW3">
+                                <clipView key="contentView" drawsBackground="NO" copiesOnScroll="NO" id="zAi-1N-uW3">
                                     <rect key="frame" x="0.0" y="0.0" width="338" height="140"/>
                                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                     <subviews>
                                         <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="dfv-20-eJ3">
-                                            <rect key="frame" x="0.0" y="0.0" width="103" height="16"/>
+                                            <rect key="frame" x="0.0" y="0.0" width="338" height="16"/>
                                             <textFieldCell key="cell" allowsUndo="NO" placeholderString="Description Text" allowsEditingTextAttributes="YES" id="361-c5-b0N">
                                                 <font key="font" usesAppearanceFont="YES"/>
                                                 <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
@@ -858,7 +879,7 @@
                                 <rect key="frame" x="166" y="182" width="80" height="11"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" placeholderString="version" id="bCd-yO-oQf">
-                                    <font key="font" metaFont="label" size="9"/>
+                                    <font key="font" metaFont="menu" size="9"/>
                                     <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                                 </textFieldCell>
@@ -917,22 +938,11 @@
             <objects>
                 <viewController id="rLC-8w-dS1" customClass="SettingsVC" customModule="PlayStatus" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" id="MUQ-3L-UpP">
-                        <rect key="frame" x="0.0" y="0.0" width="150" height="100"/>
+                        <rect key="frame" x="0.0" y="0.0" width="350" height="350"/>
                         <autoresizingMask key="autoresizingMask"/>
                         <subviews>
-                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="5oM-x8-22O">
-                                <rect key="frame" x="16" y="68" width="119" height="18"/>
-                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <buttonCell key="cell" type="check" title="Launch at Login" bezelStyle="regularSquare" imagePosition="left" inset="2" id="7JB-B7-5ne">
-                                    <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
-                                    <font key="font" metaFont="system"/>
-                                </buttonCell>
-                                <connections>
-                                    <action selector="launchButtonClicked:" target="rLC-8w-dS1" id="lol-Hh-GRs"/>
-                                </connections>
-                            </button>
                             <button hidden="YES" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="M4E-aa-EMX">
-                                <rect key="frame" x="-1" y="20" width="152" height="32"/>
+                                <rect key="frame" x="99" y="14" width="152" height="32"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="push" title="Check for updates" bezelStyle="rounded" alignment="center" state="on" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="QhS-lH-seG">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -943,25 +953,124 @@
                                 </connections>
                             </button>
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="6BV-WI-eDW">
-                                <rect key="frame" x="35" y="2" width="80" height="11"/>
+                                <rect key="frame" x="135" y="2" width="80" height="11"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" alignment="center" placeholderString="version" id="0fU-w8-PJH">
-                                    <font key="font" metaFont="label" size="9"/>
+                                    <font key="font" metaFont="menu" size="9"/>
                                     <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                                 </textFieldCell>
                             </textField>
+                            <stackView distribution="fill" orientation="vertical" alignment="leading" spacing="31" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" fixedFrame="YES" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="L8X-WX-3vM">
+                                <rect key="frame" x="20" y="178" width="166" height="110"/>
+                                <subviews>
+                                    <button verticalHuggingPriority="750" springLoaded="YES" translatesAutoresizingMaskIntoConstraints="NO" id="tS4-bY-ldy">
+                                        <rect key="frame" x="-1" y="93" width="94" height="18"/>
+                                        <buttonCell key="cell" type="radio" title="Artist Name" bezelStyle="regularSquare" imagePosition="left" alignment="left" allowsMixedState="YES" inset="2" id="UOT-ng-8vc">
+                                            <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                            <font key="font" metaFont="system"/>
+                                        </buttonCell>
+                                        <connections>
+                                            <action selector="radioButtonClicked:" target="rLC-8w-dS1" id="mRa-o6-kBG"/>
+                                        </connections>
+                                    </button>
+                                    <button verticalHuggingPriority="750" tag="1" springLoaded="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Xz5-6V-o4M">
+                                        <rect key="frame" x="-1" y="46" width="84" height="18"/>
+                                        <buttonCell key="cell" type="radio" title="Song Title" bezelStyle="regularSquare" imagePosition="left" alignment="left" allowsMixedState="YES" inset="2" id="Fuo-aA-eWS">
+                                            <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                            <font key="font" metaFont="system"/>
+                                        </buttonCell>
+                                        <connections>
+                                            <action selector="radioButtonClicked:" target="rLC-8w-dS1" id="QeH-4y-sCS"/>
+                                        </connections>
+                                    </button>
+                                    <button verticalHuggingPriority="750" tag="2" springLoaded="YES" translatesAutoresizingMaskIntoConstraints="NO" id="6rP-fo-xud">
+                                        <rect key="frame" x="-1" y="-1" width="169" height="18"/>
+                                        <buttonCell key="cell" type="radio" title="Artist Name - Song Title" bezelStyle="regularSquare" imagePosition="left" alignment="left" allowsMixedState="YES" inset="2" id="Exv-Tt-h3L">
+                                            <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                            <font key="font" metaFont="system"/>
+                                        </buttonCell>
+                                        <connections>
+                                            <action selector="radioButtonClicked:" target="rLC-8w-dS1" id="riV-2j-fn3"/>
+                                        </connections>
+                                    </button>
+                                </subviews>
+                                <visibilityPriorities>
+                                    <integer value="1000"/>
+                                    <integer value="1000"/>
+                                    <integer value="1000"/>
+                                </visibilityPriorities>
+                                <customSpacing>
+                                    <real value="3.4028234663852886e+38"/>
+                                    <real value="3.4028234663852886e+38"/>
+                                    <real value="3.4028234663852886e+38"/>
+                                </customSpacing>
+                            </stackView>
+                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="EbY-pX-f8P">
+                                <rect key="frame" x="221" y="272" width="111" height="18"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="check" title="Scrollable Text" bezelStyle="regularSquare" imagePosition="left" state="on" inset="2" id="eiU-P8-pd8">
+                                    <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <connections>
+                                    <action selector="scrollableButtonClicked:" target="rLC-8w-dS1" id="hfc-eu-yGj"/>
+                                </connections>
+                            </button>
+                            <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="8HZ-Zx-20H">
+                                <rect key="frame" x="221" y="178" width="124" height="88"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <textFieldCell key="cell" selectable="YES" id="eOG-hs-cnF">
+                                    <font key="font" metaFont="system" size="10"/>
+                                    <string key="title">Note: Requires restart to take effect.                                                                                                         Enabling this feature will result in higher memory usage. Applies to titles over 300 pts long. </string>
+                                    <color key="textColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="1" colorSpace="custom" customColorSpace="displayP3"/>
+                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                            </textField>
+                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Jad-Az-SYs">
+                                <rect key="frame" x="171" y="250" width="4" height="16"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <textFieldCell key="cell" lineBreakMode="clipping" id="T2p-mN-jfB">
+                                    <font key="font" metaFont="system"/>
+                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                            </textField>
+                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mYG-2D-3LI">
+                                <rect key="frame" x="74" y="311" width="153" height="19"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <textFieldCell key="cell" lineBreakMode="clipping" title="Menu Bar Title Options" id="BWR-Jg-0hB">
+                                    <font key="font" size="14" name="AvenirNext-Medium"/>
+                                    <color key="textColor" red="0.9951923077" green="0.9903846154" blue="1" alpha="1" colorSpace="custom" customColorSpace="displayP3"/>
+                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                            </textField>
+                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="5oM-x8-22O">
+                                <rect key="frame" x="116" y="60" width="119" height="18"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="check" title="Launch at Login" bezelStyle="regularSquare" imagePosition="left" inset="2" id="7JB-B7-5ne">
+                                    <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <connections>
+                                    <action selector="launchButtonClicked:" target="rLC-8w-dS1" id="lol-Hh-GRs"/>
+                                </connections>
+                            </button>
                         </subviews>
                     </view>
                     <connections>
+                        <outlet property="artistButton" destination="tS4-bY-ldy" id="z8f-n5-33w"/>
+                        <outlet property="artistSongButton" destination="6rP-fo-xud" id="7vC-aq-RUU"/>
                         <outlet property="login" destination="5oM-x8-22O" id="WTs-Mh-s47"/>
+                        <outlet property="scrollableTextButton" destination="EbY-pX-f8P" id="iOo-C8-Vt5"/>
+                        <outlet property="songButton" destination="Xz5-6V-o4M" id="tdv-hZ-jQ8"/>
                         <outlet property="updateButton" destination="M4E-aa-EMX" id="P3W-Cz-mcC"/>
                         <outlet property="versionText" destination="6BV-WI-eDW" id="7O0-0n-zxo"/>
                     </connections>
                 </viewController>
                 <customObject id="hkX-AP-kdW" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="157" y="1350"/>
+            <point key="canvasLocation" x="163" y="1370"/>
         </scene>
         <!--MusicVC-->
         <scene sceneID="Tdu-bp-48f">
@@ -974,7 +1083,7 @@
                             <imageView horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="RA8-5A-P0m">
                                 <rect key="frame" x="-1" y="0.0" width="301" height="300"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" imageScaling="axesIndependently" image="wallpaper2" id="biU-rt-7Ij"/>
+                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" animates="YES" imageScaling="axesIndependently" image="artwork" id="biU-rt-7Ij"/>
                             </imageView>
                             <visualEffectView wantsLayer="YES" appearanceType="vibrantDark" fixedFrame="YES" blendingMode="withinWindow" material="menu" state="active" translatesAutoresizingMaskIntoConstraints="NO" id="ngz-Ue-FMn">
                                 <rect key="frame" x="0.0" y="0.0" width="300" height="300"/>
@@ -1172,7 +1281,8 @@
                                 </buttonCell>
                                 <color key="contentTintColor" red="0.99999600649999998" green="1" blue="1" alpha="0.80000000000000004" colorSpace="custom" customColorSpace="sRGB"/>
                                 <connections>
-                                    <segue destination="rLC-8w-dS1" kind="popover" popoverAnchorView="8A7-eN-bal" popoverBehavior="t" preferredEdge="minX" id="p4e-zd-AUw"/>
+                                    <action selector="settingsClicked:" target="sM2-A5-j4E" id="cHv-Dz-HUL"/>
+                                    <segue destination="rLC-8w-dS1" kind="popover" popoverAnchorView="8A7-eN-bal" popoverBehavior="t" preferredEdge="maxY" id="l3B-J2-TdY"/>
                                 </connections>
                             </button>
                             <button verticalHuggingPriority="750" fixedFrame="YES" springLoaded="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Boe-QH-ZYq">
@@ -1226,6 +1336,9 @@
             <point key="canvasLocation" x="157" y="581"/>
         </scene>
     </scenes>
+    <inferredMetricsTieBreakers>
+        <segue reference="l3B-J2-TdY"/>
+    </inferredMetricsTieBreakers>
     <resources>
         <image name="NSActionTemplate" width="14" height="14"/>
         <image name="NSApplicationIcon" width="32" height="32"/>
@@ -1233,11 +1346,11 @@
         <image name="NSTouchBarSearchTemplate" width="19" height="30"/>
         <image name="NSTouchBarSkipAhead15SecondsTemplate" width="17" height="30"/>
         <image name="NSTouchBarSkipBack15SecondsTemplate" width="17" height="30"/>
+        <image name="artwork" width="150" height="150"/>
         <image name="forward1" width="60" height="60"/>
         <image name="itunes2" width="25" height="25"/>
         <image name="pause" width="60" height="60"/>
         <image name="play" width="60" height="60"/>
         <image name="rewind" width="60" height="60"/>
-        <image name="wallpaper2" width="300" height="300"/>
     </resources>
 </document>
