@@ -709,7 +709,7 @@
         <scene sceneID="Riq-OV-rim">
             <objects>
                 <windowController storyboardIdentifier="musicViewController" id="Wdb-s0-Wf6" sceneMemberID="viewController">
-                    <window key="window" title="MusicVC" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" frameAutosaveName="" animationBehavior="default" id="1NI-0T-jwp">
+                    <window key="window" title="MusicVC" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" hasShadow="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" frameAutosaveName="" animationBehavior="default" id="1NI-0T-jwp">
                         <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
                         <rect key="contentRect" x="294" y="362" width="480" height="270"/>
                         <rect key="screenRect" x="0.0" y="0.0" width="1920" height="1177"/>
@@ -1056,14 +1056,47 @@
                                     <action selector="launchButtonClicked:" target="rLC-8w-dS1" id="lol-Hh-GRs"/>
                                 </connections>
                             </button>
+                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Rbm-uV-M7W">
+                                <rect key="frame" x="20" y="136" width="130" height="18"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <textFieldCell key="cell" lineBreakMode="clipping" title="Default Music Player:" id="LUT-Qm-jof">
+                                    <font key="font" size="13" name="AvenirNext-Medium"/>
+                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                            </textField>
+                            <button verticalHuggingPriority="750" fixedFrame="YES" springLoaded="YES" translatesAutoresizingMaskIntoConstraints="NO" id="AEj-zl-UqJ">
+                                <rect key="frame" x="21" y="111" width="66" height="18"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="radio" title="Spotify" bezelStyle="regularSquare" imagePosition="left" alignment="left" allowsMixedState="YES" inset="2" id="Lg1-Yv-xqZ">
+                                    <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <connections>
+                                    <action selector="musicPlayerClicked:" target="rLC-8w-dS1" id="FZV-I1-kj3"/>
+                                </connections>
+                            </button>
+                            <button verticalHuggingPriority="750" fixedFrame="YES" tag="1" springLoaded="YES" translatesAutoresizingMaskIntoConstraints="NO" id="5FU-Vy-51r">
+                                <rect key="frame" x="21" y="89" width="140" height="18"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="radio" title="Apple Music/iTunes" bezelStyle="regularSquare" imagePosition="left" alignment="left" allowsMixedState="YES" inset="2" id="1Lo-Px-hNc">
+                                    <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <connections>
+                                    <action selector="musicPlayerClicked:" target="rLC-8w-dS1" id="kXo-Eh-UHN"/>
+                                </connections>
+                            </button>
                         </subviews>
                     </view>
                     <connections>
+                        <outlet property="appleMusicButton" destination="5FU-Vy-51r" id="ioa-a2-mYc"/>
                         <outlet property="artistButton" destination="tS4-bY-ldy" id="z8f-n5-33w"/>
                         <outlet property="artistSongButton" destination="6rP-fo-xud" id="7vC-aq-RUU"/>
                         <outlet property="login" destination="5oM-x8-22O" id="WTs-Mh-s47"/>
                         <outlet property="scrollableTextButton" destination="EbY-pX-f8P" id="iOo-C8-Vt5"/>
                         <outlet property="songButton" destination="Xz5-6V-o4M" id="tdv-hZ-jQ8"/>
+                        <outlet property="spotifyButton" destination="AEj-zl-UqJ" id="P3Q-5F-tF7"/>
                         <outlet property="updateButton" destination="M4E-aa-EMX" id="P3W-Cz-mcC"/>
                         <outlet property="versionText" destination="6BV-WI-eDW" id="7O0-0n-zxo"/>
                     </connections>
@@ -1083,7 +1116,8 @@
                             <imageView horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="RA8-5A-P0m">
                                 <rect key="frame" x="-1" y="0.0" width="301" height="300"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" animates="YES" imageScaling="axesIndependently" image="artwork" id="biU-rt-7Ij"/>
+                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" animates="YES" imageScaling="axesIndependently" id="biU-rt-7Ij"/>
+                                <color key="contentTintColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="displayP3"/>
                             </imageView>
                             <visualEffectView wantsLayer="YES" appearanceType="vibrantDark" fixedFrame="YES" blendingMode="withinWindow" material="menu" state="active" translatesAutoresizingMaskIntoConstraints="NO" id="ngz-Ue-FMn">
                                 <rect key="frame" x="0.0" y="0.0" width="300" height="300"/>
@@ -1346,7 +1380,6 @@
         <image name="NSTouchBarSearchTemplate" width="19" height="30"/>
         <image name="NSTouchBarSkipAhead15SecondsTemplate" width="17" height="30"/>
         <image name="NSTouchBarSkipBack15SecondsTemplate" width="17" height="30"/>
-        <image name="artwork" width="150" height="150"/>
         <image name="forward1" width="60" height="60"/>
         <image name="itunes2" width="25" height="25"/>
         <image name="pause" width="60" height="60"/>

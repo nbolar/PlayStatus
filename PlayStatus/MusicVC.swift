@@ -9,6 +9,7 @@
 import Cocoa
 import CircularProgressMac
 
+
 class MusicVC: NSViewController {
     static let shared = MusicVC()
     
@@ -92,10 +93,12 @@ class MusicVC: NSViewController {
     func setupUI(){
         self.view.wantsLayer = true
         self.view.layer?.cornerRadius = 8
+        self.view.layer?.backgroundColor = .black
         songDetails.wantsLayer = true
         songDetails.layer?.borderColor = .black
         songDetails.layer?.borderWidth = 1
         songDetails.layer?.cornerRadius = 8
+        visualEffectView.layer?.cornerRadius = 8
         songDetails.layer?.masksToBounds = true
         songDetails.layerUsesCoreImageFilters = true
         songDetails.layer?.needsDisplayOnBoundsChange = true
@@ -182,6 +185,7 @@ class MusicVC: NSViewController {
         songName.isHidden = hide
         artistName.isHidden = hide
         musicButton.isHidden = hide
+        musicButton.image = NSImage(named: "\(iconName!)2")
         visualEffectView.isHidden = hide
         settingsButton.isHidden = hide
         if app == .spotify {
@@ -273,9 +277,14 @@ class MusicVC: NSViewController {
     }
     
     func noArtwork(){
-        
+        musicButton.image = NSImage(named: "\(iconName!)2")
         self.fade(type: .fadeIn, duration: .newSong)
-        self.albumArt.image = NSImage(named: "artwork")
+        if currentSongName != ""{
+         self.albumArt.image = NSImage(named: "artwork")
+        }else{
+            self.albumArt.image = NSImage(named: "playstatus_back")
+        }
+        
         self.fade(type: .fadeOut, duration: .newSong)
         self.circularProgress.removeFromSuperview()
     }
@@ -288,7 +297,7 @@ class MusicVC: NSViewController {
     }
     
     func spotifyArtwork(){
-        musicButton.image = NSImage(named: "spotify2")
+        musicButton.image = NSImage(named: "\(iconName!)2")
         app = .spotify
         NSAppleScript.go(code: NSAppleScript.loadSpotifyAlbumArtwork(), completionHandler: {_,out,_ in
             
@@ -309,7 +318,7 @@ class MusicVC: NSViewController {
     }
     
     func iTunesArtwork(){
-        musicButton.image = NSImage(named: "itunes2")
+        musicButton.image = NSImage(named: "\(iconName!)2")
 //        albumArt.image?.recache()
         NSAppleScript.go(code: NSAppleScript.itunesArtwork(), completionHandler: {_,output,_ in
             if output?.data.count != 0{
@@ -419,6 +428,11 @@ class MusicVC: NSViewController {
         if (trackDurationSliderCell.doubleValue != 0){
             circularProgress.removeFromSuperview()
         }
+        if UserDefaults.standard.integer(forKey: "musicApp") == 0{
+            musicAppChoice = "Spotify"
+        }else{
+            musicAppChoice = "\(itunesMusicName!)"
+        }
         NSAppleScript.go(code: NSAppleScript.playPause(), completionHandler: {_,_,_ in })
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
@@ -470,10 +484,10 @@ class MusicVC: NSViewController {
     }
     
     @IBAction func musicButtonClicked(_ sender: Any) {
-        if MusicController.shared.musicApp() == "Spotify"
+        if MusicController.shared.musicApp() == "Spotify" ||  UserDefaults.standard.integer(forKey: "musicApp") == 0
         {
             NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Spotify.app"))
-        } else
+        } else if MusicController.shared.musicApp() == "iTunes" ||  UserDefaults.standard.integer(forKey: "musicApp") == 1
         {
             NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/\(itunesMusicName!).app"))
         }

@@ -15,14 +15,15 @@ var currentSongArtist: String!
 var yHeight : CGFloat!
 var xWidth : CGFloat!
 var itunesMusicName: String! = "iTunes"
-
+var musicAppChoice : String!
+var iconName: String!
 
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     var songName: String!
     var artistName: String!    
     var out: NSAppleEventDescriptor?
-    var iconName: String!
+    
     private var lastStatusTitle: String = ""
     let popoverView = NSPopover()
     lazy var aboutView: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "aboutWindowController") as? NSWindowController
@@ -88,7 +89,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         notificationCenter.addObserver(self, selector: #selector(AppDelegate.sleepListener), name: NSWorkspace.willSleepNotification, object: nil)
         invisibleWindow.backgroundColor = .clear
         invisibleWindow.alphaValue = 0
-        iconName = "itunes"
+        
 //        scrollingStatusItemView.icon = NSImage(named: "\(iconName!)")
         musicController?.window?.isOpaque = false
         musicController?.window?.backgroundColor = .clear
@@ -98,12 +99,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
 //        statusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
 //        statusItem.button?.action = #selector(self.togglePopover(_:))
+        
+        if UserDefaults.standard.integer(forKey: "musicApp") == 0{
+            musicAppChoice = "Spotify"
+            iconName = "spotify"
+        }else{
+            musicAppChoice = "\(itunesMusicName!)"
+            iconName = "itunes"
+        }
         loadStatusItem()
 
     }
     
     func loadStatusItem(){
         if UserDefaults.standard.bool(forKey: "scrollable") == false {
+            newStatusItem.button?.image = NSImage(named: "\(iconName!)")
+            newStatusItem.button?.imagePosition = .imageLeft
             newStatusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
             newStatusItem.button?.action = #selector(self.togglePopover(_:))
         }else{
@@ -228,14 +239,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if out?.stringValue == "Spotify"{
                 iconName = "spotify"
             }
-            else{
+            else if out?.stringValue == itunesMusicName{
                 iconName = "itunes"
             }
-            
-            if out?.stringValue != ""{
-                getNowPlayingSong()
-//                loadSubviews()
-            }
+            getNowPlayingSong()
+//            if out?.stringValue != ""{
+//
+////                loadSubviews()
+//            }
         })
             
         
@@ -259,6 +270,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         })
         
         let statutsItemTitle = musicBarTitle()
+        
         if lastStatusTitle != statutsItemTitle && statutsItemTitle.count > 0{
             
             if statutsItemTitle != "  - "{
@@ -335,7 +347,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             scrollingStatusItemView.removeFromSuperview()
             newStatusItem.button?.title = newTitle
             currentTrack = newTitle
-            newStatusItem.button?.image = NSImage(named: "itunes")
+            newStatusItem.button?.image = NSImage(named: "\(iconName!)")
             newStatusItem.button?.imagePosition = .imageLeft
             
             

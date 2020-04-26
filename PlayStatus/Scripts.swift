@@ -205,10 +205,9 @@ extension NSAppleScript {
                 playpause
             end tell
         else
-            tell application "\(itunesMusicName!)" to activate
+            tell application "\(musicAppChoice!)" to activate
             delay 5
-            tell application "\(itunesMusicName!)" to set shuffle enabled to true
-            tell application "\(itunesMusicName!)" to play
+            tell application "\(musicAppChoice!)" to play
         end if
 
         on checkSpotify()

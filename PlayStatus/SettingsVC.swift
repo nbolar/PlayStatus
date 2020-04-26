@@ -19,13 +19,17 @@ class SettingsVC: NSViewController {
     @IBOutlet weak var songButton: NSButton!
     @IBOutlet weak var artistSongButton: NSButton!
     @IBOutlet weak var scrollableTextButton: NSButton!
+    @IBOutlet weak var spotifyButton: NSButton!
+    @IBOutlet weak var appleMusicButton: NSButton!
+    
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do view setup here.
         self.view.wantsLayer = true
         self.view.layer?.backgroundColor = .clear
         let array = [artistButton, songButton, artistSongButton]
-//        UserDefaults.standard.removeObject(forKey: "scrollable")
+        let appArray = [spotifyButton, appleMusicButton]
         if UserDefaults.standard.object(forKey: "options") == nil{
             UserDefaults.standard.set(2, forKey:"options")
             artistSongButton.state = .on
@@ -34,6 +38,15 @@ class SettingsVC: NSViewController {
             let name = array[options]
             name?.state = .on
         }
+        if UserDefaults.standard.object(forKey: "musicApp") == nil{
+            UserDefaults.standard.set(1, forKey: "musicApp")
+            appleMusicButton.state = .on
+        }else{
+            let options = UserDefaults.standard.integer(forKey: "musicApp")
+            let name = appArray[options]
+            name?.state = .on
+        }
+
         if UserDefaults.standard.object(forKey: "scrollable") == nil{
             scrollableTextButton.state = .on
         }else if UserDefaults.standard.bool(forKey: "scrollable") == false {
@@ -89,4 +102,17 @@ class SettingsVC: NSViewController {
             self.dismiss(self)
         }
     }
+    
+    @IBAction func musicPlayerClicked(_ sender: NSButton) {
+        UserDefaults.standard.set(sender.tag, forKey: "musicApp")
+        if sender.tag == 0 {
+            iconName = "spotify"
+        }else{
+            iconName = "itunes"
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+            self.dismiss(self)
+        }
+    }
+    
 }
