@@ -2,7 +2,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) 
 [![Version: 2.0](https://img.shields.io/badge/Version-2.0-green.svg)](https://github.com/nbolar/PlayStatus/releases/tag/v1.8.2) 
 [![Platform](http://img.shields.io/badge/platform-macOS-black.svg?style=flat)](https://developer.apple.com/resources/)
-[![Platform](https://img.shields.io/badge/swift-5-orange.svg?style=flat)](https://swift.org/blog/swift-5-released/)
+[![Platform](https://img.shields.io/badge/swift-5.0-orange.svg?style=flat)](https://swift.org/blog/swift-5-released/)
 [![Open Source Love svg1](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/nbolar/playstatus/)
 [![Github All Releases](https://img.shields.io/github/downloads/nbolar/PlayStatus/total.svg)](https://github.com/nbolar/PlayStatus/releases/latest/download/PlayStatus.app.zip)
 
