@@ -17,6 +17,7 @@ var xWidth : CGFloat!
 var itunesMusicName: String! = "iTunes"
 var musicAppChoice : String!
 var iconName: String!
+var lastPausedApp: String!
 
 class AppDelegate: NSObject, NSApplicationDelegate {
 
@@ -107,6 +108,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             musicAppChoice = "\(itunesMusicName!)"
             iconName = "itunes"
         }
+        lastPausedApp = "\(musicAppChoice!)"
         loadStatusItem()
 
     }

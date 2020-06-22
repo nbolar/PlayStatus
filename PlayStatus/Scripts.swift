@@ -186,37 +186,28 @@ extension NSAppleScript {
     
     static func playPause() -> String{
         """
+        property lastPaused : "\(lastPausedApp!)"
         if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    pause current track
-                else
-                    if current track exists then
-                        play current track
-                    else
-                        set shuffle enabled to true
-                        play
-                    end if
-                end if
-            end tell
-            checkSpotify()
-        else if application "Spotify" is running then
-            tell application "Spotify"
-                playpause
-            end tell
+            tell application "\(itunesMusicName!)" to set itunesState to (player state as text)
+            tell application "Spotify" to set spotifyState to (player state as text)
+            
+            if itunesState is equal to "playing" then
+                tell application "\(itunesMusicName!)" to playpause
+                set lastPaused to "\(itunesMusicName!)"
+            else if spotifyState is equal to "playing" then
+                tell application "Spotify" to playpause
+                set lastPaused to "Spotify"
+            else if ((itunesState is equal to "paused") and (lastPaused is equal to "\(itunesMusicName!)")) then
+                tell application "\(itunesMusicName!)" to playpause
+            else if ((spotifyState is equal to "paused") and (lastPaused is equal to "Spotify")) then
+                tell application "Spotify" to playpause
+            end if
         else
             tell application "\(musicAppChoice!)" to activate
             delay 5
             tell application "\(musicAppChoice!)" to play
         end if
 
-        on checkSpotify()
-            if application "Spotify" is running then
-                tell application "Spotify"
-                    playpause
-                end tell
-            end if
-        end checkSpotify
         """
     }
     

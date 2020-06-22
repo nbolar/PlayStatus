@@ -228,6 +228,16 @@ class MusicVC: NSViewController {
         
         visualEffectView.alphaValue = CGFloat(to)
         
+//        /// Made changes to artwork fading
+//        if duration == .newSong{
+//            let fadeAnimNew = CABasicAnimation(keyPath: "opacity")
+//            fadeAnimNew.fromValue = to
+//            fadeAnimNew.toValue = from
+//            fadeAnimNew.duration = duration == .oldSong ? 0.3 : 1
+//            self.albumArt.layer?.add(fadeAnimNew, forKey: "opacity")
+//            self.albumArt.alphaValue = CGFloat(from)
+//        }
+        
     }
     
     override func mouseExited(with event: NSEvent) {
@@ -433,7 +443,9 @@ class MusicVC: NSViewController {
         }else{
             musicAppChoice = "\(itunesMusicName!)"
         }
-        NSAppleScript.go(code: NSAppleScript.playPause(), completionHandler: {_,_,_ in })
+        NSAppleScript.go(code: NSAppleScript.playPause(), completionHandler: {_,out,_ in
+            lastPausedApp =  out?.stringValue ?? ""
+        })
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
         if view.window!.isVisible {
