@@ -187,7 +187,7 @@ extension NSAppleScript {
     static func playPause() -> String{
         """
         property lastPaused : "\(lastPausedApp!)"
-        if application "\(itunesMusicName!)" is running then
+        if (application "\(itunesMusicName!)" is running) and (application "Spotify" is running) then
             tell application "\(itunesMusicName!)" to set itunesState to (player state as text)
             tell application "Spotify" to set spotifyState to (player state as text)
             
@@ -202,6 +202,10 @@ extension NSAppleScript {
             else if ((spotifyState is equal to "paused") and (lastPaused is equal to "Spotify")) then
                 tell application "Spotify" to playpause
             end if
+        else if application "\(itunesMusicName!)" is running then
+            tell application "\(itunesMusicName!)" to playpause
+        else if application "Spotify" is running then
+            tell application "Spotify" to playpause
         else
             tell application "\(musicAppChoice!)" to activate
             delay 5
