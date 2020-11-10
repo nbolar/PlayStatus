@@ -127,7 +127,7 @@ class MusicVC: NSViewController {
         skipBack.isHidden = true
         skipAhead.isHidden = true
         musicSlider.isHidden = true
-//        trackDurationSliderCell.isHidden = false
+        trackDurationSliderCell.isHidden = false
         startTime.isHidden = true
         endTime.isHidden = true
         songName.isHidden = true
@@ -181,7 +181,7 @@ class MusicVC: NSViewController {
         quitButton.isHidden = hide
         //        skipBack.isHidden = hide
         //        skipAhead.isHidden = hide
-//        trackDurationSliderCell.isHidden = !hide
+        trackDurationSliderCell.isHidden = !hide
         songName.isHidden = hide
         artistName.isHidden = hide
         musicButton.isHidden = hide
@@ -485,7 +485,7 @@ class MusicVC: NSViewController {
         
         NSAppleScript.go(code: NSAppleScript.changeSlider(), completionHandler: {_,out,_ in
             musicSlider.stringValue = out?.stringValue ?? ""
-//            trackDurationSliderCell.stringValue = out?.stringValue ?? ""
+            trackDurationSliderCell.stringValue = out?.stringValue ?? ""
             
             if Double(musicSlider.stringValue)! >= 3600{
                 startTime.stringValue = String(Int(Double(musicSlider.stringValue)! / 60) / 60) + ":" + String(format: "%02d", Int(Double(musicSlider.stringValue)! / 60) % 60) + ":" +  String(format: "%02d", Int(Double(musicSlider.stringValue)!.truncatingRemainder(dividingBy: 60)))

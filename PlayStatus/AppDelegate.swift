@@ -260,6 +260,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             songName = out?.stringValue ?? ""
             currentSongName = songName
             
+            ///Ignore Parenthetical
+            if UserDefaults.standard.bool(forKey: "parenthesis") == true{
+                songName = songName.replacingOccurrences(of: "\\([^)]*\\)", with: "", options: .regularExpression)
+            }else{
+                songName = out?.stringValue ?? ""
+            }
+            
+            
         })
         NSAppleScript.go(code: NSAppleScript.songArtist(), completionHandler: {_,out,_ in
             artistName = out?.stringValue ?? ""

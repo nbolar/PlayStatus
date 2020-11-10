@@ -21,7 +21,7 @@ class SettingsVC: NSViewController {
     @IBOutlet weak var scrollableTextButton: NSButton!
     @IBOutlet weak var spotifyButton: NSButton!
     @IBOutlet weak var appleMusicButton: NSButton!
-    
+    @IBOutlet weak var ignoreParensButton: NSButton!
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -54,6 +54,15 @@ class SettingsVC: NSViewController {
         }else{
             scrollableTextButton.state = .on
         }
+        
+        if UserDefaults.standard.object(forKey: "parenthesis") == nil{
+            ignoreParensButton.state = .off
+        }else if UserDefaults.standard.bool(forKey: "parenthesis") == false {
+            ignoreParensButton.state = .off
+        }else{
+            ignoreParensButton.state = .on
+        }
+        
         updateButton.isHidden = false
         login.state = LoginServiceKit.isExistLoginItems() ? .on : .off
         if let info = Bundle.main.infoDictionary {
@@ -111,6 +120,14 @@ class SettingsVC: NSViewController {
             iconName = "itunes"
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+            self.dismiss(self)
+        }
+    }
+    @IBAction func ignoreParensButtonClicked(_ sender: NSButton) {
+        UserDefaults.standard.set(sender.state, forKey: "parenthesis")
+        let appDelegate = NSApplication.shared.delegate as! AppDelegate
+        appDelegate.getSongName()
+        DispatchQueue.main.asyncAfter(deadline: .now()) {
             self.dismiss(self)
         }
     }

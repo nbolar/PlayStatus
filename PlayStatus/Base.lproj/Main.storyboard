@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="16096" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
+<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="17156" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
     <dependencies>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="16096"/>
+        <deployment identifier="macosx"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="17156"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
@@ -1037,7 +1038,7 @@
                                 </textFieldCell>
                             </textField>
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mYG-2D-3LI">
-                                <rect key="frame" x="74" y="311" width="153" height="19"/>
+                                <rect key="frame" x="99" y="311" width="153" height="19"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" title="Menu Bar Title Options" id="BWR-Jg-0hB">
                                     <font key="font" size="14" name="AvenirNext-Medium"/>
@@ -1087,12 +1088,37 @@
                                     <action selector="musicPlayerClicked:" target="rLC-8w-dS1" id="kXo-Eh-UHN"/>
                                 </connections>
                             </button>
+                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Yak-jh-NGl">
+                                <rect key="frame" x="221" y="154" width="22" height="18"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="check" bezelStyle="regularSquare" imagePosition="left" inset="2" id="bKJ-OX-Xgj">
+                                    <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <connections>
+                                    <action selector="ignoreParensButtonClicked:" target="rLC-8w-dS1" id="wbj-he-uka"/>
+                                </connections>
+                            </button>
+                            <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="K75-3h-dse">
+                                <rect key="frame" x="238" y="123" width="101" height="48"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <textFieldCell key="cell" selectable="YES" title="Ignore Parentheticals in song names" id="7l0-Rm-RTR">
+                                    <font key="font" metaFont="system"/>
+                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                            </textField>
+                            <box verticalHuggingPriority="750" fixedFrame="YES" boxType="separator" translatesAutoresizingMaskIntoConstraints="NO" id="IZI-gO-Y3a">
+                                <rect key="frame" x="20" y="300" width="310" height="5"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                            </box>
                         </subviews>
                     </view>
                     <connections>
                         <outlet property="appleMusicButton" destination="5FU-Vy-51r" id="ioa-a2-mYc"/>
                         <outlet property="artistButton" destination="tS4-bY-ldy" id="z8f-n5-33w"/>
                         <outlet property="artistSongButton" destination="6rP-fo-xud" id="7vC-aq-RUU"/>
+                        <outlet property="ignoreParensButton" destination="Yak-jh-NGl" id="5qA-jG-Wu2"/>
                         <outlet property="login" destination="5oM-x8-22O" id="WTs-Mh-s47"/>
                         <outlet property="scrollableTextButton" destination="EbY-pX-f8P" id="iOo-C8-Vt5"/>
                         <outlet property="songButton" destination="Xz5-6V-o4M" id="tdv-hZ-jQ8"/>
