@@ -28,7 +28,7 @@ No information at all is logged and everything is local to your device. Since th
 
 ## [Releases](https://github.com/nbolar/PlayStatus/releases):
 
- - [Version 2.0.1](https://github.com/nbolar/PlayStatus/releases/tag/v2.0.2)
+ - [Version 2.0.2](https://github.com/nbolar/PlayStatus/releases/tag/v2.0.2)
  - [Version 2.0.1](https://github.com/nbolar/PlayStatus/releases/tag/v2.0.1)
  - [Version 2.0](https://github.com/nbolar/PlayStatus/releases/tag/v2.0)
  - [Version 1.8.2](https://github.com/nbolar/PlayStatus/releases/tag/v1.8.2)
