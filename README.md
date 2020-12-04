@@ -33,7 +33,6 @@ PlayStatus is a simple macOS app that allows the control of Spotify, Apple Music
 ## Note:
 No information at all is logged and everything is local to your device. Since the app uses Apple Script to push actions to another app, it requires the user's permission to do so. Should you have any concerns please get in touch by reporting an issue or you can check out the most recent code available.
 
-There's a bug in macOS Big Sur and specific to Apple Music. Song details are not provided when using Listen Now, Browse or searching and playing songs on Apple Music. Anything within your library works just fine. This is a bug on Apple's end.
 
 
 ## [Releases](https://github.com/nbolar/PlayStatus/releases):
