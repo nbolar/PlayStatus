@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="17156" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
+<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="17506" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
     <dependencies>
         <deployment identifier="macosx"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="17156"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="17506"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
@@ -963,10 +963,10 @@
                                 </textFieldCell>
                             </textField>
                             <stackView distribution="fill" orientation="vertical" alignment="leading" spacing="31" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" fixedFrame="YES" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="L8X-WX-3vM">
-                                <rect key="frame" x="20" y="178" width="166" height="110"/>
+                                <rect key="frame" x="20" y="178" width="171" height="110"/>
                                 <subviews>
                                     <button verticalHuggingPriority="750" springLoaded="YES" translatesAutoresizingMaskIntoConstraints="NO" id="tS4-bY-ldy">
-                                        <rect key="frame" x="-1" y="93" width="94" height="18"/>
+                                        <rect key="frame" x="-2" y="93" width="98" height="18"/>
                                         <buttonCell key="cell" type="radio" title="Artist Name" bezelStyle="regularSquare" imagePosition="left" alignment="left" allowsMixedState="YES" inset="2" id="UOT-ng-8vc">
                                             <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
                                             <font key="font" metaFont="system"/>
@@ -976,7 +976,7 @@
                                         </connections>
                                     </button>
                                     <button verticalHuggingPriority="750" tag="1" springLoaded="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Xz5-6V-o4M">
-                                        <rect key="frame" x="-1" y="46" width="84" height="18"/>
+                                        <rect key="frame" x="-2" y="46" width="88" height="18"/>
                                         <buttonCell key="cell" type="radio" title="Song Title" bezelStyle="regularSquare" imagePosition="left" alignment="left" allowsMixedState="YES" inset="2" id="Fuo-aA-eWS">
                                             <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
                                             <font key="font" metaFont="system"/>
@@ -986,7 +986,7 @@
                                         </connections>
                                     </button>
                                     <button verticalHuggingPriority="750" tag="2" springLoaded="YES" translatesAutoresizingMaskIntoConstraints="NO" id="6rP-fo-xud">
-                                        <rect key="frame" x="-1" y="-1" width="169" height="18"/>
+                                        <rect key="frame" x="-2" y="-1" width="173" height="18"/>
                                         <buttonCell key="cell" type="radio" title="Artist Name - Song Title" bezelStyle="regularSquare" imagePosition="left" alignment="left" allowsMixedState="YES" inset="2" id="Exv-Tt-h3L">
                                             <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
                                             <font key="font" metaFont="system"/>
@@ -1142,7 +1142,7 @@
                             <imageView horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="RA8-5A-P0m">
                                 <rect key="frame" x="-1" y="0.0" width="301" height="300"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" animates="YES" imageScaling="axesIndependently" id="biU-rt-7Ij"/>
+                                <imageCell key="cell" refusesFirstResponder="YES" alignment="left" animates="YES" imageScaling="axesIndependently" image="playstatus_back" id="biU-rt-7Ij"/>
                                 <color key="contentTintColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="displayP3"/>
                             </imageView>
                             <visualEffectView wantsLayer="YES" appearanceType="vibrantDark" fixedFrame="YES" blendingMode="withinWindow" material="menu" state="active" translatesAutoresizingMaskIntoConstraints="NO" id="ngz-Ue-FMn">
@@ -1283,12 +1283,12 @@
                                 </connections>
                             </button>
                             <button translatesAutoresizingMaskIntoConstraints="NO" id="itc-zp-nhz">
-                                <rect key="frame" x="282" y="282" width="15" height="15"/>
+                                <rect key="frame" x="282" y="280.5" width="15.5" height="19"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="15" id="RpO-iO-1ku"/>
                                     <constraint firstAttribute="width" constant="15" id="sku-Rg-Jef"/>
                                 </constraints>
-                                <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="NSStopProgressFreestandingTemplate" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="sIM-wC-CcO">
+                                <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="xmark" catalog="system" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="sIM-wC-CcO">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                     <font key="font" metaFont="system"/>
                                 </buttonCell>
@@ -1298,7 +1298,7 @@
                                 </connections>
                             </button>
                             <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="ypR-X6-aPp">
-                                <rect key="frame" x="280" y="0.0" width="22" height="22"/>
+                                <rect key="frame" x="280" y="-2.5" width="22" height="28"/>
                                 <constraints>
                                     <constraint firstAttribute="width" constant="22" id="qeu-zX-tZ6"/>
                                     <constraint firstAttribute="height" constant="22" id="zLT-9I-VHw"/>
@@ -1330,7 +1330,7 @@
                                 <sliderCell key="cell" controlSize="small" continuous="YES" state="on" alignment="left" maxValue="100" doubleValue="50" tickMarkPosition="above" sliderType="linear" id="UDp-FV-p2x" customClass="TrackDurationCell" customModule="PlayStatus" customModuleProvider="target"/>
                             </slider>
                             <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="8A7-eN-bal">
-                                <rect key="frame" x="2" y="2" width="22" height="22"/>
+                                <rect key="frame" x="2" y="-1" width="22" height="28"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="22" id="HHL-ke-Y1P"/>
                                     <constraint firstAttribute="width" constant="22" id="xD5-O2-MDd"/>
@@ -1400,16 +1400,17 @@
         <segue reference="l3B-J2-TdY"/>
     </inferredMetricsTieBreakers>
     <resources>
-        <image name="NSActionTemplate" width="14" height="14"/>
+        <image name="NSActionTemplate" width="15" height="15"/>
         <image name="NSApplicationIcon" width="32" height="32"/>
-        <image name="NSStopProgressFreestandingTemplate" width="14" height="14"/>
-        <image name="NSTouchBarSearchTemplate" width="19" height="30"/>
-        <image name="NSTouchBarSkipAhead15SecondsTemplate" width="17" height="30"/>
-        <image name="NSTouchBarSkipBack15SecondsTemplate" width="17" height="30"/>
+        <image name="NSTouchBarSearchTemplate" width="15" height="15"/>
+        <image name="NSTouchBarSkipAhead15SecondsTemplate" width="15" height="17"/>
+        <image name="NSTouchBarSkipBack15SecondsTemplate" width="15" height="17"/>
         <image name="forward1" width="60" height="60"/>
         <image name="itunes2" width="25" height="25"/>
         <image name="pause" width="60" height="60"/>
         <image name="play" width="60" height="60"/>
+        <image name="playstatus_back" width="300" height="300"/>
         <image name="rewind" width="60" height="60"/>
+        <image name="xmark" catalog="system" width="14" height="13"/>
     </resources>
 </document>

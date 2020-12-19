@@ -89,9 +89,10 @@ class SettingsVC: NSViewController {
     }
     
     @IBAction func updateButtonClicked(_ sender: Any) {
-        let updater = SUUpdater.shared()
-        updater?.feedURL = URL(string: "https://s3.us-east-2.amazonaws.com/com.bolar.playstatus/appcast.xml")
-        updater?.checkForUpdates(self)
+        SUUpdater.shared().checkForUpdates(self)
+//        let updater = SUUpdater.shared()
+//        updater?.feedURL = URL(string: "https://s3.us-east-2.amazonaws.com/com.bolar.playstatus/appcast.xml")
+//        updater?.checkForUpdates(self)
         
     }
     

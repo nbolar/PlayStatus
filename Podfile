@@ -10,6 +10,5 @@ target 'PlayStatus' do
   # Pods for PlayStatus
   pod 'CircularProgressMac'
   pod 'LoginServiceKit', :git => 'https://github.com/Clipy/LoginServiceKit.git'
-  pod 'Sparkle'
 
 end

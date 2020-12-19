@@ -50,6 +50,8 @@ class MusicVC: NSViewController {
     }
     let circularProgress = CircularProgress(size: 28)
     var newSong = false
+    var pausedSong = ""
+    var pausedArtist = ""
     private var app: AppType = .itunes
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -209,7 +211,7 @@ class MusicVC: NSViewController {
             playButton.isHidden = false
             startTime.isHidden = true
             endTime.isHidden = true
-            musicSlider.isHidden = true
+            musicSlider.isHidden = false
             hideUnhide(hide: false)
         }
         
@@ -267,8 +269,15 @@ class MusicVC: NSViewController {
     {
         checkStatus()
         trackDuration()
-        songName.stringValue = currentSongName ?? ""
-        artistName.stringValue = currentSongArtist ?? ""
+
+        if currentSongName == "" {
+            songName.stringValue = pausedSong
+            artistName.stringValue = pausedArtist
+        }else{
+            songName.stringValue = currentSongName
+            artistName.stringValue = currentSongArtist
+        }
+        
         
         if songName.stringValue != ""
         {
@@ -292,7 +301,7 @@ class MusicVC: NSViewController {
         if currentSongName != ""{
          self.albumArt.image = NSImage(named: "artwork")
         }else{
-            self.albumArt.image = NSImage(named: "playstatus_back")
+//            self.albumArt.image = NSImage(named: "playstatus_back")
         }
         
         self.fade(type: .fadeOut, duration: .newSong)
@@ -428,7 +437,8 @@ class MusicVC: NSViewController {
             
         } else if pauseButton.isHidden == false
         {
-            
+            pausedSong = songName.stringValue
+            pausedArtist = artistName.stringValue
             if !songDetails.isHidden{
                 playButton.isHidden = false
                 pauseButton.isHidden = true
@@ -474,6 +484,14 @@ class MusicVC: NSViewController {
         musicSlider.maxValue = MusicController.shared.trackDuration()
         trackDurationSliderCell.maxValue = MusicController.shared.trackDuration()
         endTime.stringValue = MusicController.shared.endTime()
+        if endTime.stringValue != ""{
+            endTime.isHidden = false
+            musicSlider.isHidden = false
+            startTime.isHidden = false
+        }else{
+            musicSlider.isHidden = true
+            startTime.isHidden = true
+        }
         
     }
     @IBAction func musicSliderChanged(_ sender: Any) {

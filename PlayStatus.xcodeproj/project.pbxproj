@@ -16,13 +16,28 @@
 		4E825237227C3A8C003B8296 /* AboutVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E825236227C3A8C003B8296 /* AboutVC.swift */; };
 		4E8D52B322C2C6EF0062E6DB /* SearchVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E8D52B222C2C6EF0062E6DB /* SearchVC.swift */; };
 		4E917F17241B340A002469FF /* MusicController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E917F16241B340A002469FF /* MusicController.swift */; };
+		4E9E4204258DAFF000AC6964 /* Sparkle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4E9E4202258DAFD400AC6964 /* Sparkle.framework */; };
+		4E9E420D258DB11800AC6964 /* Sparkle.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 4E9E4202258DAFD400AC6964 /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		4E9F8E7B22719AB500B87B4A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9F8E7A22719AB500B87B4A /* AppDelegate.swift */; };
 		4E9F8E7F22719AB600B87B4A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E9F8E7E22719AB600B87B4A /* Assets.xcassets */; };
 		4E9F8E8222719AB600B87B4A /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4E9F8E8022719AB600B87B4A /* Main.storyboard */; };
 		4E9F8E8B2271EECF00B87B4A /* MusicVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9F8E8A2271EECF00B87B4A /* MusicVC.swift */; };
 		4EA0AAE02442C0780047F9E7 /* ScrollingTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EA0AADF2442C0780047F9E7 /* ScrollingTextView.swift */; };
-		730A35C05EC3242F6C170242 /* Pods_PlayStatus.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ACD7ADCA35EC88A555549D8F /* Pods_PlayStatus.framework */; };
+		730A35C05EC3242F6C170242 /* Pods_PlayStatus.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ACD7ADCA35EC88A555549D8F /* Pods_PlayStatus.framework */; settings = {ATTRIBUTES = (Required, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		4E9E420C258DB0FA00AC6964 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				4E9E420D258DB11800AC6964 /* Sparkle.framework in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		0628D03BDC04D109D55FD6B4 /* Pods-PlayStatus.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-PlayStatus.release.xcconfig"; path = "Pods/Target Support Files/Pods-PlayStatus/Pods-PlayStatus.release.xcconfig"; sourceTree = "<group>"; };
@@ -35,6 +50,7 @@
 		4E825236227C3A8C003B8296 /* AboutVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutVC.swift; sourceTree = "<group>"; };
 		4E8D52B222C2C6EF0062E6DB /* SearchVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchVC.swift; sourceTree = "<group>"; };
 		4E917F16241B340A002469FF /* MusicController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicController.swift; sourceTree = "<group>"; };
+		4E9E4202258DAFD400AC6964 /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sparkle.framework; sourceTree = "<group>"; };
 		4E9F8E7722719AB500B87B4A /* PlayStatus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PlayStatus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E9F8E7A22719AB500B87B4A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		4E9F8E7E22719AB600B87B4A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -53,6 +69,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				730A35C05EC3242F6C170242 /* Pods_PlayStatus.framework in Frameworks */,
+				4E9E4204258DAFF000AC6964 /* Sparkle.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +129,7 @@
 		993F83FD21DA739CF51E5585 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				4E9E4202258DAFD400AC6964 /* Sparkle.framework */,
 				ACD7ADCA35EC88A555549D8F /* Pods_PlayStatus.framework */,
 			);
 			name = Frameworks;
@@ -130,14 +148,13 @@
 				4E9F8E7522719AB500B87B4A /* Resources */,
 				523BD086F7D8D7EA53FB2D99 /* [CP] Embed Pods Frameworks */,
 				4E883F73240D96FC0097F5AF /* ShellScript */,
+				4E9E420C258DB0FA00AC6964 /* CopyFiles */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			name = PlayStatus;
-			packageProductDependencies = (
-			);
 			productName = PlayStatus;
 			productReference = 4E9F8E7722719AB500B87B4A /* PlayStatus.app */;
 			productType = "com.apple.product-type.application";
@@ -149,7 +166,7 @@
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 1010;
-				LastUpgradeCheck = 1100;
+				LastUpgradeCheck = 1230;
 				ORGANIZATIONNAME = "Nikhil Bolar";
 				TargetAttributes = {
 					4E9F8E7622719AB500B87B4A = {
@@ -175,8 +192,6 @@
 				Base,
 			);
 			mainGroup = 4E9F8E6E22719AB500B87B4A;
-			packageReferences = (
-			);
 			productRefGroup = 4E9F8E7822719AB500B87B4A /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -210,7 +225,8 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "#For Apple notarization, we need to deep sign Sparkle framework\nLOCATION=\"${BUILT_PRODUCTS_DIR}\"/\"${FRAMEWORKS_FOLDER_PATH}\"\nIDENTITY=${EXPANDED_CODE_SIGN_IDENTITY_NAME}\n\ncodesign --verbose --force --deep -o runtime --sign \"$IDENTITY\" \"$LOCATION/Sparkle.framework/Versions/A/Resources/AutoUpdate.app\"\ncodesign --verbose --force -o runtime --sign \"$IDENTITY\" \"$LOCATION/Sparkle.framework/Versions/A\"\n";
+			shellScript = "
+";
 		};
 		523BD086F7D8D7EA53FB2D99 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -221,15 +237,11 @@
 				"${SRCROOT}/Pods/Target Support Files/Pods-PlayStatus/Pods-PlayStatus-frameworks.sh",
 				"${BUILT_PRODUCTS_DIR}/CircularProgressMac/CircularProgressMac.framework",
 				"${BUILT_PRODUCTS_DIR}/LoginServiceKit/LoginServiceKit.framework",
-				"${PODS_ROOT}/Sparkle/Sparkle.framework",
-				"${PODS_ROOT}/Sparkle/Sparkle.framework.dSYM",
 			);
 			name = "[CP] Embed Pods Frameworks";
 			outputPaths = (
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CircularProgressMac.framework",
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/LoginServiceKit.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Sparkle.framework",
-				"${DWARF_DSYM_FOLDER_PATH}/Sparkle.framework.dSYM",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -316,6 +328,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -378,6 +391,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -416,16 +430,20 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = KALT4PNG4U;
 				ENABLE_HARDENED_RUNTIME = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
 				INFOPLIST_FILE = PlayStatus/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
-				MARKETING_VERSION = 2.0.2;
+				MARKETING_VERSION = 2.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bolar.PlayStatus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -442,16 +460,20 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = KALT4PNG4U;
 				ENABLE_HARDENED_RUNTIME = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
 				INFOPLIST_FILE = PlayStatus/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
-				MARKETING_VERSION = 2.0.2;
+				MARKETING_VERSION = 2.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bolar.PlayStatus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
