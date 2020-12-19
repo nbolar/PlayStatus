@@ -488,11 +488,15 @@ class MusicVC: NSViewController {
             endTime.isHidden = false
             if pauseButton.isHidden{
                 musicSlider.isHidden = true
+                startTime.isHidden = true
+                endTime.isHidden = true
             }else{
                 musicSlider.isHidden = false
+                startTime.isHidden = false
+                endTime.isHidden = false
             }
             
-            startTime.isHidden = false
+            
         }else{
             musicSlider.isHidden = true
             startTime.isHidden = true
