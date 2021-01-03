@@ -7,74 +7,109 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		07E2369EA4E356E74D2C3620235CBBFF /* KeyboardShortcuts-umbrella.h in Headers */ = {isa = PBXBuildFile; fileRef = 34E6D428C8B094649CD2F9631EFEFFFF /* KeyboardShortcuts-umbrella.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		097C72D72C1B506C3044A3FFBFFC3A59 /* NSMenuItem++.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51365B955AF15B5B10F8A2DD2E308204 /* NSMenuItem++.swift */; };
+		10915DC92E26B9E81C3704E473A88D5A /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DF428FC7C7A6555B2B02D8E238C8D8F2 /* Cocoa.framework */; };
 		16DE34831B34157C59BD22C594239C33 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DF428FC7C7A6555B2B02D8E238C8D8F2 /* Cocoa.framework */; };
-		1E98285AD195935189CE355A3E6A362B /* Pods-PlayStatus-umbrella.h in Headers */ = {isa = PBXBuildFile; fileRef = 89458B3068A07C520421D79D22A76843 /* Pods-PlayStatus-umbrella.h */; settings = {ATTRIBUTES = (Public, ); }; };
-		318A389AD8A71BE26DFD41D85D5877E2 /* CustomButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F9D787454CE15062F577351AA0B9B8 /* CustomButton.swift */; };
-		48E0FC89E0190B14F4B1143DA17683D1 /* CheckmarkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E17DF70A2FAFF87730B902BDEEA9690B /* CheckmarkView.swift */; };
-		5D4366858AE9DE37E7DF254F62877B0B /* CircularProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F935B3CFEA8A1F7BB8E37CD4FF2BA50 /* CircularProgress.swift */; };
-		6131A626C2B53577979A660A3FC7EF48 /* CircularProgressMac-dummy.m in Sources */ = {isa = PBXBuildFile; fileRef = 7322759886C8525C78BACE123EE6B52B /* CircularProgressMac-dummy.m */; };
-		75C530321B7F736B7FBD3B4DA6A52A25 /* LoginServiceKit-umbrella.h in Headers */ = {isa = PBXBuildFile; fileRef = 67BB1109F2D00F13D45843D20026BD1F /* LoginServiceKit-umbrella.h */; settings = {ATTRIBUTES = (Public, ); }; };
-		96AB3DEB08683A6D28FC4058F2767BDF /* LoginServiceKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D0A3B40CB484423A3DAB57EC4893FB2 /* LoginServiceKit.swift */; };
-		B540A41CD13ECE89F2F6796091C933CE /* Pods-PlayStatus-dummy.m in Sources */ = {isa = PBXBuildFile; fileRef = A0C00163A199E08AE32FAD2159E613FD /* Pods-PlayStatus-dummy.m */; };
-		BC0879D05DC89BD5FA7D48545863303A /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DF428FC7C7A6555B2B02D8E238C8D8F2 /* Cocoa.framework */; };
-		C111E6D1130608DBD46E72ECD8DBA38A /* CustomButton+Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85A254F06CD202A2F10574DA9892E8C9 /* CustomButton+Util.swift */; };
+		1865C9A8554D1BE2503C087919A597EF /* CarbonKeyboardShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D5331E06024331CBBC36C5456B0C4DD /* CarbonKeyboardShortcuts.swift */; };
+		3024B207F703BA0B2E3E7E87942E1F10 /* KeyboardShortcuts-dummy.m in Sources */ = {isa = PBXBuildFile; fileRef = 172E247FF47829DEF10957ECFD69D6D2 /* KeyboardShortcuts-dummy.m */; };
+		318A389AD8A71BE26DFD41D85D5877E2 /* CustomButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9474EDA7528DB1FFBF7DA0EA5B35E0BE /* CustomButton.swift */; };
+		3CA3176F7745DD932156CED1F72F44A0 /* KeyboardShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1456B4D1AAC8FFA4856D0B5C2359957 /* KeyboardShortcuts.swift */; };
+		48E0FC89E0190B14F4B1143DA17683D1 /* CheckmarkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E80D1C18D8EBAB73AF60DD622A1A26 /* CheckmarkView.swift */; };
+		580B3A3F852D0ABB25EC8842E006C53C /* Key.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AA3FB791E063CE087888E344EBD42DD /* Key.swift */; };
+		5D4366858AE9DE37E7DF254F62877B0B /* CircularProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D245E30CFFEB5CB0CBCD65AFC9C931A /* CircularProgress.swift */; };
+		6131A626C2B53577979A660A3FC7EF48 /* CircularProgressMac-dummy.m in Sources */ = {isa = PBXBuildFile; fileRef = C53AC1AB50B3DA507D9DA3BCA846841B /* CircularProgressMac-dummy.m */; };
+		687078C6C97D243426F7E0FB4EAF7737 /* Name.swift in Sources */ = {isa = PBXBuildFile; fileRef = C28C77D8A48A35B1FFE8C19A42EBF3C6 /* Name.swift */; };
+		75C530321B7F736B7FBD3B4DA6A52A25 /* LoginServiceKit-umbrella.h in Headers */ = {isa = PBXBuildFile; fileRef = 0B861CECB410831A63E2A2C12695AAD3 /* LoginServiceKit-umbrella.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		7B5A262C3BF909346D9CADB7820FFE75 /* util.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE6C6786131B2DCD46C809B1BF8ECC88 /* util.swift */; };
+		96AB3DEB08683A6D28FC4058F2767BDF /* LoginServiceKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08BAD66CB1190DCB76876BDE2E19775D /* LoginServiceKit.swift */; };
+		AAECCBAF0183D6D824FC4CA4B11B1F5C /* Recorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A43793A9D939CF5274A89669F6B8DE6 /* Recorder.swift */; };
+		B843FE1C93DDDF30FA990ECEF4AEB75F /* Pods-PlayStatus-umbrella.h in Headers */ = {isa = PBXBuildFile; fileRef = 89458B3068A07C520421D79D22A76843 /* Pods-PlayStatus-umbrella.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		B88A81F95CD67B4B35A6DAB3FD9854E7 /* RecorderCocoa.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09CD420CAE505934BC1C449D7BC1D3AE /* RecorderCocoa.swift */; };
+		BCDBB12A59C40DBBAAE70893F59C82BD /* Pods-PlayStatus-dummy.m in Sources */ = {isa = PBXBuildFile; fileRef = A0C00163A199E08AE32FAD2159E613FD /* Pods-PlayStatus-dummy.m */; };
+		C111E6D1130608DBD46E72ECD8DBA38A /* CustomButton+Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CF8197791A0E59A8D3C9D0B8C7F7574 /* CustomButton+Util.swift */; };
+		E2AD75639ACF6C4C44B41E3696308283 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DF428FC7C7A6555B2B02D8E238C8D8F2 /* Cocoa.framework */; };
 		EAA11791D1B680484A14B16B306498B5 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DF428FC7C7A6555B2B02D8E238C8D8F2 /* Cocoa.framework */; };
-		F1C5526700C84132B27211E15405EE71 /* LoginServiceKit-dummy.m in Sources */ = {isa = PBXBuildFile; fileRef = 09280A041CE1D7247715F1075B336EFD /* LoginServiceKit-dummy.m */; };
-		F1DD33BB518F9F1D78556BF90DEFB884 /* CircularProgressMac-umbrella.h in Headers */ = {isa = PBXBuildFile; fileRef = E8D36ED95E82B9863908D3D4FF7E0D55 /* CircularProgressMac-umbrella.h */; settings = {ATTRIBUTES = (Public, ); }; };
-		F5D932F4B9AD7AA76C7965813E876FE3 /* util.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1119D1E05BC568CC69EAABA3F52E4D60 /* util.swift */; };
+		EE9C4AB93C9F2AED8B4D79C23275A3B0 /* Shortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE2513A8B6E2072D6402A757A1C8BF1E /* Shortcut.swift */; };
+		F1C5526700C84132B27211E15405EE71 /* LoginServiceKit-dummy.m in Sources */ = {isa = PBXBuildFile; fileRef = 987BE225AF410F450E9C79D16C924AB1 /* LoginServiceKit-dummy.m */; };
+		F1DD33BB518F9F1D78556BF90DEFB884 /* CircularProgressMac-umbrella.h in Headers */ = {isa = PBXBuildFile; fileRef = 0D16783866A699052ECD2F9283E04A3F /* CircularProgressMac-umbrella.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		F5D932F4B9AD7AA76C7965813E876FE3 /* util.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D5B8E1820452B0F431DB291CA2BC46C /* util.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		4E38B877CA9CC3AA5F0771E22C85D4CB /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = D41D8CD98F00B204E9800998ECF8427E /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = EC362510521DB9CB07BEBC6EC7887988;
-			remoteInfo = LoginServiceKit;
-		};
-		832299C97A7D7620A1DD6B7A802BF5C6 /* PBXContainerItemProxy */ = {
+		27B5AE2E6FE1634C40A8CC735E53BE82 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = D41D8CD98F00B204E9800998ECF8427E /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = CE69294552CB379544575992B5E0DB28;
 			remoteInfo = CircularProgressMac;
 		};
+		AE647248E268F6B18CFE83CE67F502C4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D41D8CD98F00B204E9800998ECF8427E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5896A5F9FD5AA57C763EA4ACD5CF7522;
+			remoteInfo = KeyboardShortcuts;
+		};
+		E6E33C892390AACD3B3E58ED3E41328D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D41D8CD98F00B204E9800998ECF8427E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EC362510521DB9CB07BEBC6EC7887988;
+			remoteInfo = LoginServiceKit;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		023CF41882E24C65524B923E8A5728B0 /* Pods-PlayStatus-acknowledgements.markdown */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text; path = "Pods-PlayStatus-acknowledgements.markdown"; sourceTree = "<group>"; };
-		02E65D88F0104934068578C1358E515C /* LoginServiceKit.modulemap */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.module; path = LoginServiceKit.modulemap; sourceTree = "<group>"; };
-		09280A041CE1D7247715F1075B336EFD /* LoginServiceKit-dummy.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = "LoginServiceKit-dummy.m"; sourceTree = "<group>"; };
-		1119D1E05BC568CC69EAABA3F52E4D60 /* util.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = util.swift; path = Sources/CircularProgress/util.swift; sourceTree = "<group>"; };
-		144F138FBCA773E6049EF9B38C07FD70 /* CircularProgressMac-prefix.pch */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "CircularProgressMac-prefix.pch"; sourceTree = "<group>"; };
-		1AA2B0AE806E112AFD71AF20BCEBAD7E /* CircularProgressMac.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = CircularProgressMac.framework; path = CircularProgressMac.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		08BAD66CB1190DCB76876BDE2E19775D /* LoginServiceKit.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LoginServiceKit.swift; path = Lib/LoginServiceKit/LoginServiceKit.swift; sourceTree = "<group>"; };
+		09CD420CAE505934BC1C449D7BC1D3AE /* RecorderCocoa.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RecorderCocoa.swift; path = Sources/KeyboardShortcuts/RecorderCocoa.swift; sourceTree = "<group>"; };
+		0B861CECB410831A63E2A2C12695AAD3 /* LoginServiceKit-umbrella.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "LoginServiceKit-umbrella.h"; sourceTree = "<group>"; };
+		0D16783866A699052ECD2F9283E04A3F /* CircularProgressMac-umbrella.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "CircularProgressMac-umbrella.h"; sourceTree = "<group>"; };
+		172E247FF47829DEF10957ECFD69D6D2 /* KeyboardShortcuts-dummy.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = "KeyboardShortcuts-dummy.m"; sourceTree = "<group>"; };
+		1AA3FB791E063CE087888E344EBD42DD /* Key.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Key.swift; path = Sources/KeyboardShortcuts/Key.swift; sourceTree = "<group>"; };
 		1BA35FDE4D1F649B1EEFBD131E7CEFE7 /* Pods-PlayStatus-resources.sh */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.script.sh; path = "Pods-PlayStatus-resources.sh"; sourceTree = "<group>"; };
-		1EF93C796350A537D06CFF0FBDDDE6A9 /* CircularProgressMac.modulemap */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.module; path = CircularProgressMac.modulemap; sourceTree = "<group>"; };
 		2319120F1984C6086967395A2CE0177B /* Pods-PlayStatus-acknowledgements.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = "Pods-PlayStatus-acknowledgements.plist"; sourceTree = "<group>"; };
-		238E51245FC821FB8129C763738CF9B4 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		2A43793A9D939CF5274A89669F6B8DE6 /* Recorder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Recorder.swift; path = Sources/KeyboardShortcuts/Recorder.swift; sourceTree = "<group>"; };
+		2BFCD95FCC62CAA852272C64A0521195 /* KeyboardShortcuts.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = KeyboardShortcuts.framework; path = KeyboardShortcuts.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		2CF8197791A0E59A8D3C9D0B8C7F7574 /* CustomButton+Util.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CustomButton+Util.swift"; path = "Sources/CircularProgress/Vendored/CustomButton+Util.swift"; sourceTree = "<group>"; };
+		2DE8DBF0BE8C9532CFF2046A8D19103F /* CircularProgressMac.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = CircularProgressMac.framework; path = CircularProgressMac.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		34E6D428C8B094649CD2F9631EFEFFFF /* KeyboardShortcuts-umbrella.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "KeyboardShortcuts-umbrella.h"; sourceTree = "<group>"; };
+		3AE58FEEF9B32F9086F13ED48964BF93 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		3D5B8E1820452B0F431DB291CA2BC46C /* util.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = util.swift; path = Sources/CircularProgress/util.swift; sourceTree = "<group>"; };
+		411E3726CA307566051A539F34ED0776 /* KeyboardShortcuts.modulemap */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.module; path = KeyboardShortcuts.modulemap; sourceTree = "<group>"; };
+		43AA35CB878A3E9E882A1BB30DD35115 /* LoginServiceKit.modulemap */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.module; path = LoginServiceKit.modulemap; sourceTree = "<group>"; };
 		4A8B8369C22756EFAE14FDB91CFDC6E7 /* Pods-PlayStatus-frameworks.sh */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.script.sh; path = "Pods-PlayStatus-frameworks.sh"; sourceTree = "<group>"; };
-		58F9D787454CE15062F577351AA0B9B8 /* CustomButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CustomButton.swift; path = Sources/CircularProgress/Vendored/CustomButton.swift; sourceTree = "<group>"; };
+		4D245E30CFFEB5CB0CBCD65AFC9C931A /* CircularProgress.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CircularProgress.swift; path = Sources/CircularProgress/CircularProgress.swift; sourceTree = "<group>"; };
+		4D5331E06024331CBBC36C5456B0C4DD /* CarbonKeyboardShortcuts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CarbonKeyboardShortcuts.swift; path = Sources/KeyboardShortcuts/CarbonKeyboardShortcuts.swift; sourceTree = "<group>"; };
+		51365B955AF15B5B10F8A2DD2E308204 /* NSMenuItem++.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "NSMenuItem++.swift"; path = "Sources/KeyboardShortcuts/NSMenuItem++.swift"; sourceTree = "<group>"; };
+		5573CDB2DC9FF2E9F35A8FF6BAB67410 /* CircularProgressMac.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = CircularProgressMac.xcconfig; sourceTree = "<group>"; };
+		58A72118840B3D63AB0803A80BA05938 /* CircularProgressMac.modulemap */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.module; path = CircularProgressMac.modulemap; sourceTree = "<group>"; };
 		5C6DB30F26EDA09CD255E4C1D3A1AD9B /* Pods-PlayStatus.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = "Pods-PlayStatus.debug.xcconfig"; sourceTree = "<group>"; };
-		67BB1109F2D00F13D45843D20026BD1F /* LoginServiceKit-umbrella.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "LoginServiceKit-umbrella.h"; sourceTree = "<group>"; };
-		7322759886C8525C78BACE123EE6B52B /* CircularProgressMac-dummy.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = "CircularProgressMac-dummy.m"; sourceTree = "<group>"; };
-		74E31FAF38DE5EB3BE24AFBBC86B6F42 /* LoginServiceKit.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = LoginServiceKit.xcconfig; sourceTree = "<group>"; };
-		7D0A3B40CB484423A3DAB57EC4893FB2 /* LoginServiceKit.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LoginServiceKit.swift; path = Lib/LoginServiceKit/LoginServiceKit.swift; sourceTree = "<group>"; };
-		85A254F06CD202A2F10574DA9892E8C9 /* CustomButton+Util.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CustomButton+Util.swift"; path = "Sources/CircularProgress/Vendored/CustomButton+Util.swift"; sourceTree = "<group>"; };
+		60E80D1C18D8EBAB73AF60DD622A1A26 /* CheckmarkView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CheckmarkView.swift; path = Sources/CircularProgress/CheckmarkView.swift; sourceTree = "<group>"; };
+		61E09FCDF6A2496FD9AC190D172A7812 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		651F1AD7BEF50380137EE5D226BD47CF /* KeyboardShortcuts-prefix.pch */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "KeyboardShortcuts-prefix.pch"; sourceTree = "<group>"; };
+		7DE813F65D02B70723DEDB0F69B04445 /* LoginServiceKit.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = LoginServiceKit.xcconfig; sourceTree = "<group>"; };
 		89458B3068A07C520421D79D22A76843 /* Pods-PlayStatus-umbrella.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "Pods-PlayStatus-umbrella.h"; sourceTree = "<group>"; };
-		8F935B3CFEA8A1F7BB8E37CD4FF2BA50 /* CircularProgress.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CircularProgress.swift; path = Sources/CircularProgress/CircularProgress.swift; sourceTree = "<group>"; };
-		92E37324814CE57070E0AFF97FD888D1 /* LoginServiceKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = LoginServiceKit.framework; path = LoginServiceKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		93A4A3777CF96A4AAC1D13BA6DCCEA73 /* Podfile */ = {isa = PBXFileReference; explicitFileType = text.script.ruby; includeInIndex = 1; lastKnownFileType = text; name = Podfile; path = ../Podfile; sourceTree = SOURCE_ROOT; xcLanguageSpecificationIdentifier = xcode.lang.ruby; };
-		9B21F58A9FD200BE74E0396D1DFAC7BC /* LoginServiceKit-prefix.pch */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "LoginServiceKit-prefix.pch"; sourceTree = "<group>"; };
+		9474EDA7528DB1FFBF7DA0EA5B35E0BE /* CustomButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CustomButton.swift; path = Sources/CircularProgress/Vendored/CustomButton.swift; sourceTree = "<group>"; };
+		987BE225AF410F450E9C79D16C924AB1 /* LoginServiceKit-dummy.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = "LoginServiceKit-dummy.m"; sourceTree = "<group>"; };
 		A0C00163A199E08AE32FAD2159E613FD /* Pods-PlayStatus-dummy.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = "Pods-PlayStatus-dummy.m"; sourceTree = "<group>"; };
 		A49D6AB534BC42C40E7B8DDDFFCD3887 /* Pods-PlayStatus.modulemap */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.module; path = "Pods-PlayStatus.modulemap"; sourceTree = "<group>"; };
 		A9386D82222EC59BDB761A3FE4D22513 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		ADC7F597186C62F286AE3D8F30268101 /* CircularProgressMac.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = CircularProgressMac.xcconfig; sourceTree = "<group>"; };
+		B5707876CB255175FAF6D33D46D33A58 /* LoginServiceKit-prefix.pch */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "LoginServiceKit-prefix.pch"; sourceTree = "<group>"; };
+		B5BC1265C9050D300663ED81E3459B1F /* KeyboardShortcuts.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = KeyboardShortcuts.xcconfig; sourceTree = "<group>"; };
+		BE2513A8B6E2072D6402A757A1C8BF1E /* Shortcut.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Shortcut.swift; path = Sources/KeyboardShortcuts/Shortcut.swift; sourceTree = "<group>"; };
+		C28C77D8A48A35B1FFE8C19A42EBF3C6 /* Name.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Name.swift; path = Sources/KeyboardShortcuts/Name.swift; sourceTree = "<group>"; };
+		C3E5F10633DEF0C0B19568E4DDC338D1 /* LoginServiceKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = LoginServiceKit.framework; path = LoginServiceKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		C41E37DF3A059019E1656839597570C9 /* Pods-PlayStatus.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = "Pods-PlayStatus.release.xcconfig"; sourceTree = "<group>"; };
-		D03551F5BEBFE61146F244E858B3498E /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C53AC1AB50B3DA507D9DA3BCA846841B /* CircularProgressMac-dummy.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = "CircularProgressMac-dummy.m"; sourceTree = "<group>"; };
+		D6B90E9EC4548ECBC645A8AD869BDEC6 /* Pods_PlayStatus.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = Pods_PlayStatus.framework; path = "Pods-PlayStatus.framework"; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF428FC7C7A6555B2B02D8E238C8D8F2 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.13.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
-		E17DF70A2FAFF87730B902BDEEA9690B /* CheckmarkView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CheckmarkView.swift; path = Sources/CircularProgress/CheckmarkView.swift; sourceTree = "<group>"; };
-		E8D36ED95E82B9863908D3D4FF7E0D55 /* CircularProgressMac-umbrella.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "CircularProgressMac-umbrella.h"; sourceTree = "<group>"; };
-		EA0C030814AB022E4954038BEE24A780 /* Pods_PlayStatus.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = Pods_PlayStatus.framework; path = "Pods-PlayStatus.framework"; sourceTree = BUILT_PRODUCTS_DIR; };
+		EA50C81432667AD6CC3900B7D8DC9ECA /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		EAEA21617005E0DC24E06A2D096BD373 /* CircularProgressMac-prefix.pch */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "CircularProgressMac-prefix.pch"; sourceTree = "<group>"; };
+		F1456B4D1AAC8FFA4856D0B5C2359957 /* KeyboardShortcuts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = KeyboardShortcuts.swift; path = Sources/KeyboardShortcuts/KeyboardShortcuts.swift; sourceTree = "<group>"; };
+		FE6C6786131B2DCD46C809B1BF8ECC88 /* util.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = util.swift; path = Sources/KeyboardShortcuts/util.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -94,37 +129,56 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A0BC2CEBDCC9DB9C3376722A0C0DD15B /* Frameworks */ = {
+		98F170EC91AEEC74C0860B68656A202F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BC0879D05DC89BD5FA7D48545863303A /* Cocoa.framework in Frameworks */,
+				10915DC92E26B9E81C3704E473A88D5A /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DA14F55AEB352F6D336A091A600F9C85 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E2AD75639ACF6C4C44B41E3696308283 /* Cocoa.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		08596FEC6887302633B9C1A1D7E90DD4 /* CircularProgressMac */ = {
+			isa = PBXGroup;
+			children = (
+				60E80D1C18D8EBAB73AF60DD622A1A26 /* CheckmarkView.swift */,
+				4D245E30CFFEB5CB0CBCD65AFC9C931A /* CircularProgress.swift */,
+				9474EDA7528DB1FFBF7DA0EA5B35E0BE /* CustomButton.swift */,
+				2CF8197791A0E59A8D3C9D0B8C7F7574 /* CustomButton+Util.swift */,
+				3D5B8E1820452B0F431DB291CA2BC46C /* util.swift */,
+				A8F76C1C8E5DA6738BEA0DF382EA5981 /* Support Files */,
+			);
+			name = CircularProgressMac;
+			path = CircularProgressMac;
+			sourceTree = "<group>";
+		};
+		2EA61206CBF3F11E0F9E14574DB822D8 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				2DE8DBF0BE8C9532CFF2046A8D19103F /* CircularProgressMac.framework */,
+				2BFCD95FCC62CAA852272C64A0521195 /* KeyboardShortcuts.framework */,
+				C3E5F10633DEF0C0B19568E4DDC338D1 /* LoginServiceKit.framework */,
+				D6B90E9EC4548ECBC645A8AD869BDEC6 /* Pods_PlayStatus.framework */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		39E9EE8210D861DFD82346C1F5EB7218 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				FA7AC8429882A95AA0810A9DCDED54FF /* OS X */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		4BB629D8D8EE2AFB8FE41CB2AA9D97D5 /* CircularProgressMac */ = {
-			isa = PBXGroup;
-			children = (
-				E17DF70A2FAFF87730B902BDEEA9690B /* CheckmarkView.swift */,
-				8F935B3CFEA8A1F7BB8E37CD4FF2BA50 /* CircularProgress.swift */,
-				58F9D787454CE15062F577351AA0B9B8 /* CustomButton.swift */,
-				85A254F06CD202A2F10574DA9892E8C9 /* CustomButton+Util.swift */,
-				1119D1E05BC568CC69EAABA3F52E4D60 /* util.swift */,
-				83F183940864ECC257517804FC38B5DB /* Support Files */,
-			);
-			name = CircularProgressMac;
-			path = CircularProgressMac;
 			sourceTree = "<group>";
 		};
 		51B40B370294F4421D088ED5FE134470 /* Targets Support Files */ = {
@@ -135,39 +189,39 @@
 			name = "Targets Support Files";
 			sourceTree = "<group>";
 		};
+		67506841A12ABAFC87DCE8F4E59425B9 /* LoginServiceKit */ = {
+			isa = PBXGroup;
+			children = (
+				08BAD66CB1190DCB76876BDE2E19775D /* LoginServiceKit.swift */,
+				85C4CA1AB6DB4817DD235712D4DB54FC /* Support Files */,
+			);
+			name = LoginServiceKit;
+			path = LoginServiceKit;
+			sourceTree = "<group>";
+		};
 		7DB346D0F39D3F0E887471402A8071AB = {
 			isa = PBXGroup;
 			children = (
 				93A4A3777CF96A4AAC1D13BA6DCCEA73 /* Podfile */,
 				39E9EE8210D861DFD82346C1F5EB7218 /* Frameworks */,
-				A36642D4F3B34DCDC462B39328BEFD34 /* Pods */,
-				8A1A8198A5AC05A5808ED2317573A467 /* Products */,
+				C3BBC952078D993EBD49EE0050C050E2 /* Pods */,
+				2EA61206CBF3F11E0F9E14574DB822D8 /* Products */,
 				51B40B370294F4421D088ED5FE134470 /* Targets Support Files */,
 			);
 			sourceTree = "<group>";
 		};
-		83F183940864ECC257517804FC38B5DB /* Support Files */ = {
+		85C4CA1AB6DB4817DD235712D4DB54FC /* Support Files */ = {
 			isa = PBXGroup;
 			children = (
-				1EF93C796350A537D06CFF0FBDDDE6A9 /* CircularProgressMac.modulemap */,
-				ADC7F597186C62F286AE3D8F30268101 /* CircularProgressMac.xcconfig */,
-				7322759886C8525C78BACE123EE6B52B /* CircularProgressMac-dummy.m */,
-				144F138FBCA773E6049EF9B38C07FD70 /* CircularProgressMac-prefix.pch */,
-				E8D36ED95E82B9863908D3D4FF7E0D55 /* CircularProgressMac-umbrella.h */,
-				238E51245FC821FB8129C763738CF9B4 /* Info.plist */,
+				EA50C81432667AD6CC3900B7D8DC9ECA /* Info.plist */,
+				43AA35CB878A3E9E882A1BB30DD35115 /* LoginServiceKit.modulemap */,
+				7DE813F65D02B70723DEDB0F69B04445 /* LoginServiceKit.xcconfig */,
+				987BE225AF410F450E9C79D16C924AB1 /* LoginServiceKit-dummy.m */,
+				B5707876CB255175FAF6D33D46D33A58 /* LoginServiceKit-prefix.pch */,
+				0B861CECB410831A63E2A2C12695AAD3 /* LoginServiceKit-umbrella.h */,
 			);
 			name = "Support Files";
-			path = "../Target Support Files/CircularProgressMac";
-			sourceTree = "<group>";
-		};
-		8A1A8198A5AC05A5808ED2317573A467 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				1AA2B0AE806E112AFD71AF20BCEBAD7E /* CircularProgressMac.framework */,
-				92E37324814CE57070E0AFF97FD888D1 /* LoginServiceKit.framework */,
-				EA0C030814AB022E4954038BEE24A780 /* Pods_PlayStatus.framework */,
-			);
-			name = Products;
+			path = "../Target Support Files/LoginServiceKit";
 			sourceTree = "<group>";
 		};
 		8A9EB27D44A12DD2EE8B2FD4590CBC23 /* Pods-PlayStatus */ = {
@@ -188,37 +242,60 @@
 			path = "Target Support Files/Pods-PlayStatus";
 			sourceTree = "<group>";
 		};
-		9D1C7780050727D21FBA7BB41544C679 /* LoginServiceKit */ = {
+		8CC40F10143713BB5BA2430FEE9A0E8B /* Support Files */ = {
 			isa = PBXGroup;
 			children = (
-				7D0A3B40CB484423A3DAB57EC4893FB2 /* LoginServiceKit.swift */,
-				D0F1FC7268F53F4D2369E350C44C7C0B /* Support Files */,
-			);
-			name = LoginServiceKit;
-			path = LoginServiceKit;
-			sourceTree = "<group>";
-		};
-		A36642D4F3B34DCDC462B39328BEFD34 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				4BB629D8D8EE2AFB8FE41CB2AA9D97D5 /* CircularProgressMac */,
-				9D1C7780050727D21FBA7BB41544C679 /* LoginServiceKit */,
-			);
-			name = Pods;
-			sourceTree = "<group>";
-		};
-		D0F1FC7268F53F4D2369E350C44C7C0B /* Support Files */ = {
-			isa = PBXGroup;
-			children = (
-				D03551F5BEBFE61146F244E858B3498E /* Info.plist */,
-				02E65D88F0104934068578C1358E515C /* LoginServiceKit.modulemap */,
-				74E31FAF38DE5EB3BE24AFBBC86B6F42 /* LoginServiceKit.xcconfig */,
-				09280A041CE1D7247715F1075B336EFD /* LoginServiceKit-dummy.m */,
-				9B21F58A9FD200BE74E0396D1DFAC7BC /* LoginServiceKit-prefix.pch */,
-				67BB1109F2D00F13D45843D20026BD1F /* LoginServiceKit-umbrella.h */,
+				3AE58FEEF9B32F9086F13ED48964BF93 /* Info.plist */,
+				411E3726CA307566051A539F34ED0776 /* KeyboardShortcuts.modulemap */,
+				B5BC1265C9050D300663ED81E3459B1F /* KeyboardShortcuts.xcconfig */,
+				172E247FF47829DEF10957ECFD69D6D2 /* KeyboardShortcuts-dummy.m */,
+				651F1AD7BEF50380137EE5D226BD47CF /* KeyboardShortcuts-prefix.pch */,
+				34E6D428C8B094649CD2F9631EFEFFFF /* KeyboardShortcuts-umbrella.h */,
 			);
 			name = "Support Files";
-			path = "../Target Support Files/LoginServiceKit";
+			path = "../Target Support Files/KeyboardShortcuts";
+			sourceTree = "<group>";
+		};
+		A8F76C1C8E5DA6738BEA0DF382EA5981 /* Support Files */ = {
+			isa = PBXGroup;
+			children = (
+				58A72118840B3D63AB0803A80BA05938 /* CircularProgressMac.modulemap */,
+				5573CDB2DC9FF2E9F35A8FF6BAB67410 /* CircularProgressMac.xcconfig */,
+				C53AC1AB50B3DA507D9DA3BCA846841B /* CircularProgressMac-dummy.m */,
+				EAEA21617005E0DC24E06A2D096BD373 /* CircularProgressMac-prefix.pch */,
+				0D16783866A699052ECD2F9283E04A3F /* CircularProgressMac-umbrella.h */,
+				61E09FCDF6A2496FD9AC190D172A7812 /* Info.plist */,
+			);
+			name = "Support Files";
+			path = "../Target Support Files/CircularProgressMac";
+			sourceTree = "<group>";
+		};
+		B203EF0CE8AAD33267640AFB902F91B0 /* KeyboardShortcuts */ = {
+			isa = PBXGroup;
+			children = (
+				4D5331E06024331CBBC36C5456B0C4DD /* CarbonKeyboardShortcuts.swift */,
+				1AA3FB791E063CE087888E344EBD42DD /* Key.swift */,
+				F1456B4D1AAC8FFA4856D0B5C2359957 /* KeyboardShortcuts.swift */,
+				C28C77D8A48A35B1FFE8C19A42EBF3C6 /* Name.swift */,
+				51365B955AF15B5B10F8A2DD2E308204 /* NSMenuItem++.swift */,
+				2A43793A9D939CF5274A89669F6B8DE6 /* Recorder.swift */,
+				09CD420CAE505934BC1C449D7BC1D3AE /* RecorderCocoa.swift */,
+				BE2513A8B6E2072D6402A757A1C8BF1E /* Shortcut.swift */,
+				FE6C6786131B2DCD46C809B1BF8ECC88 /* util.swift */,
+				8CC40F10143713BB5BA2430FEE9A0E8B /* Support Files */,
+			);
+			name = KeyboardShortcuts;
+			path = KeyboardShortcuts;
+			sourceTree = "<group>";
+		};
+		C3BBC952078D993EBD49EE0050C050E2 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				08596FEC6887302633B9C1A1D7E90DD4 /* CircularProgressMac */,
+				B203EF0CE8AAD33267640AFB902F91B0 /* KeyboardShortcuts */,
+				67506841A12ABAFC87DCE8F4E59425B9 /* LoginServiceKit */,
+			);
+			name = Pods;
 			sourceTree = "<group>";
 		};
 		FA7AC8429882A95AA0810A9DCDED54FF /* OS X */ = {
@@ -232,11 +309,27 @@
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
+		07A78458FF6CF9B0BA7B17CCC884CD8F /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B843FE1C93DDDF30FA990ECEF4AEB75F /* Pods-PlayStatus-umbrella.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		29CA865EB3ACEC94E1DD036AD9A0064E /* Headers */ = {
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				F1DD33BB518F9F1D78556BF90DEFB884 /* CircularProgressMac-umbrella.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8202B8A8D106AD34BF429FBC6714D81B /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				07E2369EA4E356E74D2C3620235CBBFF /* KeyboardShortcuts-umbrella.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -248,34 +341,44 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		B14FCD2E55861F982C7B25703C7FF67B /* Headers */ = {
-			isa = PBXHeadersBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				1E98285AD195935189CE355A3E6A362B /* Pods-PlayStatus-umbrella.h in Headers */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
-		9811CAE940C14021A32D6235E7C2051B /* Pods-PlayStatus */ = {
+		5896A5F9FD5AA57C763EA4ACD5CF7522 /* KeyboardShortcuts */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 5409164CEEDAE2B78947580A95408C99 /* Build configuration list for PBXNativeTarget "Pods-PlayStatus" */;
+			buildConfigurationList = 8E02CFF8AB5125728F6C3DF6896FF182 /* Build configuration list for PBXNativeTarget "KeyboardShortcuts" */;
 			buildPhases = (
-				496A0D6D851DE39107B0078C3E9313F8 /* Sources */,
-				A0BC2CEBDCC9DB9C3376722A0C0DD15B /* Frameworks */,
-				B14FCD2E55861F982C7B25703C7FF67B /* Headers */,
+				981A79A27580C6175D8DDAC2D29ADA16 /* Sources */,
+				98F170EC91AEEC74C0860B68656A202F /* Frameworks */,
+				8202B8A8D106AD34BF429FBC6714D81B /* Headers */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				C8FB6984DA2F4245364B4661DDBB1243 /* PBXTargetDependency */,
-				44EA9E3C007796D185528EE30973A7CD /* PBXTargetDependency */,
+			);
+			name = KeyboardShortcuts;
+			productName = KeyboardShortcuts;
+			productReference = 2BFCD95FCC62CAA852272C64A0521195 /* KeyboardShortcuts.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		5B2C67FF5EA78F2E7C853DFFF9510EFE /* Pods-PlayStatus */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9F5D41146BBC8E03A17105805B4E1A67 /* Build configuration list for PBXNativeTarget "Pods-PlayStatus" */;
+			buildPhases = (
+				5BADFDA0EE017E3C02EF5F68A4653B67 /* Sources */,
+				DA14F55AEB352F6D336A091A600F9C85 /* Frameworks */,
+				07A78458FF6CF9B0BA7B17CCC884CD8F /* Headers */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4857F3C4B723BBBD3764F1E3C38D5606 /* PBXTargetDependency */,
+				49EBF4F2E72BBF49DE322F16432DB3DD /* PBXTargetDependency */,
+				5CB236201C5A4DBFB9B55CAD391B2DEB /* PBXTargetDependency */,
 			);
 			name = "Pods-PlayStatus";
 			productName = "Pods-PlayStatus";
-			productReference = EA0C030814AB022E4954038BEE24A780 /* Pods_PlayStatus.framework */;
+			productReference = D6B90E9EC4548ECBC645A8AD869BDEC6 /* Pods_PlayStatus.framework */;
 			productType = "com.apple.product-type.framework";
 		};
 		CE69294552CB379544575992B5E0DB28 /* CircularProgressMac */ = {
@@ -292,7 +395,7 @@
 			);
 			name = CircularProgressMac;
 			productName = CircularProgressMac;
-			productReference = 1AA2B0AE806E112AFD71AF20BCEBAD7E /* CircularProgressMac.framework */;
+			productReference = 2DE8DBF0BE8C9532CFF2046A8D19103F /* CircularProgressMac.framework */;
 			productType = "com.apple.product-type.framework";
 		};
 		EC362510521DB9CB07BEBC6EC7887988 /* LoginServiceKit */ = {
@@ -309,7 +412,7 @@
 			);
 			name = LoginServiceKit;
 			productName = LoginServiceKit;
-			productReference = 92E37324814CE57070E0AFF97FD888D1 /* LoginServiceKit.framework */;
+			productReference = C3E5F10633DEF0C0B19568E4DDC338D1 /* LoginServiceKit.framework */;
 			productType = "com.apple.product-type.framework";
 		};
 /* End PBXNativeTarget section */
@@ -329,13 +432,14 @@
 				en,
 			);
 			mainGroup = 7DB346D0F39D3F0E887471402A8071AB;
-			productRefGroup = 8A1A8198A5AC05A5808ED2317573A467 /* Products */;
+			productRefGroup = 2EA61206CBF3F11E0F9E14574DB822D8 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				CE69294552CB379544575992B5E0DB28 /* CircularProgressMac */,
+				5896A5F9FD5AA57C763EA4ACD5CF7522 /* KeyboardShortcuts */,
 				EC362510521DB9CB07BEBC6EC7887988 /* LoginServiceKit */,
-				9811CAE940C14021A32D6235E7C2051B /* Pods-PlayStatus */,
+				5B2C67FF5EA78F2E7C853DFFF9510EFE /* Pods-PlayStatus */,
 			);
 		};
 /* End PBXProject section */
@@ -350,11 +454,28 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		496A0D6D851DE39107B0078C3E9313F8 /* Sources */ = {
+		5BADFDA0EE017E3C02EF5F68A4653B67 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B540A41CD13ECE89F2F6796091C933CE /* Pods-PlayStatus-dummy.m in Sources */,
+				BCDBB12A59C40DBBAAE70893F59C82BD /* Pods-PlayStatus-dummy.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		981A79A27580C6175D8DDAC2D29ADA16 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1865C9A8554D1BE2503C087919A597EF /* CarbonKeyboardShortcuts.swift in Sources */,
+				580B3A3F852D0ABB25EC8842E006C53C /* Key.swift in Sources */,
+				3024B207F703BA0B2E3E7E87942E1F10 /* KeyboardShortcuts-dummy.m in Sources */,
+				3CA3176F7745DD932156CED1F72F44A0 /* KeyboardShortcuts.swift in Sources */,
+				687078C6C97D243426F7E0FB4EAF7737 /* Name.swift in Sources */,
+				097C72D72C1B506C3044A3FFBFFC3A59 /* NSMenuItem++.swift in Sources */,
+				AAECCBAF0183D6D824FC4CA4B11B1F5C /* Recorder.swift in Sources */,
+				B88A81F95CD67B4B35A6DAB3FD9854E7 /* RecorderCocoa.swift in Sources */,
+				EE9C4AB93C9F2AED8B4D79C23275A3B0 /* Shortcut.swift in Sources */,
+				7B5A262C3BF909346D9CADB7820FFE75 /* util.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -374,24 +495,71 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		44EA9E3C007796D185528EE30973A7CD /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = LoginServiceKit;
-			target = EC362510521DB9CB07BEBC6EC7887988 /* LoginServiceKit */;
-			targetProxy = 4E38B877CA9CC3AA5F0771E22C85D4CB /* PBXContainerItemProxy */;
-		};
-		C8FB6984DA2F4245364B4661DDBB1243 /* PBXTargetDependency */ = {
+		4857F3C4B723BBBD3764F1E3C38D5606 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = CircularProgressMac;
 			target = CE69294552CB379544575992B5E0DB28 /* CircularProgressMac */;
-			targetProxy = 832299C97A7D7620A1DD6B7A802BF5C6 /* PBXContainerItemProxy */;
+			targetProxy = 27B5AE2E6FE1634C40A8CC735E53BE82 /* PBXContainerItemProxy */;
+		};
+		49EBF4F2E72BBF49DE322F16432DB3DD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = KeyboardShortcuts;
+			target = 5896A5F9FD5AA57C763EA4ACD5CF7522 /* KeyboardShortcuts */;
+			targetProxy = AE647248E268F6B18CFE83CE67F502C4 /* PBXContainerItemProxy */;
+		};
+		5CB236201C5A4DBFB9B55CAD391B2DEB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = LoginServiceKit;
+			target = EC362510521DB9CB07BEBC6EC7887988 /* LoginServiceKit */;
+			targetProxy = E6E33C892390AACD3B3E58ED3E41328D /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		2117987BC7F833B02C904BCC8B80E8CA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5C6DB30F26EDA09CD255E4C1D3A1AD9B /* Pods-PlayStatus.debug.xcconfig */;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = NO;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_IDENTITY = "";
+				"CODE_SIGN_IDENTITY[sdk=appletvos*]" = "";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";
+				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				FRAMEWORK_VERSION = A;
+				INFOPLIST_FILE = "Target Support Files/Pods-PlayStatus/Info.plist";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACH_O_TYPE = staticlib;
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MODULEMAP_FILE = "Target Support Files/Pods-PlayStatus/Pods-PlayStatus.modulemap";
+				OTHER_LDFLAGS = "";
+				OTHER_LIBTOOLFLAGS = "";
+				PODS_ROOT = "$(SRCROOT)";
+				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.${PRODUCT_NAME:rfc1034identifier}";
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Debug;
+		};
 		2BCFD5734F6573B08D1422D935B0329B /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = ADC7F597186C62F286AE3D8F30268101 /* CircularProgressMac.xcconfig */;
+			baseConfigurationReference = 5573CDB2DC9FF2E9F35A8FF6BAB67410 /* CircularProgressMac.xcconfig */;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_IDENTITY = "";
@@ -429,7 +597,7 @@
 		};
 		2DBCECDCEC0AC5C5EAA607C5F70C7CB1 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 74E31FAF38DE5EB3BE24AFBBC86B6F42 /* LoginServiceKit.xcconfig */;
+			baseConfigurationReference = 7DE813F65D02B70723DEDB0F69B04445 /* LoginServiceKit.xcconfig */;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_IDENTITY = "";
@@ -465,11 +633,10 @@
 			};
 			name = Release;
 		};
-		3B22DD7A3067531E231000D7FAC9876F /* Release */ = {
+		3192D1E4D662B652DC84C4A1CF03B6D5 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = C41E37DF3A059019E1656839597570C9 /* Pods-PlayStatus.release.xcconfig */;
+			baseConfigurationReference = B5BC1265C9050D300663ED81E3459B1F /* KeyboardShortcuts.xcconfig */;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = NO;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_IDENTITY = "";
 				"CODE_SIGN_IDENTITY[sdk=appletvos*]" = "";
@@ -482,28 +649,27 @@
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
 				FRAMEWORK_VERSION = A;
-				INFOPLIST_FILE = "Target Support Files/Pods-PlayStatus/Info.plist";
+				GCC_PREFIX_HEADER = "Target Support Files/KeyboardShortcuts/KeyboardShortcuts-prefix.pch";
+				INFOPLIST_FILE = "Target Support Files/KeyboardShortcuts/Info.plist";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MACH_O_TYPE = staticlib;
-				MACOSX_DEPLOYMENT_TARGET = 10.15;
-				MODULEMAP_FILE = "Target Support Files/Pods-PlayStatus/Pods-PlayStatus.modulemap";
-				OTHER_LDFLAGS = "";
-				OTHER_LIBTOOLFLAGS = "";
-				PODS_ROOT = "$(SRCROOT)";
-				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.${PRODUCT_NAME:rfc1034identifier}";
-				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MODULEMAP_FILE = "Target Support Files/KeyboardShortcuts/KeyboardShortcuts.modulemap";
+				PRODUCT_MODULE_NAME = KeyboardShortcuts;
+				PRODUCT_NAME = KeyboardShortcuts;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) ";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.3;
 				VERSIONING_SYSTEM = "apple-generic";
 				VERSION_INFO_PREFIX = "";
 			};
-			name = Release;
+			name = Debug;
 		};
 		4F233F5852B399381BF55ADFEE5F86BB /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -563,9 +729,47 @@
 			};
 			name = Release;
 		};
+		52E526462562F2CD18972686D026DA17 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B5BC1265C9050D300663ED81E3459B1F /* KeyboardShortcuts.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_IDENTITY = "";
+				"CODE_SIGN_IDENTITY[sdk=appletvos*]" = "";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";
+				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				FRAMEWORK_VERSION = A;
+				GCC_PREFIX_HEADER = "Target Support Files/KeyboardShortcuts/KeyboardShortcuts-prefix.pch";
+				INFOPLIST_FILE = "Target Support Files/KeyboardShortcuts/Info.plist";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MODULEMAP_FILE = "Target Support Files/KeyboardShortcuts/KeyboardShortcuts.modulemap";
+				PRODUCT_MODULE_NAME = KeyboardShortcuts;
+				PRODUCT_NAME = KeyboardShortcuts;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) ";
+				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
+				SWIFT_VERSION = 5.3;
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Release;
+		};
 		67ADF17BB7E791D9E2EEC9BBAE124B18 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 74E31FAF38DE5EB3BE24AFBBC86B6F42 /* LoginServiceKit.xcconfig */;
+			baseConfigurationReference = 7DE813F65D02B70723DEDB0F69B04445 /* LoginServiceKit.xcconfig */;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_IDENTITY = "";
@@ -601,9 +805,49 @@
 			};
 			name = Debug;
 		};
+		72AA2D367B734B9433D18B9B340BCBF5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = C41E37DF3A059019E1656839597570C9 /* Pods-PlayStatus.release.xcconfig */;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = NO;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_IDENTITY = "";
+				"CODE_SIGN_IDENTITY[sdk=appletvos*]" = "";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";
+				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				FRAMEWORK_VERSION = A;
+				INFOPLIST_FILE = "Target Support Files/Pods-PlayStatus/Info.plist";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACH_O_TYPE = staticlib;
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MODULEMAP_FILE = "Target Support Files/Pods-PlayStatus/Pods-PlayStatus.modulemap";
+				OTHER_LDFLAGS = "";
+				OTHER_LIBTOOLFLAGS = "";
+				PODS_ROOT = "$(SRCROOT)";
+				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.${PRODUCT_NAME:rfc1034identifier}";
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Release;
+		};
 		804C2AB0E2DA9A61C8F32E36FD758829 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = ADC7F597186C62F286AE3D8F30268101 /* CircularProgressMac.xcconfig */;
+			baseConfigurationReference = 5573CDB2DC9FF2E9F35A8FF6BAB67410 /* CircularProgressMac.xcconfig */;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_IDENTITY = "";
@@ -702,47 +946,6 @@
 			};
 			name = Debug;
 		};
-		E81857E3D3F3C87F11C6DBFF814875CE /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 5C6DB30F26EDA09CD255E4C1D3A1AD9B /* Pods-PlayStatus.debug.xcconfig */;
-			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = NO;
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				CODE_SIGN_IDENTITY = "";
-				"CODE_SIGN_IDENTITY[sdk=appletvos*]" = "";
-				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";
-				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "";
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEFINES_MODULE = YES;
-				DYLIB_COMPATIBILITY_VERSION = 1;
-				DYLIB_CURRENT_VERSION = 1;
-				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				FRAMEWORK_VERSION = A;
-				INFOPLIST_FILE = "Target Support Files/Pods-PlayStatus/Info.plist";
-				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/Frameworks",
-				);
-				MACH_O_TYPE = staticlib;
-				MACOSX_DEPLOYMENT_TARGET = 10.15;
-				MODULEMAP_FILE = "Target Support Files/Pods-PlayStatus/Pods-PlayStatus.modulemap";
-				OTHER_LDFLAGS = "";
-				OTHER_LIBTOOLFLAGS = "";
-				PODS_ROOT = "$(SRCROOT)";
-				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.${PRODUCT_NAME:rfc1034identifier}";
-				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-				SDKROOT = macosx;
-				SKIP_INSTALL = YES;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				VERSIONING_SYSTEM = "apple-generic";
-				VERSION_INFO_PREFIX = "";
-			};
-			name = Debug;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -755,20 +958,29 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		5409164CEEDAE2B78947580A95408C99 /* Build configuration list for PBXNativeTarget "Pods-PlayStatus" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				E81857E3D3F3C87F11C6DBFF814875CE /* Debug */,
-				3B22DD7A3067531E231000D7FAC9876F /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		7D435D947BBE2C1DA675D4A9E08221E7 /* Build configuration list for PBXNativeTarget "CircularProgressMac" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				804C2AB0E2DA9A61C8F32E36FD758829 /* Debug */,
 				2BCFD5734F6573B08D1422D935B0329B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8E02CFF8AB5125728F6C3DF6896FF182 /* Build configuration list for PBXNativeTarget "KeyboardShortcuts" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3192D1E4D662B652DC84C4A1CF03B6D5 /* Debug */,
+				52E526462562F2CD18972686D026DA17 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9F5D41146BBC8E03A17105805B4E1A67 /* Build configuration list for PBXNativeTarget "Pods-PlayStatus" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2117987BC7F833B02C904BCC8B80E8CA /* Debug */,
+				72AA2D367B734B9433D18B9B340BCBF5 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

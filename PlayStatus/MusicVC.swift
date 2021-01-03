@@ -33,6 +33,7 @@ class MusicVC: NSViewController {
     @IBOutlet weak var settingsButton: NSButton!
     @IBOutlet weak var visualEffectView: NSVisualEffectView!
     private var settingsController: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "settingsWindowController") as? NSWindowController
+    private var preferencesController: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "preferencesWindowController") as? NSWindowController
     lazy var searchView: NSWindowController? = NSStoryboard(name: "Main", bundle: nil).instantiateController(withIdentifier: "searchWindowController") as? NSWindowController
     var out: NSAppleEventDescriptor?
     var check: Int!
@@ -56,14 +57,21 @@ class MusicVC: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do view setup here.
+
+        setupObservers()
+        setupUI()
+
+    }
+    
+    
+    override func viewDidAppear() {
+        loadAlbumArtwork()
+        timer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(changeSliderPosition), userInfo: nil, repeats: true)
+        timer.fire()
         
-        _ = NSColor(
-            calibratedHue: 230/360,
-            saturation: 0.35,
-            brightness: 0.85,
-            alpha: 0.3)
-        
-//        NotificationCenter.default.addObserver(self, selector: #selector(loadAlbumArtwork), name: NSNotification.Name(rawValue: "loadAlbum"), object: nil)
+    }
+    
+    func setupObservers(){
         NotificationCenter.default.addObserver(self, selector: #selector(newSongArtwork), name: NSNotification.Name(rawValue: "newSong"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(close), name: NSNotification.Name(rawValue: "close"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(searchButtonClicked(_:)), name: NSNotification.Name(rawValue: "search"), object: nil)
@@ -72,25 +80,8 @@ class MusicVC: NSViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(nextButtonClicked(_:)), name: NSNotification.Name(rawValue: "nextTrack"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(loadingSplash), name: NSNotification.Name(rawValue: "loadingSplash"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(removeSplash), name: NSNotification.Name(rawValue: "removeSplash"), object: nil)
-        
-        
-        setupUI()
-        //        checkStatus()
-        //        loadAlbumArtwork()
-        //        fade()
-        
-        
     }
-    override func viewDidAppear() {
-        loadAlbumArtwork()
-        timer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(changeSliderPosition), userInfo: nil, repeats: true)
-        timer.fire()
-    }
-    override func viewWillDisappear() {
-        timer.invalidate()
-        timer = nil
-        
-    }
+    
     
     func setupUI(){
         self.view.wantsLayer = true
@@ -173,6 +164,15 @@ class MusicVC: NSViewController {
     func checkStatus()
     {
         check = MusicController.shared.checkPlayerStatus()
+        NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
+            if out?.stringValue == "Spotify"{
+                app = .spotify
+                
+            }
+            else if out?.stringValue == itunesMusicName{
+                app = .itunes
+            }
+        })
         
     }
     func hideUnhide(hide: Bool){
@@ -206,7 +206,7 @@ class MusicVC: NSViewController {
             startTime.isHidden = false
             endTime.isHidden = false
             musicSlider.isHidden = false
-            
+ 
         }else if check == 2{
             playButton.isHidden = false
             startTime.isHidden = true
@@ -230,15 +230,15 @@ class MusicVC: NSViewController {
         
         visualEffectView.alphaValue = CGFloat(to)
         
-//        /// Made changes to artwork fading
-//        if duration == .newSong{
-//            let fadeAnimNew = CABasicAnimation(keyPath: "opacity")
-//            fadeAnimNew.fromValue = to
-//            fadeAnimNew.toValue = from
-//            fadeAnimNew.duration = duration == .oldSong ? 0.3 : 1
-//            self.albumArt.layer?.add(fadeAnimNew, forKey: "opacity")
-//            self.albumArt.alphaValue = CGFloat(from)
-//        }
+        //        /// Made changes to artwork fading
+        //        if duration == .newSong{
+        //            let fadeAnimNew = CABasicAnimation(keyPath: "opacity")
+        //            fadeAnimNew.fromValue = to
+        //            fadeAnimNew.toValue = from
+        //            fadeAnimNew.duration = duration == .oldSong ? 0.3 : 1
+        //            self.albumArt.layer?.add(fadeAnimNew, forKey: "opacity")
+        //            self.albumArt.alphaValue = CGFloat(from)
+        //        }
         
     }
     
@@ -269,7 +269,7 @@ class MusicVC: NSViewController {
     {
         checkStatus()
         trackDuration()
-
+        
         if currentSongName == "" {
             songName.stringValue = pausedSong
             artistName.stringValue = pausedArtist
@@ -283,15 +283,22 @@ class MusicVC: NSViewController {
         {
             if MusicController.shared.musicApp() == "Spotify"{
                 spotifyArtwork()
-            }else{
+                
+            }else if MusicController.shared.musicApp() == "\(itunesMusicName!)"{
                 iTunesArtwork()
+            }else{
+                if lastPausedApp == "Spotify"{
+                    spotifyArtwork()
+                }else{
+                    iTunesArtwork()
+                }
             }
             
         }else{
             DispatchQueue.main.async {
                 self.noArtwork()
             }
-//            albumArt.image = NSImage(named: "artwork")
+            //            albumArt.image = NSImage(named: "artwork")
         }
     }
     
@@ -299,9 +306,9 @@ class MusicVC: NSViewController {
         musicButton.image = NSImage(named: "\(iconName!)2")
         self.fade(type: .fadeIn, duration: .newSong)
         if currentSongName != ""{
-         self.albumArt.image = NSImage(named: "artwork")
+            self.albumArt.image = NSImage(named: "artwork")
         }else{
-//            self.albumArt.image = NSImage(named: "playstatus_back")
+            //            self.albumArt.image = NSImage(named: "playstatus_back")
         }
         
         self.fade(type: .fadeOut, duration: .newSong)
@@ -338,7 +345,6 @@ class MusicVC: NSViewController {
     
     func iTunesArtwork(){
         musicButton.image = NSImage(named: "\(iconName!)2")
-//        albumArt.image?.recache()
         NSAppleScript.go(code: NSAppleScript.itunesArtwork(), completionHandler: {_,output,_ in
             if output?.data.count != 0{
                 self.circularProgress.removeFromSuperview()
@@ -349,8 +355,6 @@ class MusicVC: NSViewController {
                     self.newSong = false
                 }else{
                     self.albumArt.image = NSImage(data: (output?.data)!)
-
-//                    albumArt.image?.recache()
                 }
                 self.circularProgress.removeFromSuperview()
             }else{
@@ -384,7 +388,6 @@ class MusicVC: NSViewController {
                             self.newArtworkURL(url: imageURL)
                         }else{
                             self.albumArt.image = NSImage(contentsOf: imageURL)
-//                            self.albumArt.image?.recache()
                         }
                         self.circularProgress.removeFromSuperview()
                     }
@@ -437,8 +440,8 @@ class MusicVC: NSViewController {
             
         } else if pauseButton.isHidden == false
         {
-            pausedSong = songName.stringValue
-            pausedArtist = artistName.stringValue
+            pausedSong = currentSongName
+            pausedArtist = currentSongArtist
             if !songDetails.isHidden{
                 playButton.isHidden = false
                 pauseButton.isHidden = true
@@ -456,8 +459,8 @@ class MusicVC: NSViewController {
         NSAppleScript.go(code: NSAppleScript.playPause(), completionHandler: {_,out,_ in
             lastPausedApp =  out?.stringValue ?? ""
         })
-        let appDelegate = NSApplication.shared.delegate as! AppDelegate
-        appDelegate.getSongName()
+        //        let appDelegate = NSApplication.shared.delegate as! AppDelegate
+        //        appDelegate.getSongName()
         if view.window!.isVisible {
             loadAlbumArtwork()
         }
@@ -533,18 +536,22 @@ class MusicVC: NSViewController {
         self.dismiss(nil)
         
     }
-    
-//    @IBAction func settingsClicked(_ sender: Any) {
-//        settingsController?.showWindow(self)
-//        settingsController?.window?.makeKeyAndOrderFront(self)
-//        settingsController?.window?.center()
-//        NSApp.activate(ignoringOtherApps: true)
-//    }
+    @IBAction func settingsButtonClicked(_ sender: Any) {
+        self.view.window?.close()
+        if let window = preferencesController {
+            window.showWindow(self)
+            window.window?.center()
+            window.window?.makeKeyAndOrderFront(self)
+            
+        }
+        NSApp.activate(ignoringOtherApps: true)
+    }
     
     deinit {
         NotificationCenter.default.removeObserver(self)
         
     }
+    
     
 }
 

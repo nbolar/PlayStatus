@@ -14,7 +14,7 @@ class ScrollingStatusItemView: NSView {
     private enum Constants {
         static let padding: CGFloat = 5
         static let iconSize: CGFloat = 23
-        static let defaultWidth: CGFloat = 200
+        static let defaultWidth: CGFloat = 300
         static let defaultSpeed: Double = 0.04
     }
 
@@ -114,7 +114,7 @@ private extension ScrollingStatusItemView {
         addSubview(scrollingTextView)
 
         NSLayoutConstraint.activate([
-            scrollingTextView.rightAnchor.constraint(equalTo: rightAnchor, constant: -5),
+            scrollingTextView.rightAnchor.constraint(equalTo: rightAnchor, constant: 0),
             scrollingTextView.topAnchor.constraint(equalTo: topAnchor),
             scrollingTextView.bottomAnchor.constraint(equalTo: bottomAnchor),
             scrollingTextView.leftAnchor.constraint(equalTo: iconImageView.rightAnchor)])

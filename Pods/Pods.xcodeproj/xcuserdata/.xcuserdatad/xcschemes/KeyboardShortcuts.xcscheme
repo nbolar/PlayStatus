@@ -14,10 +14,10 @@
             buildForArchiving = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "5B2C67FF5EA78F2E7C853DFFF9510EFE"
-               BlueprintName = "Pods-PlayStatus"
+               BlueprintIdentifier = "5896A5F9FD5AA57C763EA4ACD5CF7522"
+               BlueprintName = "KeyboardShortcuts"
                ReferencedContainer = "container:Pods.xcodeproj"
-               BuildableName = "Pods-PlayStatus.framework">
+               BuildableName = "KeyboardShortcuts.framework">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>

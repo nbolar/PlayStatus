@@ -16,6 +16,7 @@ class AboutVC: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do view setup here.
+//        self.preferredContentSize = NSMakeSize(self.view.frame.size.width, self.view.frame.size.height)
         if let info = Bundle.main.infoDictionary {
             let version = info["CFBundleShortVersionString"] as? String ?? "?"
             versionText.stringValue = "Version \(version)"
@@ -45,6 +46,11 @@ class AboutVC: NSViewController {
     SOFTWARE.
     """
     }
+    override func viewWillAppear() {
+            super.viewWillAppear()
+        self.preferredContentSize = NSMakeSize(self.view.frame.size.width, self.view.frame.size.height)
+    }
+    
     @IBAction func repoClicked(_ sender: NSClickGestureRecognizer) {
         if let url = URL(string: "https://github.com/nbolar/PlayStatus") {
             NSWorkspace.shared.open(url)
@@ -56,5 +62,11 @@ class AboutVC: NSViewController {
             NSWorkspace.shared.open(url)
         }
         
+    }
+    @IBAction func supportButtonClicked(_ sender: Any) {
+    
+        if let url = URL(string: "https://github.com/nbolar/PlayStatus/issues") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }

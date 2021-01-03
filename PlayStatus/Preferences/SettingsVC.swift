@@ -10,6 +10,7 @@ import Cocoa
 import LoginServiceKit
 import Sparkle
 
+
 class SettingsVC: NSViewController {
 
     @IBOutlet weak var login: NSButton!
@@ -22,12 +23,16 @@ class SettingsVC: NSViewController {
     @IBOutlet weak var spotifyButton: NSButton!
     @IBOutlet weak var appleMusicButton: NSButton!
     @IBOutlet weak var ignoreParensButton: NSButton!
+    @IBOutlet weak var restartAppButton: NSButton!
     
     override func viewDidLoad() {
         super.viewDidLoad()
+
+        
         // Do view setup here.
-        self.view.wantsLayer = true
-        self.view.layer?.backgroundColor = .clear
+//        self.view.wantsLayer = true
+        restartAppButton.isHidden = true
+//        self.view.layer?.backgroundColor = .clear
         let array = [artistButton, songButton, artistSongButton]
         let appArray = [spotifyButton, appleMusicButton]
         if UserDefaults.standard.object(forKey: "options") == nil{
@@ -72,7 +77,7 @@ class SettingsVC: NSViewController {
         }
     }
     override func viewWillAppear() {
-        self.view.window?.makeKeyAndOrderFront(self)
+        self.preferredContentSize = NSMakeSize(self.view.frame.size.width, self.view.frame.size.height)
     }
 
     
@@ -82,17 +87,11 @@ class SettingsVC: NSViewController {
         }else{
             LoginServiceKit.removeLoginItems()
         }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            self.dismiss(self)
-        }
+
     }
     
     @IBAction func updateButtonClicked(_ sender: Any) {
         SUUpdater.shared().checkForUpdates(self)
-//        let updater = SUUpdater.shared()
-//        updater?.feedURL = URL(string: "https://s3.us-east-2.amazonaws.com/com.bolar.playstatus/appcast.xml")
-//        updater?.checkForUpdates(self)
         
     }
     
@@ -100,17 +99,14 @@ class SettingsVC: NSViewController {
         UserDefaults.standard.set(sender.tag, forKey: "options")
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            self.dismiss(self)
-        }
+
     }
     @IBAction func scrollableButtonClicked(_ sender: Any) {
         UserDefaults.standard.set(scrollableTextButton.state, forKey: "scrollable")
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.scrollableTitleChanged()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            self.dismiss(self)
-        }
+        restartAppButton.isHidden = false
+
     }
     
     @IBAction func musicPlayerClicked(_ sender: NSButton) {
@@ -120,17 +116,17 @@ class SettingsVC: NSViewController {
         }else{
             iconName = "itunes"
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            self.dismiss(self)
-        }
+
     }
     @IBAction func ignoreParensButtonClicked(_ sender: NSButton) {
         UserDefaults.standard.set(sender.state, forKey: "parenthesis")
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
         appDelegate.getSongName()
-        DispatchQueue.main.asyncAfter(deadline: .now()) {
-            self.dismiss(self)
-        }
+
     }
     
+    @IBAction func restartAppButtonClicked(_ sender: Any) {
+        NSAppleScript.go(code: NSAppleScript.restartApp(), completionHandler: {_,out,_ in})
+    }
 }
+

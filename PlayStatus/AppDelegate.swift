@@ -7,20 +7,12 @@
 //
 
 import Cocoa
+import KeyboardShortcuts
 
 
-var currentSongName: String!
-var currentAlbumName: String!
-var currentSongArtist: String!
-var yHeight : CGFloat!
-var xWidth : CGFloat!
-var itunesMusicName: String! = "iTunes"
-var musicAppChoice : String!
-var iconName: String!
-var lastPausedApp: String!
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-
+    
     var songName: String!
     var artistName: String!    
     var out: NSAppleEventDescriptor?
@@ -48,40 +40,43 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         view.lengthHandler = handleLength
         return view
     }()
-
+    
     private lazy var handleLength: StatusItemLengthUpdate = { length in
         if length < Constants.statusItemLength {
-            self.statusItem.length = length
+            self.statusItem.length = length - 15
         } else {
             self.statusItem.length = Constants.statusItemLength
         }
     }
-
+    
     private lazy var contentView: NSView? = {
         let view = (statusItem.value(forKey: "window") as? NSWindow)?.contentView
         return view
     }()
-
+    
     var currentTrack: String? {
         didSet {
             if oldValue != currentTrack {
                 NotificationCenter.default.post(name: NSNotification.Name(rawValue: "newSong"), object: nil)
             }else{
-                 NotificationCenter.default.post(name: NSNotification.Name(rawValue: "removeSplash"), object: nil)
+                NotificationCenter.default.post(name: NSNotification.Name(rawValue: "removeSplash"), object: nil)
             }
-
+            
         }
     }
     
+    
+    
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
-
+        
         if #available(OSX 10.15, *){
             itunesMusicName = "Music"
         }else{
             itunesMusicName = "iTunes"
         }
-
+        
+        
         
         
         
@@ -91,15 +86,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         invisibleWindow.backgroundColor = .clear
         invisibleWindow.alphaValue = 0
         
-//        scrollingStatusItemView.icon = NSImage(named: "\(iconName!)")
         musicController?.window?.isOpaque = false
         musicController?.window?.backgroundColor = .clear
         musicController?.window?.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)))
-//        NotificationCenter.default.addObserver(self, selector: #selector(getSongName), name: NSNotification.Name(rawValue: "getSongName"), object: nil)
-//        getSongName()
-        
-//        statusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
-//        statusItem.button?.action = #selector(self.togglePopover(_:))
         
         if UserDefaults.standard.integer(forKey: "musicApp") == 0{
             musicAppChoice = "Spotify"
@@ -110,7 +99,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         lastPausedApp = "\(musicAppChoice!)"
         loadStatusItem()
-
+        loadHotkeys()
+        
+    }
+    
+    func loadHotkeys(){
+        KeyboardShortcuts.onKeyDown(for: .playPause) { [self] in
+            playPauseMenuItem(self)
+        }
+        KeyboardShortcuts.onKeyDown(for: .nextTrack) { [self] in
+            
+            nextTrackMenuItem(self)
+        }
+        KeyboardShortcuts.onKeyDown(for: .prevTrack) { [self] in
+            
+            previousTrackMenuItem(self)
+        }
+        KeyboardShortcuts.onKeyDown(for: .playerVolUp) { [] in
+            NSAppleScript.go(code: NSAppleScript.increasePlayerVol(), completionHandler: {_,_,_ in})
+        }
+        KeyboardShortcuts.onKeyDown(for: .playerVolDown) { [] in
+            NSAppleScript.go(code: NSAppleScript.decreasePlayerVol(), completionHandler: {_,_,_ in})
+        }
+        KeyboardShortcuts.onKeyDown(for: .systemVolUp) { [] in
+            NSAppleScript.go(code: NSAppleScript.increaseSystemVol(), completionHandler: {_,_,_ in})
+        }
+        KeyboardShortcuts.onKeyDown(for: .systemVolDown) { [] in
+            NSAppleScript.go(code: NSAppleScript.decreaseSystemVol(), completionHandler: {_,_,_ in})
+        }
     }
     
     func loadStatusItem(){
@@ -125,8 +141,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             loadSubviews()
         }
     }
-
-
+    
+    
     
     func applicationWillResignActive(_ notification: Notification) {
         if musicController?.window?.isVisible == true
@@ -136,7 +152,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-
+    
     @objc func togglePopover(_ sender: Any?) {
         let event = NSApp.currentEvent!
         
@@ -165,7 +181,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(withTitle: "Report Issues", action: #selector(issues), keyEquivalent: "")
             menu.addItem(withTitle: "About", action: #selector(aboutMenu), keyEquivalent: "")
             menu.addItem(NSMenuItem(title: "Quit PlayStatus", action: #selector(self.quitApp), keyEquivalent: "q"))
-
+            
             if UserDefaults.standard.bool(forKey: "scrollable") == false {
                 newStatusItem.menu = menu
                 newStatusItem.button?.performClick(nil)
@@ -234,52 +250,60 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @objc func getSongName()
     {
-
+        
         loadStatusItem()
         
         NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
             if out?.stringValue == "Spotify"{
                 iconName = "spotify"
+                
             }
             else if out?.stringValue == itunesMusicName{
                 iconName = "itunes"
             }
-            getNowPlayingSong()
-//            if out?.stringValue != ""{
-//
-////                loadSubviews()
-//            }
-        })
+            activeMusicApp = out?.stringValue ?? ""
             
+            getNowPlayingSong()
+        })
+        
         
     }
     
     func getNowPlayingSong(){
         
-        NSAppleScript.go(code: NSAppleScript.songName(), completionHandler: {_,out,_ in
-            songName = out?.stringValue ?? ""
-            currentSongName = songName
-            
-            ///Ignore Parenthetical
-            if UserDefaults.standard.bool(forKey: "parenthesis") == true{
-                songName = songName.replacingOccurrences(of: "\\([^)]*\\)", with: "", options: .regularExpression)
-            }else{
+        let check = MusicController.shared.checkPlayerStatus()
+        var statutsItemTitle: String! = ""
+        if check == 1 {
+            NSAppleScript.go(code: NSAppleScript.songName(), completionHandler: {_,out,_ in
                 songName = out?.stringValue ?? ""
-            }
-            
-            
-        })
-        NSAppleScript.go(code: NSAppleScript.songArtist(), completionHandler: {_,out,_ in
-            artistName = out?.stringValue ?? ""
-            currentSongArtist = artistName
-            
-        })
-        NSAppleScript.go(code: NSAppleScript.albumName(), completionHandler: {_,out,_ in
-            currentAlbumName = out?.stringValue ?? ""
-            
-        })
+                currentSongName = songName
+                
+                ///Ignore Parenthetical
+                if UserDefaults.standard.bool(forKey: "parenthesis") == true{
+                    songName = songName.replacingOccurrences(of: "\\([^)]*\\)", with: "", options: .regularExpression)
+                }else{
+                    songName = out?.stringValue ?? ""
+                }
+                
+                
+            })
+            NSAppleScript.go(code: NSAppleScript.songArtist(), completionHandler: {_,out,_ in
+                artistName = out?.stringValue ?? ""
+                currentSongArtist = artistName
+                
+            })
+            NSAppleScript.go(code: NSAppleScript.albumName(), completionHandler: {_,out,_ in
+                currentAlbumName = out?.stringValue ?? ""
+                
+            })
+            statutsItemTitle = musicBarTitle()
+        }
+        else{
+            statutsItemTitle = " "
+        }
         
-        let statutsItemTitle = musicBarTitle()
+        
+        
         
         if lastStatusTitle != statutsItemTitle && statutsItemTitle.count > 0{
             
@@ -290,7 +314,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
     }
-
+    
     
     func scrollableTitleChanged(){
         let statutsItemTitle = musicBarTitle()
@@ -306,19 +330,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func musicBarTitle()->String{
         switch UserDefaults.standard.integer(forKey: "options") {
         case 0:
-            return " \(artistName!)"
+            return " \(artistName ?? "")"
         case 1:
-            return " \(songName!)"
+            return " \(songName ?? "")"
         case 2:
-            return " \(artistName!) - \(songName!)"
+            return " \(artistName ?? "") - \(songName ?? "")"
         default:
-            return " \(artistName!) - \(songName!)"
+            return " \(artistName ?? "") - \(songName ?? "")"
         }
     }
     
     
     @objc func displayPopUp(status: NSStatusItem) {
-
+        
         let rectWindow = status.button?.window?.convertToScreen((status.button?.frame)!)
         let menubarHeight = rectWindow?.height ?? 22
         let height = musicController?.window?.frame.height ?? 300
@@ -340,13 +364,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @objc private func loadSubviews() {
         guard let contentView = contentView else { return }
-
+        
         contentView.addSubview(scrollingStatusItemView)
         NSLayoutConstraint.activate([
-            scrollingStatusItemView.topAnchor.constraint(equalTo: contentView.topAnchor),
-            scrollingStatusItemView.leftAnchor.constraint(equalTo: contentView.leftAnchor),
-            scrollingStatusItemView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-            scrollingStatusItemView.rightAnchor.constraint(equalTo: contentView.rightAnchor)])
+                                        scrollingStatusItemView.topAnchor.constraint(equalTo: contentView.topAnchor),
+                                        scrollingStatusItemView.leftAnchor.constraint(equalTo: contentView.leftAnchor),
+                                        scrollingStatusItemView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+                                        scrollingStatusItemView.rightAnchor.constraint(equalTo: contentView.rightAnchor)])
     }
     
     
@@ -364,13 +388,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }else{
             loadStatusItem()
             loadSubviews()
-            newStatusItem.button?.title = ""
-            newStatusItem.button?.image = .none
             currentTrack = newTitle
             lastStatusTitle = newTitle
             scrollingStatusItemView.icon = NSImage(named: "\(iconName!)")
             scrollingStatusItemView.text = newTitle
-
             if newTitle.count == 0 && statusItem.button != nil {
                 statusItem.length = scrollingStatusItemView.hasImage ? Constants.statusItemLength : 0
             }
@@ -392,6 +413,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
-
-
+    
+    
 }

@@ -28,11 +28,9 @@ extension NSAppleScript {
         return """
         if application "\(itunesMusicName!)" is running then
         tell application "\(itunesMusicName!)"
-        if player state is playing then
             if exists artworks of current track then
                 return (get data of artwork 1 of current track)
             end if
-        end if
         end tell
         end if
         """
@@ -78,11 +76,7 @@ extension NSAppleScript {
         return """
         if application "Spotify" is running then
             tell application "Spotify"
-                if player state is playing then
                     return artwork url of current track
-                else
-                    return ""
-                end if
             end tell
         end if
         """
@@ -199,8 +193,10 @@ extension NSAppleScript {
                 set lastPaused to "Spotify"
             else if ((itunesState is equal to "paused") and (lastPaused is equal to "\(itunesMusicName!)")) then
                 tell application "\(itunesMusicName!)" to playpause
+                set lastPaused to "\(itunesMusicName!)"
             else if ((spotifyState is equal to "paused") and (lastPaused is equal to "Spotify")) then
                 tell application "Spotify" to playpause
+                set lastPaused to "Spotify"
             end if
         else if application "\(itunesMusicName!)" is running then
             tell application "\(itunesMusicName!)" to playpause
@@ -211,7 +207,7 @@ extension NSAppleScript {
             delay 5
             tell application "\(musicAppChoice!)" to play
         end if
-
+        return lastPaused
         """
     }
     
@@ -355,33 +351,13 @@ extension NSAppleScript {
     
     static func scrubTrack(position: Double) -> String{
         return """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
+        if application "\(activeMusicApp!)" is running then
+            tell application "\(activeMusicApp!)"
                 if player state is playing then
                     set player position to "\(position)"
                 end if
             end tell
-        checkSpotify()
-        else if application "Spotify" is running then
-                tell application "Spotify"
-                    if player state is playing then
-                        set player position to "\(position)"
-                    else
-                        return ""
-                    end if
-                end tell
         end if
-        on checkSpotify()
-           if application "Spotify" is running then
-               tell application "Spotify"
-                   if player state is playing then
-                        set player position to "\(position)"
-                    else
-                        return ""
-                    end if
-               end tell
-           end if
-        end checkSpotify
         """
     }
     
@@ -451,96 +427,67 @@ extension NSAppleScript {
     
     static func songName() -> String{
        return  """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    return name of current track
-                end if
-            end tell
-            checkSpotify()
-        else if application "Spotify" is running then
-            tell application "Spotify"
-                if player state is playing then
-                    return name of current track
-                else
-                    return ""
-                end if
+        if application "\(activeMusicApp!)" is running then
+            tell application "\(activeMusicApp!)"
+                return name of current track
             end tell
         end if
-        on checkSpotify()
-            if application "Spotify" is running then
-                tell application "Spotify"
-                    if player state is playing then
-                        return name of current track
-                    else
-                        return ""
-                    end if
-                end tell
-            end if
-        end checkSpotify
         """
     }
     static func albumName() -> String{
-       return  """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    return album of current track
-                end if
-            end tell
-            checkSpotify()
-        else if application "Spotify" is running then
-            tell application "Spotify"
-                if player state is playing then
-                    return name of current track
-                else
-                    return ""
-                end if
+        return """
+        if application "\(activeMusicApp!)" is running then
+            tell application "\(activeMusicApp!)"
+                return album of current track
             end tell
         end if
-        on checkSpotify()
-            if application "Spotify" is running then
-                tell application "Spotify"
-                    if player state is playing then
-                        return name of current track
-                    else
-                        return ""
-                    end if
-                end tell
-            end if
-        end checkSpotify
         """
     }
     
     static func songArtist() -> String {
         return """
-        if application "\(itunesMusicName!)" is running then
-            tell application "\(itunesMusicName!)"
-                if player state is playing then
-                    return artist of current track
-                end if
-            end tell
-            checkSpotify()
-        else if application "Spotify" is running then
-            tell application "Spotify"
-                if player state is playing then
-                    return artist of current track
-                else
-                    return ""
-                end if
+        if application "\(activeMusicApp!)" is running then
+            tell application "\(activeMusicApp!)"
+                return artist of current track
             end tell
         end if
-        on checkSpotify()
-            if application "Spotify" is running then
-                tell application "Spotify"
-                    if player state is playing then
-                        return artist of current track
-                    else
-                        return ""
-                    end if
-                end tell
-            end if
-        end checkSpotify
+        """
+    }
+    
+    static func restartApp() -> String {
+        return """
+            do shell script "killall PlayStatus; open -a Playstatus"
+        """
+    }
+    
+    static func increasePlayerVol() -> String {
+        return """
+            tell application "\(activeMusicApp!)"
+                set vol to sound volume
+                set sound volume to vol + 5
+            end tell
+        """
+    }
+    
+    static func decreasePlayerVol() -> String {
+        return """
+            tell application "\(activeMusicApp!)"
+                set vol to sound volume
+                set sound volume to vol - 5
+            end tell
+        """
+    }
+    
+    static func increaseSystemVol() -> String {
+        return """
+            set vol to output volume of (get volume settings)
+            set volume output volume vol + 5
+        """
+    }
+    static func decreaseSystemVol() -> String {
+        return """
+            set vol to output volume of (get volume settings)
+            set volume output volume vol - 5
         """
     }
         
