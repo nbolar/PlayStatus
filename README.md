@@ -1,6 +1,6 @@
 # ![playstatus_header](https://user-images.githubusercontent.com/45484873/56880861-09cb3980-6a67-11e9-9d45-037a9165b212.png)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) 
-[![Version: 2.0.2](https://img.shields.io/badge/Version-2.0.3-green.svg)](https://github.com/nbolar/PlayStatus/releases/tag/v2.0.3) 
+[![Version: 2.1](https://img.shields.io/badge/Version-2.1-green.svg)](https://github.com/nbolar/PlayStatus/releases/tag/v2.1) 
 [![Platform](http://img.shields.io/badge/platform-macOS-black.svg?style=flat)](https://developer.apple.com/resources/)
 [![Platform](https://img.shields.io/badge/swift-5.0-orange.svg?style=flat)](https://swift.org/blog/swift-5-released/)
 [![Open Source Love svg1](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/nbolar/playstatus/)
@@ -16,8 +16,7 @@ PlayStatus is a simple macOS app that allows the control of Spotify, Apple Music
 
 #### The above clip represents the settings pane for versions pre v2.0. The new settings options have been been completely revamped and allows the user to choose different menu bar options.
 
-<img width="475" alt="image" src="https://user-images.githubusercontent.com/45484873/99026622-61da6b80-2539-11eb-9e66-ff392990ebc8.png">
-
+<img width="445" alt="image" src="https://user-images.githubusercontent.com/45484873/103488050-bb437600-4dd7-11eb-9f4d-f6ff4371b15b.png">
 
 
 
@@ -37,6 +36,7 @@ No information at all is logged and everything is local to your device. Since th
 
 ## [Releases](https://github.com/nbolar/PlayStatus/releases):
 
+ - [Version 2.1](https://github.com/nbolar/PlayStatus/releases/tag/v2.1)
  - [Version 2.0.3](https://github.com/nbolar/PlayStatus/releases/tag/v2.0.3)
  - [Version 2.0.2](https://github.com/nbolar/PlayStatus/releases/tag/v2.0.2)
  - [Version 2.0.1](https://github.com/nbolar/PlayStatus/releases/tag/v2.0.1)
