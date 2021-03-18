@@ -71,6 +71,11 @@ class MusicVC: NSViewController {
         
     }
     
+    override func viewDidDisappear() {
+        timer.invalidate()
+        timer = nil
+    }
+    
     func setupObservers(){
         NotificationCenter.default.addObserver(self, selector: #selector(newSongArtwork), name: NSNotification.Name(rawValue: "newSong"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(close), name: NSNotification.Name(rawValue: "close"), object: nil)

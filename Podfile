@@ -11,5 +11,4 @@ target 'PlayStatus' do
   pod 'CircularProgressMac'
   pod 'LoginServiceKit', :git => 'https://github.com/Clipy/LoginServiceKit.git'
   pod 'KeyboardShortcuts', :git => 'https://github.com/sindresorhus/KeyboardShortcuts.git'
-
 end

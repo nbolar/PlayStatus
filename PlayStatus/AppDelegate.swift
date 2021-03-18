@@ -11,7 +11,7 @@ import KeyboardShortcuts
 
 
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
     
     var songName: String!
     var artistName: String!    
@@ -58,6 +58,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         didSet {
             if oldValue != currentTrack {
                 NotificationCenter.default.post(name: NSNotification.Name(rawValue: "newSong"), object: nil)
+                if currentTrack != " " && UserDefaults.standard.bool(forKey: "slideTitle") == true{
+                    let animation = CAKeyframeAnimation(keyPath: "position.x")
+                    let animationType = 300
+                    animation.values = [animationType, 0, 0]
+                    animation.keyTimes = [0, 1, 0]
+                    animation.duration = 1.0
+                    animation.isAdditive = true
+                    animation.timingFunction = CAMediaTimingFunction(name: .easeIn)
+                    newStatusItem.button?.layer?.add(animation, forKey: nil)
+                }
+                
             }else{
                 NotificationCenter.default.post(name: NSNotification.Name(rawValue: "removeSplash"), object: nil)
             }
@@ -80,7 +91,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         
         
-        timer = Timer.scheduledTimer(timeInterval: 1.0, target: self, selector: #selector(getSongName), userInfo: nil, repeats: true)
+        timer = Timer.scheduledTimer(timeInterval: 2.0, target: self, selector: #selector(getSongName), userInfo: nil, repeats: true)
+        timer?.tolerance = 0.3
         notificationCenter.addObserver(self, selector: #selector(AppDelegate.wakeUpListener), name: NSWorkspace.didWakeNotification, object: nil)
         notificationCenter.addObserver(self, selector: #selector(AppDelegate.sleepListener), name: NSWorkspace.willSleepNotification, object: nil)
         invisibleWindow.backgroundColor = .clear
@@ -97,9 +109,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             musicAppChoice = "\(itunesMusicName!)"
             iconName = "itunes"
         }
+        if UserDefaults.standard.object(forKey: "slideTitle") == nil{
+            UserDefaults.standard.setValue(false, forKey: "slideTitle")
+            
+        }
         lastPausedApp = "\(musicAppChoice!)"
         loadStatusItem()
         loadHotkeys()
+        
+        
         
     }
     
@@ -135,6 +153,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             newStatusItem.button?.imagePosition = .imageLeft
             newStatusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
             newStatusItem.button?.action = #selector(self.togglePopover(_:))
+            
         }else{
             statusItem.button?.sendAction(on: [NSEvent.EventTypeMask.leftMouseUp, NSEvent.EventTypeMask.rightMouseUp])
             statusItem.button?.action = #selector(self.togglePopover(_:))
@@ -401,7 +420,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc func wakeUpListener(){
         
-        timer = Timer.scheduledTimer(timeInterval: 1.0, target: self, selector: #selector(getSongName), userInfo: nil, repeats: true)
+        timer = Timer.scheduledTimer(timeInterval: 2.0, target: self, selector: #selector(getSongName), userInfo: nil, repeats: true)
+        timer?.tolerance = 0.3
         
     }
     @objc func sleepListener(){
