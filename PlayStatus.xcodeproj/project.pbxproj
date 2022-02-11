@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 50;
+	objectVersion = 52;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -18,14 +18,16 @@
 		4E825237227C3A8C003B8296 /* AboutVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E825236227C3A8C003B8296 /* AboutVC.swift */; };
 		4E8D52B322C2C6EF0062E6DB /* SearchVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E8D52B222C2C6EF0062E6DB /* SearchVC.swift */; };
 		4E917F17241B340A002469FF /* MusicController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E917F16241B340A002469FF /* MusicController.swift */; };
-		4E9E4204258DAFF000AC6964 /* Sparkle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4E9E4202258DAFD400AC6964 /* Sparkle.framework */; };
-		4E9E420D258DB11800AC6964 /* Sparkle.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 4E9E4202258DAFD400AC6964 /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		4E9F8E7B22719AB500B87B4A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9F8E7A22719AB500B87B4A /* AppDelegate.swift */; };
 		4E9F8E7F22719AB600B87B4A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E9F8E7E22719AB600B87B4A /* Assets.xcassets */; };
 		4E9F8E8222719AB600B87B4A /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4E9F8E8022719AB600B87B4A /* Main.storyboard */; };
 		4E9F8E8B2271EECF00B87B4A /* MusicVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9F8E8A2271EECF00B87B4A /* MusicVC.swift */; };
 		4EA0AAE02442C0780047F9E7 /* ScrollingTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EA0AADF2442C0780047F9E7 /* ScrollingTextView.swift */; };
+		4EAD2B5A272DD6AC00575FEB /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 4EAD2B59272DD6AC00575FEB /* LaunchAtLogin */; };
+		4EAD2B5D272DD6DC00575FEB /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 4EAD2B5C272DD6DC00575FEB /* Sparkle */; };
 		4EC07811259A9A5A00989B8C /* Variables.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC07810259A9A5A00989B8C /* Variables.swift */; };
+		4EC7E8D1272DDA4600DAF681 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 4EC7E8D0272DDA4600DAF681 /* KeyboardShortcuts */; };
+		4EC7E8D6272F348D00DAF681 /* CircularProgress in Frameworks */ = {isa = PBXBuildFile; productRef = 4EC7E8D5272F348D00DAF681 /* CircularProgress */; };
 		730A35C05EC3242F6C170242 /* Pods_PlayStatus.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ACD7ADCA35EC88A555549D8F /* Pods_PlayStatus.framework */; settings = {ATTRIBUTES = (Required, ); }; };
 /* End PBXBuildFile section */
 
@@ -36,7 +38,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				4E9E420D258DB11800AC6964 /* Sparkle.framework in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -55,7 +56,6 @@
 		4E825236227C3A8C003B8296 /* AboutVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutVC.swift; sourceTree = "<group>"; };
 		4E8D52B222C2C6EF0062E6DB /* SearchVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchVC.swift; sourceTree = "<group>"; };
 		4E917F16241B340A002469FF /* MusicController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicController.swift; sourceTree = "<group>"; };
-		4E9E4202258DAFD400AC6964 /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sparkle.framework; sourceTree = "<group>"; };
 		4E9F8E7722719AB500B87B4A /* PlayStatus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PlayStatus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E9F8E7A22719AB500B87B4A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		4E9F8E7E22719AB600B87B4A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -74,8 +74,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4EC7E8D6272F348D00DAF681 /* CircularProgress in Frameworks */,
+				4EAD2B5D272DD6DC00575FEB /* Sparkle in Frameworks */,
+				4EC7E8D1272DDA4600DAF681 /* KeyboardShortcuts in Frameworks */,
+				4EAD2B5A272DD6AC00575FEB /* LaunchAtLogin in Frameworks */,
 				730A35C05EC3242F6C170242 /* Pods_PlayStatus.framework in Frameworks */,
-				4E9E4204258DAFF000AC6964 /* Sparkle.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -162,7 +165,6 @@
 		993F83FD21DA739CF51E5585 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				4E9E4202258DAFD400AC6964 /* Sparkle.framework */,
 				ACD7ADCA35EC88A555549D8F /* Pods_PlayStatus.framework */,
 			);
 			name = Frameworks;
@@ -182,12 +184,19 @@
 				523BD086F7D8D7EA53FB2D99 /* [CP] Embed Pods Frameworks */,
 				4E883F73240D96FC0097F5AF /* ShellScript */,
 				4E9E420C258DB0FA00AC6964 /* CopyFiles */,
+				4EAD2B57272DCD7900575FEB /* ShellScript */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			name = PlayStatus;
+			packageProductDependencies = (
+				4EAD2B59272DD6AC00575FEB /* LaunchAtLogin */,
+				4EAD2B5C272DD6DC00575FEB /* Sparkle */,
+				4EC7E8D0272DDA4600DAF681 /* KeyboardShortcuts */,
+				4EC7E8D5272F348D00DAF681 /* CircularProgress */,
+			);
 			productName = PlayStatus;
 			productReference = 4E9F8E7722719AB500B87B4A /* PlayStatus.app */;
 			productType = "com.apple.product-type.application";
@@ -225,6 +234,12 @@
 				Base,
 			);
 			mainGroup = 4E9F8E6E22719AB500B87B4A;
+			packageReferences = (
+				4EAD2B58272DD6AC00575FEB /* XCRemoteSwiftPackageReference "LaunchAtLogin" */,
+				4EAD2B5B272DD6DC00575FEB /* XCRemoteSwiftPackageReference "Sparkle" */,
+				4EC7E8CF272DDA4600DAF681 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+				4EC7E8D4272F348D00DAF681 /* XCRemoteSwiftPackageReference "CircularProgress" */,
+			);
 			productRefGroup = 4E9F8E7822719AB500B87B4A /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -260,6 +275,23 @@
 			shellPath = /bin/sh;
 			shellScript = "
 ";
+		};
+		4EAD2B57272DCD7900575FEB /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n\"${BUILT_PRODUCTS_DIR}/LaunchAtLogin_LaunchAtLogin.bundle/Contents/Resources/copy-helper-swiftpm.sh\"\n";
 		};
 		523BD086F7D8D7EA53FB2D99 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -541,6 +573,64 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		4EAD2B58272DD6AC00575FEB /* XCRemoteSwiftPackageReference "LaunchAtLogin" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/LaunchAtLogin";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		4EAD2B5B272DD6DC00575FEB /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				branch = 2.x;
+				kind = branch;
+			};
+		};
+		4EC7E8CF272DDA4600DAF681 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		4EC7E8D4272F348D00DAF681 /* XCRemoteSwiftPackageReference "CircularProgress" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/CircularProgress";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		4EAD2B59272DD6AC00575FEB /* LaunchAtLogin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4EAD2B58272DD6AC00575FEB /* XCRemoteSwiftPackageReference "LaunchAtLogin" */;
+			productName = LaunchAtLogin;
+		};
+		4EAD2B5C272DD6DC00575FEB /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4EAD2B5B272DD6DC00575FEB /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+		4EC7E8D0272DDA4600DAF681 /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4EC7E8CF272DDA4600DAF681 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
+		};
+		4EC7E8D5272F348D00DAF681 /* CircularProgress */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4EC7E8D4272F348D00DAF681 /* XCRemoteSwiftPackageReference "CircularProgress" */;
+			productName = CircularProgress;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4E9F8E6F22719AB500B87B4A /* Project object */;
 }

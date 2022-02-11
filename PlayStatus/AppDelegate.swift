@@ -8,14 +8,17 @@
 
 import Cocoa
 import KeyboardShortcuts
+import Sparkle
 
 
 
 class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
     
     var songName: String!
-    var artistName: String!    
+    var artistName: String!
     var out: NSAppleEventDescriptor?
+    
+    let updaterController: SPUStandardUpdaterController
     
     private var lastStatusTitle: String = ""
     let popoverView = NSPopover()
@@ -74,6 +77,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
             }
             
         }
+    }
+    
+    override init() {
+        updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
     }
     
     
@@ -386,10 +393,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
         
         contentView.addSubview(scrollingStatusItemView)
         NSLayoutConstraint.activate([
-                                        scrollingStatusItemView.topAnchor.constraint(equalTo: contentView.topAnchor),
-                                        scrollingStatusItemView.leftAnchor.constraint(equalTo: contentView.leftAnchor),
-                                        scrollingStatusItemView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-                                        scrollingStatusItemView.rightAnchor.constraint(equalTo: contentView.rightAnchor)])
+            scrollingStatusItemView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            scrollingStatusItemView.leftAnchor.constraint(equalTo: contentView.leftAnchor),
+            scrollingStatusItemView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            scrollingStatusItemView.rightAnchor.constraint(equalTo: contentView.rightAnchor)])
     }
     
     

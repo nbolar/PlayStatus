@@ -7,7 +7,7 @@
 //
 
 import Cocoa
-import CircularProgressMac
+import CircularProgress
 
 
 class MusicVC: NSViewController {
@@ -57,10 +57,10 @@ class MusicVC: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do view setup here.
-
+        
         setupObservers()
         setupUI()
-
+        
     }
     
     
@@ -158,7 +158,7 @@ class MusicVC: NSViewController {
     @objc func displayPopUp() {
         
         searchView?.window?.styleMask = .titled
-        searchView?.window?.setFrameOrigin(NSPoint(x: xWidth, y: yHeight))
+        searchView?.window?.setFrameOrigin(NSPoint(x: xWidth, y: yHeight - 27))
         searchView?.showWindow(self)
     }
     
@@ -211,7 +211,7 @@ class MusicVC: NSViewController {
             startTime.isHidden = false
             endTime.isHidden = false
             musicSlider.isHidden = false
- 
+            
         }else if check == 2{
             playButton.isHidden = false
             startTime.isHidden = true
@@ -333,16 +333,22 @@ class MusicVC: NSViewController {
         NSAppleScript.go(code: NSAppleScript.loadSpotifyAlbumArtwork(), completionHandler: {_,out,_ in
             
             let imageURL = URL(string: (out?.stringValue ?? ""))
-            if imageURL?.absoluteString == ""
-            {
-                noArtwork()
+            if out?.stringValue == nil{
+                downloadMusicArtwork()
             }else{
-                if newSong{
-                    newArtworkURL(url: imageURL!)
-                }else{
-                    self.albumArt.image = NSImage(contentsOf: imageURL!)
+                if imageURL?.absoluteString == ""
+                {
+                    noArtwork()
+                }
+                else{
+                    if newSong{
+                        newArtworkURL(url: imageURL!)
+                    }else{
+                        self.albumArt.image = NSImage(contentsOf: imageURL!)
+                    }
                 }
             }
+
             
             self.circularProgress.removeFromSuperview()
         })
@@ -567,7 +573,7 @@ extension NSTextField{
             return self.placeHolderColor
         }
         set {
-            self.placeholderAttributedString = NSAttributedString(string:self.placeholderString != nil ? self.placeholderString! : "", attributes:[NSAttributedString.Key.foregroundColor: newValue!])
+            self.placeholderAttributedString = NSAttributedString(string:self.placeholderString != nil ? self.placeholderString! : "", attributes:[NSAttributedString.Key.foregroundColor: newValue!, .font:NSFont.init(name: "Avenir Next Regular", size: 13) as Any])
         }
     }
 }

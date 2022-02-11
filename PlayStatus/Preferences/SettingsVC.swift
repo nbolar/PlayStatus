@@ -7,8 +7,8 @@
 //
 
 import Cocoa
-import LoginServiceKit
 import Sparkle
+import LaunchAtLogin
 
 
 class SettingsVC: NSViewController {
@@ -25,6 +25,8 @@ class SettingsVC: NSViewController {
     @IBOutlet weak var ignoreParensButton: NSButton!
     @IBOutlet weak var restartAppButton: NSButton!
     @IBOutlet weak var slideTitleButton: NSButton!
+    
+    
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -74,7 +76,7 @@ class SettingsVC: NSViewController {
         }
         
         updateButton.isHidden = false
-        login.state = LoginServiceKit.isExistLoginItems() ? .on : .off
+        login.state = LaunchAtLogin.isEnabled ? .on : .off
         if let info = Bundle.main.infoDictionary {
             let version = info["CFBundleShortVersionString"] as? String ?? "?"
             versionText.stringValue = "Version \(version)"
@@ -88,15 +90,18 @@ class SettingsVC: NSViewController {
     
     @IBAction func launchButtonClicked(_ sender: Any) {
         if login.state == .on {
-            LoginServiceKit.addLoginItems()
+            LaunchAtLogin.isEnabled = true
         }else{
-            LoginServiceKit.removeLoginItems()
+            LaunchAtLogin.isEnabled = false
         }
         
     }
     
     @IBAction func updateButtonClicked(_ sender: Any) {
-        SUUpdater.shared().checkForUpdates(self)
+        let appDelegate = NSApplication.shared.delegate as! AppDelegate
+        updateButton.target = appDelegate.updaterController
+        updateButton.action = #selector(SPUStandardUpdaterController.checkForUpdates(_:))
+        
         
     }
     
@@ -137,4 +142,5 @@ class SettingsVC: NSViewController {
         UserDefaults.standard.set(sender.state, forKey: "slideTitle")
     }
 }
+
 

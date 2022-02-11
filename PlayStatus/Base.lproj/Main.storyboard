@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="19162" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
+<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="19455" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
     <dependencies>
         <deployment identifier="macosx"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="19162"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="19455"/>
         <capability name="Image references" minToolsVersion="12.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
@@ -703,7 +703,7 @@
                 <customObject id="Voe-Tx-rLC" customClass="AppDelegate" customModule="PlayStatus" customModuleProvider="target"/>
                 <customObject id="YLy-65-1bz" customClass="NSFontManager"/>
                 <customObject id="Ady-hI-5gd" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
-                <customObject id="1UC-nn-hWm" customClass="SUUpdater"/>
+                <customObject id="u98-0q-W9o" customClass="SUUpdater"/>
             </objects>
             <point key="canvasLocation" x="75" y="0.0"/>
         </scene>
@@ -794,13 +794,28 @@
             <objects>
                 <viewController title="SearchVC" storyboardIdentifier="SearchVC" id="79J-r4-55O" customClass="SearchVC" customModule="PlayStatus" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" id="mSI-99-gHe">
-                        <rect key="frame" x="0.0" y="0.0" width="300" height="25"/>
+                        <rect key="frame" x="0.0" y="0.0" width="300" height="45"/>
                         <autoresizingMask key="autoresizingMask"/>
                         <subviews>
-                            <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="M7M-hu-IQJ">
-                                <rect key="frame" x="0.0" y="0.0" width="304" height="20"/>
-                                <autoresizingMask key="autoresizingMask"/>
-                                <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" placeholderString="Search to play a song from your iTunes library" id="QCQ-NO-9Wq">
+                            <segmentedControl verticalHuggingPriority="750" springLoaded="YES" translatesAutoresizingMaskIntoConstraints="NO" id="HkO-qC-Hsy">
+                                <rect key="frame" x="-2" y="22" width="306" height="24"/>
+                                <segmentedCell key="cell" borderStyle="border" alignment="left" style="rounded" trackingMode="selectOne" id="0Hi-QB-SaF">
+                                    <font key="font" metaFont="system"/>
+                                    <segments>
+                                        <segment label="Library" width="149" selected="YES"/>
+                                        <segment label="Apple Music" width="148" tag="1"/>
+                                    </segments>
+                                </segmentedCell>
+                                <connections>
+                                    <action selector="segmentedButtonClicked:" target="79J-r4-55O" id="wGj-8o-IQm"/>
+                                </connections>
+                            </segmentedControl>
+                            <textField verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="M7M-hu-IQJ">
+                                <rect key="frame" x="0.0" y="0.0" width="304" height="23"/>
+                                <constraints>
+                                    <constraint firstAttribute="height" constant="23" id="AWX-YM-Ldy"/>
+                                </constraints>
+                                <textFieldCell key="cell" lineBreakMode="charWrapping" selectable="YES" editable="YES" alignment="left" placeholderString="Search to play a song" id="QCQ-NO-9Wq">
                                     <font key="font" size="13" name="AvenirNext-Regular"/>
                                     <color key="textColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                     <color key="backgroundColor" red="0.0" green="0.0" blue="0.0" alpha="0.10000000000000001" colorSpace="custom" customColorSpace="displayP3"/>
@@ -815,6 +830,13 @@
                                 </connections>
                             </textField>
                         </subviews>
+                        <constraints>
+                            <constraint firstItem="M7M-hu-IQJ" firstAttribute="top" secondItem="HkO-qC-Hsy" secondAttribute="bottom" id="1kQ-BB-xOj"/>
+                            <constraint firstItem="HkO-qC-Hsy" firstAttribute="leading" secondItem="mSI-99-gHe" secondAttribute="leading" id="KcL-Mc-SvB"/>
+                            <constraint firstItem="M7M-hu-IQJ" firstAttribute="leading" secondItem="mSI-99-gHe" secondAttribute="leading" constant="2" id="N9J-ah-D7I"/>
+                            <constraint firstItem="HkO-qC-Hsy" firstAttribute="trailing" secondItem="M7M-hu-IQJ" secondAttribute="trailing" id="gei-hZ-DSf"/>
+                            <constraint firstItem="HkO-qC-Hsy" firstAttribute="top" secondItem="mSI-99-gHe" secondAttribute="top" id="ufC-aN-uIX"/>
+                        </constraints>
                     </view>
                     <connections>
                         <outlet property="searchTextField" destination="M7M-hu-IQJ" id="mpY-4P-P3x"/>
@@ -1349,6 +1371,8 @@
                     </connections>
                 </viewController>
                 <customObject id="hkX-AP-kdW" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
+                <userDefaultsController representsSharedInstance="YES" id="aIr-nW-rpE"/>
+                <customObject id="eBE-w5-mby" customClass="SPUStandardUpdaterController"/>
             </objects>
             <point key="canvasLocation" x="179.5" y="1459.5"/>
         </scene>
@@ -1840,7 +1864,7 @@
                                 </connections>
                             </button>
                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="HjA-sr-knX">
-                                <rect key="frame" x="131" y="136.5" width="40" height="57"/>
+                                <rect key="frame" x="131" y="137" width="39.5" height="57"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <buttonCell key="cell" type="bevel" bezelStyle="rounded" imagePosition="only" alignment="center" imageScaling="proportionallyDown" inset="2" id="Ctf-af-aXf">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -1925,9 +1949,9 @@
         </scene>
     </scenes>
     <inferredMetricsTieBreakers>
-        <segue reference="77f-Fg-fLF"/>
+        <segue reference="Lr2-gf-hK7"/>
         <segue reference="gCT-AH-W7T"/>
-        <segue reference="fYK-Gu-LlM"/>
+        <segue reference="DER-JH-wxt"/>
     </inferredMetricsTieBreakers>
     <resources>
         <image name="NSActionTemplate" width="15" height="15"/>

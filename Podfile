@@ -8,7 +8,4 @@ target 'PlayStatus' do
   use_frameworks!
 
   # Pods for PlayStatus
-  pod 'CircularProgressMac'
-  pod 'LoginServiceKit', :git => 'https://github.com/Clipy/LoginServiceKit.git'
-  pod 'KeyboardShortcuts', :git => 'https://github.com/sindresorhus/KeyboardShortcuts.git'
 end
