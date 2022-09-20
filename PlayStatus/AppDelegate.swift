@@ -30,7 +30,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
     let notificationCenter = NSWorkspace.shared.notificationCenter
     private enum Constants {
         static let statusItemIconLength: CGFloat = 30
-        static var statusItemLength: CGFloat = 300
+        static var statusItemLength: CGFloat = 200
     }
     private lazy var statusItem: NSStatusItem = {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -120,6 +120,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
             UserDefaults.standard.setValue(false, forKey: "slideTitle")
             
         }
+        
+        if UserDefaults.standard.object(forKey: "scrollableLength") != nil{
+            if let n = NumberFormatter().number(from: UserDefaults.standard.object(forKey: "scrollableLength") as! String) {
+                let value = CGFloat(truncating: n)
+                Constants.statusItemLength = value
+            }
+        }
+        
         lastPausedApp = "\(musicAppChoice!)"
         loadStatusItem()
         loadHotkeys()
@@ -342,8 +350,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
     }
     
     
-    func scrollableTitleChanged(){
+    func scrollableTitleChanged(scrollableLength: CGFloat){
         let statutsItemTitle = musicBarTitle()
+        if scrollableLength != -1.0
+        {
+            Constants.statusItemLength = scrollableLength
+        }
         
         if statutsItemTitle != "  - "{
             updateTitle(newTitle: statutsItemTitle)
@@ -361,6 +373,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
             return " \(songName ?? "")"
         case 2:
             return " \(artistName ?? "") - \(songName ?? "")"
+        case 3:
+            return " "
         default:
             return " \(artistName ?? "") - \(songName ?? "")"
         }

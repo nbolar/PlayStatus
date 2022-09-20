@@ -19,13 +19,14 @@ class SettingsVC: NSViewController {
     @IBOutlet weak var artistButton: NSButton!
     @IBOutlet weak var songButton: NSButton!
     @IBOutlet weak var artistSongButton: NSButton!
+    @IBOutlet weak var logoButton: NSButton!
     @IBOutlet weak var scrollableTextButton: NSButton!
     @IBOutlet weak var spotifyButton: NSButton!
     @IBOutlet weak var appleMusicButton: NSButton!
     @IBOutlet weak var ignoreParensButton: NSButton!
     @IBOutlet weak var restartAppButton: NSButton!
     @IBOutlet weak var slideTitleButton: NSButton!
-    
+    @IBOutlet weak var textLengthField: NSTextField!
     
     
     override func viewDidLoad() {
@@ -36,7 +37,7 @@ class SettingsVC: NSViewController {
         //        self.view.wantsLayer = true
         restartAppButton.isHidden = true
         //        self.view.layer?.backgroundColor = .clear
-        let array = [artistButton, songButton, artistSongButton]
+        let array = [artistButton, songButton, artistSongButton, logoButton]
         let appArray = [spotifyButton, appleMusicButton]
         
         slideTitleButton.state = UserDefaults.standard.bool(forKey: "slideTitle") ? .on :.off
@@ -59,11 +60,21 @@ class SettingsVC: NSViewController {
             name?.state = .on
         }
         
+        if UserDefaults.standard.object(forKey: "scrollableLength") == nil{
+            UserDefaults.standard.set("300", forKey: "scrollableLength")
+            textLengthField.placeholderString = "300"
+        }else{
+            let options = UserDefaults.standard.object(forKey: "scrollableLength")
+            textLengthField.placeholderString = "\(options ?? "300")"
+        }
+        
         if UserDefaults.standard.object(forKey: "scrollable") == nil{
             scrollableTextButton.state = .on
+            textLengthField.isHidden  = false
         }else if UserDefaults.standard.bool(forKey: "scrollable") == false {
             scrollableTextButton.state = .off
         }else{
+            textLengthField.isHidden  = false
             scrollableTextButton.state = .on
         }
         
@@ -73,6 +84,7 @@ class SettingsVC: NSViewController {
             ignoreParensButton.state = .off
         }else{
             ignoreParensButton.state = .on
+            textLengthField.isHidden  = false
         }
         
         updateButton.isHidden = false
@@ -114,8 +126,18 @@ class SettingsVC: NSViewController {
     @IBAction func scrollableButtonClicked(_ sender: Any) {
         UserDefaults.standard.set(scrollableTextButton.state, forKey: "scrollable")
         let appDelegate = NSApplication.shared.delegate as! AppDelegate
-        appDelegate.scrollableTitleChanged()
+        appDelegate.scrollableTitleChanged(scrollableLength: -1.0)
         restartAppButton.isHidden = false
+        textLengthField.isHidden = false
+        
+    }
+    @IBAction func scrollableTextLengthChanged(_ sender: NSTextField) {
+        let appDelegate = NSApplication.shared.delegate as! AppDelegate
+        if let n = NumberFormatter().number(from: textLengthField.stringValue) {
+            let value = CGFloat(truncating: n)
+            appDelegate.scrollableTitleChanged(scrollableLength: abs(value))
+            UserDefaults.standard.set(textLengthField.stringValue, forKey: "scrollableLength")
+        }
         
     }
     
