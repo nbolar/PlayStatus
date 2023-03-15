@@ -18,3 +18,4 @@ var musicAppChoice : String!
 var activeMusicApp : String!
 var iconName: String!
 var lastPausedApp: String!
+var statusApp: String!

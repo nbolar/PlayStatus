@@ -469,6 +469,7 @@ class MusicVC: NSViewController {
         }
         NSAppleScript.go(code: NSAppleScript.playPause(), completionHandler: {_,out,_ in
             lastPausedApp =  out?.stringValue ?? ""
+
         })
         //        let appDelegate = NSApplication.shared.delegate as! AppDelegate
         //        appDelegate.getSongName()

@@ -17,6 +17,16 @@ class MusicController{
     var musicAppName = String()
     
     func checkPlayerStatus() -> Int{
+        
+        if iconName == "itunes"
+        {
+            statusApp = "\(itunesMusicName!)"
+        }
+        else
+        {
+            statusApp = "Spotify"
+        }
+                
         NSAppleScript.go(code: NSAppleScript.checkStatus(), completionHandler: {_,out,_ in
             let status = out?.stringValue ?? ""
             

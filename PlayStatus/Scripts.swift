@@ -37,15 +37,8 @@ extension NSAppleScript {
     }
         static func checkStatus()-> String{
             return """
-            if application "\(itunesMusicName!)" is running then
-                tell application "\(itunesMusicName!)"
-                    if player state is playing then
-                        return "playing"
-                    end if
-                end tell
-                checkSpotify()
-            else if application "Spotify" is running then
-                tell application "Spotify"
+            if application "\(statusApp!)" is running then
+                tell application "\(statusApp!)"
                     if player state is playing then
                         return "playing"
                     else
@@ -55,19 +48,6 @@ extension NSAppleScript {
             else
                 return "not playing"
             end if
-            on checkSpotify()
-                if application "Spotify" is running then
-                    tell application "Spotify"
-                         if player state is playing then
-                            return "playing"
-                        else
-                            return "not playing"
-                        end if
-                    end tell
-            else
-                return "not playing"
-                end if
-            end checkSpotify
             """
         }
     
@@ -430,6 +410,8 @@ extension NSAppleScript {
             tell application "\(itunesMusicName!)"
                 if player state is playing then
                     return "\(itunesMusicName!)"
+                else
+                    return "\(lastPausedApp!)"
                 end if
             end tell
         else
