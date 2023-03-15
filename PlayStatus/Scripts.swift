@@ -424,6 +424,30 @@ extension NSAppleScript {
         end checkSpotify
         """
     }
+    static func musicAppOnly() -> String{
+        return """
+        if application "\(itunesMusicName!)" is running then
+            tell application "\(itunesMusicName!)"
+                if player state is playing then
+                    return "\(itunesMusicName!)"
+                end if
+            end tell
+        else
+            return ""
+        end if
+        """
+    }
+    
+    static func checkSpotifyPresence() -> String{
+        return """
+        try
+            tell application "Finder" to get application file id "com.spotify.client"
+            return true
+        on error
+            return false
+        end try
+        """
+    }
     
     static func songName() -> String{
        return  """

@@ -9,6 +9,8 @@
 import Cocoa
 import KeyboardShortcuts
 import Sparkle
+import AVKit
+import MediaPlayer
 
 
 
@@ -94,6 +96,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
             itunesMusicName = "iTunes"
         }
         
+//        var appName: String!
+//        let ws = NSWorkspace.shared
+//        let apps = ws.runningApplications
+//            for currentApp in apps
+//            {
+//                if(currentApp.activationPolicy == .regular){
+//                    if currentApp.isActive{
+//                        appName = currentApp.localizedName!
+//                    }
+//                    currentApp.hide()
+//                    print(currentApp.localizedName!)
+//                }
+//
+//            }
+//        sleep(10)
+//        for currentApp in apps
+//        {
+//            if(currentApp.activationPolicy == .regular){
+//                currentApp.unhide()
+//                print(currentApp.localizedName!)
+//            }
+//
+//        }
+//        for currentApp in apps
+//        {
+//            if(appName == currentApp.localizedName!){
+//                currentApp.hide()
+//                currentApp.unhide()
+//            }
+//
+//
+//        }
         
         
         
@@ -286,19 +320,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
     {
         
         loadStatusItem()
-        
-        NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
-            if out?.stringValue == "Spotify"{
-                iconName = "spotify"
+        let spotify = NSWorkspace.shared
+        if spotify.urlForApplication(withBundleIdentifier: "com.spotify.client") != nil
+        {
+            NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
+                if out?.stringValue == "Spotify"{
+                    iconName = "spotify"
+                    
+                }
+                else if out?.stringValue == itunesMusicName{
+                    iconName = "itunes"
+                }
+                activeMusicApp = out?.stringValue ?? ""
                 
-            }
-            else if out?.stringValue == itunesMusicName{
+                getNowPlayingSong()
+            })
+        }else{
+            NSAppleScript.go(code: NSAppleScript.musicAppOnly(), completionHandler: {_,out,_ in
                 iconName = "itunes"
-            }
-            activeMusicApp = out?.stringValue ?? ""
-            
-            getNowPlayingSong()
-        })
+                activeMusicApp = out?.stringValue ?? ""
+                
+                getNowPlayingSong()
+            })
+        }
+        
+
         
         
     }

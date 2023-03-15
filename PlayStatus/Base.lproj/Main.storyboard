@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="21225" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
+<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="21507" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
     <dependencies>
         <deployment identifier="macosx"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="21225"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="21507"/>
         <capability name="Image references" minToolsVersion="12.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
@@ -703,7 +703,7 @@
                 <customObject id="Voe-Tx-rLC" customClass="AppDelegate" customModule="PlayStatus" customModuleProvider="target"/>
                 <customObject id="YLy-65-1bz" customClass="NSFontManager"/>
                 <customObject id="Ady-hI-5gd" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
-                <customObject id="u98-0q-W9o" customClass="SUUpdater"/>
+                <customObject id="eBE-w5-mby" customClass="SPUStandardUpdaterController"/>
             </objects>
             <point key="canvasLocation" x="75" y="0.0"/>
         </scene>
@@ -1411,7 +1411,6 @@
                 </viewController>
                 <customObject id="hkX-AP-kdW" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
                 <userDefaultsController representsSharedInstance="YES" id="aIr-nW-rpE"/>
-                <customObject id="eBE-w5-mby" customClass="SPUStandardUpdaterController"/>
             </objects>
             <point key="canvasLocation" x="179.5" y="1459"/>
         </scene>
@@ -1993,20 +1992,20 @@
         <segue reference="DER-JH-wxt"/>
     </inferredMetricsTieBreakers>
     <resources>
-        <image name="NSActionTemplate" width="15" height="15"/>
+        <image name="NSActionTemplate" width="20" height="20"/>
         <image name="NSApplicationIcon" width="32" height="32"/>
-        <image name="NSTouchBarSearchTemplate" width="16" height="15"/>
-        <image name="NSTouchBarSkipAhead15SecondsTemplate" width="15" height="17"/>
-        <image name="NSTouchBarSkipBack15SecondsTemplate" width="15" height="17"/>
+        <image name="NSTouchBarSearchTemplate" width="20" height="20"/>
+        <image name="NSTouchBarSkipAhead15SecondsTemplate" width="20" height="22"/>
+        <image name="NSTouchBarSkipBack15SecondsTemplate" width="20" height="22"/>
         <image name="backward.fill" catalog="system" width="19" height="12"/>
         <image name="forward.fill" catalog="system" width="25" height="16"/>
-        <image name="gear" width="19" height="19"/>
-        <image name="info" width="7" height="13"/>
+        <image name="gear" width="15" height="15"/>
+        <image name="info" width="6" height="10"/>
         <image name="itunes2" width="25" height="25"/>
-        <image name="keyboard" width="21" height="13"/>
+        <image name="keyboard" width="16" height="10"/>
         <image name="pause" catalog="system" width="9" height="13"/>
         <image name="play.fill" catalog="system" width="12" height="13"/>
         <image name="playstatus_back" width="300" height="300"/>
-        <image name="xmark" width="14" height="14"/>
+        <image name="xmark" width="11" height="11"/>
     </resources>
 </document>

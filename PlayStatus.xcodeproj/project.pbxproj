@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		4E08E45423B9DB820035A479 /* Scripts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E08E45323B9DB820035A479 /* Scripts.swift */; };
+		4E18C80929C1750F00C32839 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 4E18C80829C1750F00C32839 /* Sparkle */; };
 		4E2433E623BC6DA7009F8DBB /* TrackDurationCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E2433E523BC6DA7009F8DBB /* TrackDurationCell.swift */; };
 		4E26E405227848F5005A53EE /* CustomSliderCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E26E404227848F5005A53EE /* CustomSliderCell.swift */; };
 		4E37882923BC7ADE0020FC26 /* SettingsVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E37882823BC7ADE0020FC26 /* SettingsVC.swift */; };
@@ -24,7 +25,6 @@
 		4E9F8E8B2271EECF00B87B4A /* MusicVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9F8E8A2271EECF00B87B4A /* MusicVC.swift */; };
 		4EA0AAE02442C0780047F9E7 /* ScrollingTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EA0AADF2442C0780047F9E7 /* ScrollingTextView.swift */; };
 		4EAD2B5A272DD6AC00575FEB /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 4EAD2B59272DD6AC00575FEB /* LaunchAtLogin */; };
-		4EAD2B5D272DD6DC00575FEB /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 4EAD2B5C272DD6DC00575FEB /* Sparkle */; };
 		4EC07811259A9A5A00989B8C /* Variables.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC07810259A9A5A00989B8C /* Variables.swift */; };
 		4EC7E8D1272DDA4600DAF681 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 4EC7E8D0272DDA4600DAF681 /* KeyboardShortcuts */; };
 		4EC7E8D6272F348D00DAF681 /* CircularProgress in Frameworks */ = {isa = PBXBuildFile; productRef = 4EC7E8D5272F348D00DAF681 /* CircularProgress */; };
@@ -74,8 +74,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4E18C80929C1750F00C32839 /* Sparkle in Frameworks */,
 				4EC7E8D6272F348D00DAF681 /* CircularProgress in Frameworks */,
-				4EAD2B5D272DD6DC00575FEB /* Sparkle in Frameworks */,
 				4EC7E8D1272DDA4600DAF681 /* KeyboardShortcuts in Frameworks */,
 				4EAD2B5A272DD6AC00575FEB /* LaunchAtLogin in Frameworks */,
 				730A35C05EC3242F6C170242 /* Pods_PlayStatus.framework in Frameworks */,
@@ -193,9 +193,9 @@
 			name = PlayStatus;
 			packageProductDependencies = (
 				4EAD2B59272DD6AC00575FEB /* LaunchAtLogin */,
-				4EAD2B5C272DD6DC00575FEB /* Sparkle */,
 				4EC7E8D0272DDA4600DAF681 /* KeyboardShortcuts */,
 				4EC7E8D5272F348D00DAF681 /* CircularProgress */,
+				4E18C80829C1750F00C32839 /* Sparkle */,
 			);
 			productName = PlayStatus;
 			productReference = 4E9F8E7722719AB500B87B4A /* PlayStatus.app */;
@@ -236,9 +236,9 @@
 			mainGroup = 4E9F8E6E22719AB500B87B4A;
 			packageReferences = (
 				4EAD2B58272DD6AC00575FEB /* XCRemoteSwiftPackageReference "LaunchAtLogin" */,
-				4EAD2B5B272DD6DC00575FEB /* XCRemoteSwiftPackageReference "Sparkle" */,
 				4EC7E8CF272DDA4600DAF681 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				4EC7E8D4272F348D00DAF681 /* XCRemoteSwiftPackageReference "CircularProgress" */,
+				4E18C80729C1750F00C32839 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			productRefGroup = 4E9F8E7822719AB500B87B4A /* Products */;
 			projectDirPath = "";
@@ -513,7 +513,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
-				MARKETING_VERSION = 2.4;
+				MARKETING_VERSION = 2.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bolar.PlayStatus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -543,7 +543,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
-				MARKETING_VERSION = 2.4;
+				MARKETING_VERSION = 2.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bolar.PlayStatus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -575,19 +575,19 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		4E18C80729C1750F00C32839 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				branch = 2.x;
+				kind = branch;
+			};
+		};
 		4EAD2B58272DD6AC00575FEB /* XCRemoteSwiftPackageReference "LaunchAtLogin" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sindresorhus/LaunchAtLogin";
 			requirement = {
 				branch = main;
-				kind = branch;
-			};
-		};
-		4EAD2B5B272DD6DC00575FEB /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle";
-			requirement = {
-				branch = 2.x;
 				kind = branch;
 			};
 		};
@@ -610,15 +610,15 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		4E18C80829C1750F00C32839 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4E18C80729C1750F00C32839 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
 		4EAD2B59272DD6AC00575FEB /* LaunchAtLogin */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 4EAD2B58272DD6AC00575FEB /* XCRemoteSwiftPackageReference "LaunchAtLogin" */;
 			productName = LaunchAtLogin;
-		};
-		4EAD2B5C272DD6DC00575FEB /* Sparkle */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 4EAD2B5B272DD6DC00575FEB /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
 		};
 		4EC7E8D0272DDA4600DAF681 /* KeyboardShortcuts */ = {
 			isa = XCSwiftPackageProductDependency;

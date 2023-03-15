@@ -497,6 +497,7 @@ class MusicVC: NSViewController {
     {
         musicSlider.maxValue = MusicController.shared.trackDuration()
         trackDurationSliderCell.maxValue = MusicController.shared.trackDuration()
+        
         endTime.stringValue = MusicController.shared.endTime()
         if endTime.stringValue != ""{
             endTime.isHidden = false
