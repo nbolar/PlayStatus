@@ -1,6 +1,6 @@
 # ![playstatus_header](https://user-images.githubusercontent.com/45484873/56880861-09cb3980-6a67-11e9-9d45-037a9165b212.png)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) 
-[![Version: 2.4](https://img.shields.io/badge/Version-2.4-green.svg)](https://github.com/nbolar/PlayStatus/releases/tag/v2.4) 
+[![Version: 2.5](https://img.shields.io/badge/Version-2.4-green.svg)](https://github.com/nbolar/PlayStatus/releases/tag/v2.5) 
 [![Platform](http://img.shields.io/badge/platform-macOS-black.svg?style=flat)](https://developer.apple.com/resources/)
 [![Platform](https://img.shields.io/badge/swift-5.0-orange.svg?style=flat)](https://swift.org/blog/swift-5-released/)
 [![Open Source Love svg1](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/nbolar/playstatus/)
@@ -38,6 +38,7 @@ No information at all is logged and everything is local to your device. Since th
 
 ## [Releases](https://github.com/nbolar/PlayStatus/releases):
 
+ - [Version 2.5](https://github.com/nbolar/PlayStatus/releases/tag/v2.5)
  - [Version 2.4](https://github.com/nbolar/PlayStatus/releases/tag/v2.4)
  - [Version 2.3](https://github.com/nbolar/PlayStatus/releases/tag/v2.3)
  - [Version 2.2.1](https://github.com/nbolar/PlayStatus/releases/tag/v2.2.1)
