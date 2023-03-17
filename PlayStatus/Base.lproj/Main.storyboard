@@ -773,7 +773,8 @@
         <scene sceneID="uZF-ch-viN">
             <objects>
                 <windowController storyboardIdentifier="searchWindowController" id="gxA-22-GOF" sceneMemberID="viewController">
-                    <window key="window" title="Window" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" animationBehavior="documentWindow" frameAutosaveName="" tabbingMode="disallowed" id="cMP-EN-dkw">
+                    <window key="window" title="Window" separatorStyle="shadow" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" animationBehavior="documentWindow" frameAutosaveName="" tabbingMode="disallowed" id="cMP-EN-dkw">
+                        <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES"/>
                         <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
                         <rect key="contentRect" x="294" y="362" width="480" height="270"/>
                         <rect key="screenRect" x="0.0" y="0.0" width="1920" height="1177"/>
@@ -844,7 +845,7 @@
                 </viewController>
                 <customObject id="hNH-CN-wHL" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="495" y="706"/>
+            <point key="canvasLocation" x="492" y="772"/>
         </scene>
         <!--About-->
         <scene sceneID="zQ6-Vc-S7K">
@@ -996,7 +997,7 @@
                 </viewController>
                 <customObject id="dfo-AH-2e9" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="768" y="795"/>
+            <point key="canvasLocation" x="968" y="913"/>
         </scene>
         <!--Window Controller-->
         <scene sceneID="7ME-hc-oTu">
@@ -1444,11 +1445,11 @@
             <objects>
                 <viewController title="Hot Keys" id="dda-4M-sH7" customClass="HotKeysVC" customModule="PlayStatus" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" id="oM5-Qj-KAp">
-                        <rect key="frame" x="0.0" y="0.0" width="481" height="472"/>
+                        <rect key="frame" x="0.0" y="0.0" width="481" height="517"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="rOp-17-MZ8">
-                                <rect key="frame" x="18" y="436" width="4" height="16"/>
+                                <rect key="frame" x="18" y="481" width="4" height="16"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" id="ihM-xh-RcX">
                                     <font key="font" usesAppearanceFont="YES"/>
                                     <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
@@ -1456,7 +1457,7 @@
                                 </textFieldCell>
                             </textField>
                             <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="I7u-T5-Ce0">
-                                <rect key="frame" x="18" y="370" width="445" height="82"/>
+                                <rect key="frame" x="18" y="415" width="445" height="82"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="82" id="ZjR-9q-X7i"/>
                                 </constraints>
@@ -1468,10 +1469,10 @@
                                 </textFieldCell>
                             </textField>
                             <stackView distribution="equalCentering" orientation="vertical" alignment="leading" spacing="23" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="24l-Ke-jO5">
-                                <rect key="frame" x="20" y="28" width="381" height="311"/>
+                                <rect key="frame" x="20" y="28" width="381" height="356"/>
                                 <subviews>
                                     <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="75" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="os4-a8-xTc">
-                                        <rect key="frame" x="0.0" y="291" width="378" height="20"/>
+                                        <rect key="frame" x="0.0" y="336" width="378" height="20"/>
                                         <subviews>
                                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="NcZ-Sc-VoU">
                                                 <rect key="frame" x="-2" y="1" width="106" height="19"/>
@@ -1499,7 +1500,7 @@
                                         </customSpacing>
                                     </stackView>
                                     <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="78" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="rdd-1T-O9i">
-                                        <rect key="frame" x="0.0" y="240" width="378" height="25"/>
+                                        <rect key="frame" x="0.0" y="288" width="378" height="25"/>
                                         <subviews>
                                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="vCB-4B-iyP">
                                                 <rect key="frame" x="-2" y="3" width="103" height="19"/>
@@ -1527,7 +1528,7 @@
                                         </customSpacing>
                                     </stackView>
                                     <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="54" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="pkH-2p-XT3">
-                                        <rect key="frame" x="0.0" y="192" width="378" height="25"/>
+                                        <rect key="frame" x="0.0" y="240" width="378" height="25"/>
                                         <subviews>
                                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="Gg9-dU-COs">
                                                 <rect key="frame" x="-2" y="3" width="127" height="19"/>
@@ -1555,7 +1556,7 @@
                                         </customSpacing>
                                     </stackView>
                                     <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="30" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Cus-xs-G6z">
-                                        <rect key="frame" x="0.0" y="144" width="378" height="25"/>
+                                        <rect key="frame" x="0.0" y="192" width="378" height="25"/>
                                         <subviews>
                                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="XCA-Lb-JrE">
                                                 <rect key="frame" x="-2" y="3" width="151" height="19"/>
@@ -1584,7 +1585,7 @@
                                         </customSpacing>
                                     </stackView>
                                     <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="11" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Cv6-J3-VyJ">
-                                        <rect key="frame" x="0.0" y="96" width="378" height="25"/>
+                                        <rect key="frame" x="0.0" y="144" width="378" height="25"/>
                                         <subviews>
                                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="lBJ-8R-PFR">
                                                 <rect key="frame" x="-2" y="3" width="170" height="19"/>
@@ -1612,7 +1613,7 @@
                                         </customSpacing>
                                     </stackView>
                                     <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="25" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="6YT-qZ-eeU">
-                                        <rect key="frame" x="0.0" y="48" width="379" height="25"/>
+                                        <rect key="frame" x="0.0" y="96" width="379" height="25"/>
                                         <subviews>
                                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="SDS-fX-5ho">
                                                 <rect key="frame" x="-2" y="3" width="157" height="19"/>
@@ -1640,7 +1641,7 @@
                                         </customSpacing>
                                     </stackView>
                                     <stackView distribution="fill" orientation="horizontal" alignment="centerY" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Gco-6x-aoA">
-                                        <rect key="frame" x="0.0" y="0.0" width="381" height="25"/>
+                                        <rect key="frame" x="0.0" y="48" width="381" height="25"/>
                                         <subviews>
                                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="Nrb-jh-cEP">
                                                 <rect key="frame" x="-2" y="3" width="176" height="19"/>
@@ -1667,8 +1668,37 @@
                                             <real value="3.4028234663852886e+38"/>
                                         </customSpacing>
                                     </stackView>
+                                    <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="51" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="wAX-5l-K20">
+                                        <rect key="frame" x="0.0" y="0.0" width="378" height="25"/>
+                                        <subviews>
+                                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="oL3-UL-l2P">
+                                                <rect key="frame" x="-2" y="3" width="130" height="19"/>
+                                                <textFieldCell key="cell" lineBreakMode="clipping" title="Global Search  Key:" id="Sen-8C-BRn">
+                                                    <font key="font" size="14" name="AvenirNext-Medium"/>
+                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+                                            <customView translatesAutoresizingMaskIntoConstraints="NO" id="cb8-DZ-02R">
+                                                <rect key="frame" x="177" y="0.0" width="201" height="25"/>
+                                                <constraints>
+                                                    <constraint firstAttribute="width" constant="201" id="EEo-k4-mxA"/>
+                                                    <constraint firstAttribute="height" constant="25" id="hOZ-wQ-M90"/>
+                                                </constraints>
+                                            </customView>
+                                        </subviews>
+                                        <visibilityPriorities>
+                                            <integer value="1000"/>
+                                            <integer value="1000"/>
+                                        </visibilityPriorities>
+                                        <customSpacing>
+                                            <real value="3.4028234663852886e+38"/>
+                                            <real value="3.4028234663852886e+38"/>
+                                        </customSpacing>
+                                    </stackView>
                                 </subviews>
                                 <visibilityPriorities>
+                                    <integer value="1000"/>
                                     <integer value="1000"/>
                                     <integer value="1000"/>
                                     <integer value="1000"/>
@@ -1685,10 +1715,11 @@
                                     <real value="3.4028234663852886e+38"/>
                                     <real value="3.4028234663852886e+38"/>
                                     <real value="3.4028234663852886e+38"/>
+                                    <real value="3.4028234663852886e+38"/>
                                 </customSpacing>
                             </stackView>
                             <box verticalHuggingPriority="750" boxType="separator" translatesAutoresizingMaskIntoConstraints="NO" id="sdO-AB-bDT">
-                                <rect key="frame" x="20" y="359" width="441" height="5"/>
+                                <rect key="frame" x="20" y="404" width="441" height="5"/>
                             </box>
                         </subviews>
                         <constraints>
@@ -1706,6 +1737,7 @@
                         </constraints>
                     </view>
                     <connections>
+                        <outlet property="globalSearchView" destination="cb8-DZ-02R" id="F15-Lu-FpQ"/>
                         <outlet property="nextTrackRecorderView" destination="jms-PS-OWR" id="dTt-r9-Vvi"/>
                         <outlet property="playPauseRecorderView" destination="YuV-mP-xDK" id="riY-7B-1m9"/>
                         <outlet property="playerVolDownView" destination="GmD-wT-Ceh" id="Q2x-bY-uhp"/>
@@ -1717,7 +1749,7 @@
                 </viewController>
                 <customObject id="mAS-d6-1cG" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="952.5" y="2461"/>
+            <point key="canvasLocation" x="952.5" y="2460.5"/>
         </scene>
         <!--MusicVC-->
         <scene sceneID="Tdu-bp-48f">

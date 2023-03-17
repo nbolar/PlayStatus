@@ -18,6 +18,7 @@ class HotKeysVC: NSViewController {
     @IBOutlet weak var playerVolDownView: NSView!
     @IBOutlet weak var systemVolUpView: NSView!
     @IBOutlet weak var systemVolDownView: NSView!
+    @IBOutlet weak var globalSearchView: NSView!
     private let playPausehotkeyRecorder = KeyboardShortcuts.RecorderCocoa(for: .playPause)
     private let nextTrackhotkeyRecorder = KeyboardShortcuts.RecorderCocoa(for: .nextTrack)
     private let prevTrackhotkeyRecorder = KeyboardShortcuts.RecorderCocoa(for: .prevTrack)
@@ -25,6 +26,7 @@ class HotKeysVC: NSViewController {
     private let playerVolDownhotkeyRecorder = KeyboardShortcuts.RecorderCocoa(for: .playerVolDown)
     private let systemVolUphotkeyRecorder = KeyboardShortcuts.RecorderCocoa(for: .systemVolUp)
     private let systemVolDownhotkeyRecorder = KeyboardShortcuts.RecorderCocoa(for: .systemVolDown)
+    private let globalSearchhotkeyRecorder = KeyboardShortcuts.RecorderCocoa(for: .globalSearch)
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -37,6 +39,7 @@ class HotKeysVC: NSViewController {
         playerVolDownView.addSubview(playerVolDownhotkeyRecorder)
         systemVolUpView.addSubview(systemVolUphotkeyRecorder)
         systemVolDownView.addSubview(systemVolDownhotkeyRecorder)
+        globalSearchView.addSubview(globalSearchhotkeyRecorder)
         
     }
     
@@ -55,4 +58,5 @@ extension KeyboardShortcuts.Name{
     static let playerVolDown = Self("playerVolDown")
     static let systemVolUp = Self("systemVolUp")
     static let systemVolDown = Self("systemVolDown")
+    static let globalSearch = Self("globalSearch")
 }

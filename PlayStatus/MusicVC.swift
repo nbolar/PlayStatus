@@ -137,6 +137,7 @@ class MusicVC: NSViewController {
     }
     
     @objc func close(){
+        
         if searchView?.window?.isVisible == true
         {
             searchView?.resignFirstResponder()

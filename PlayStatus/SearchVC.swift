@@ -9,6 +9,7 @@
 import Cocoa
 
 class SearchVC: NSViewController {
+    static let shared = SearchVC()
     var itunesMusicName: String!
     var segmentedButtonValue: Int = 0
     

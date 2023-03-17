@@ -181,6 +181,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
         KeyboardShortcuts.onKeyDown(for: .prevTrack) { [self] in
             
             previousTrackMenuItem(self)
+            
+        }
+        KeyboardShortcuts.onKeyDown(for: .globalSearch) { [self] in
+            
+            togglePopover(self)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [self] in
+                if musicController?.window?.isVisible == true{
+                    searchMenuItem(self)
+                }
+            }
+            
         }
         KeyboardShortcuts.onKeyDown(for: .playerVolUp) { [] in
             NSAppleScript.go(code: NSAppleScript.increasePlayerVol(), completionHandler: {_,_,_ in})
@@ -224,21 +235,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
     @objc func togglePopover(_ sender: Any?) {
         let event = NSApp.currentEvent!
         
-        if event.type == NSEvent.EventType.leftMouseUp
-        {
-            if musicController?.window?.isVisible == true
-            {
-                NotificationCenter.default.post(name: NSNotification.Name(rawValue: "close"), object: nil)
-                musicController?.close()
-            }else{
-                if UserDefaults.standard.bool(forKey: "scrollable") == false {
-                    displayPopUp(status: newStatusItem)
-                }else{
-                    displayPopUp(status: statusItem)
-                }
-            }
-            
-        }else if event.type == NSEvent.EventType.rightMouseUp{
+        if event.type == NSEvent.EventType.rightMouseUp{
             
             var appVersion: String? {
                 return Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
@@ -262,6 +259,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
                 
             }
             
+            
+        }else
+        {
+            if musicController?.window?.isVisible == true
+            {
+                NotificationCenter.default.post(name: NSNotification.Name(rawValue: "close"), object: nil)
+                musicController?.close()
+            }else{
+                if UserDefaults.standard.bool(forKey: "scrollable") == false {
+                    displayPopUp(status: newStatusItem)
+                }else{
+                    displayPopUp(status: statusItem)
+                }
+            }
             
         }
         
