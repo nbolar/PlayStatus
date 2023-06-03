@@ -1,6 +1,6 @@
 # ![playstatus_header](https://user-images.githubusercontent.com/45484873/56880861-09cb3980-6a67-11e9-9d45-037a9165b212.png)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) 
-[![Version: 2.6](https://img.shields.io/badge/Version-2.5-green.svg)](https://github.com/nbolar/PlayStatus/releases/tag/v2.6) 
+[![Version: 2.6](https://img.shields.io/badge/Version-2.6-green.svg)](https://github.com/nbolar/PlayStatus/releases/tag/v2.6) 
 [![Platform](http://img.shields.io/badge/platform-macOS-black.svg?style=flat)](https://developer.apple.com/resources/)
 [![Platform](https://img.shields.io/badge/swift-5.0-orange.svg?style=flat)](https://swift.org/blog/swift-5-released/)
 [![Open Source Love svg1](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/nbolar/playstatus/)
