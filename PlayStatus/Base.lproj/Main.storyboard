@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="21507" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
+<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="21701" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
     <dependencies>
         <deployment identifier="macosx"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="21507"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="21701"/>
         <capability name="Image references" minToolsVersion="12.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
@@ -746,7 +746,7 @@
                 </windowController>
                 <customObject id="1TA-u7-SeC" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="-103" y="950"/>
+            <point key="canvasLocation" x="-155" y="994"/>
         </scene>
         <!--Window Controller-->
         <scene sceneID="ckf-rd-EU8">
@@ -1021,7 +1021,7 @@
                 </windowController>
                 <customObject id="uxA-G1-ZpD" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="854" y="1364"/>
+            <point key="canvasLocation" x="1323" y="1310"/>
         </scene>
         <!-- Preferences-->
         <scene sceneID="ePD-UW-Czk">
@@ -1049,7 +1049,7 @@
                     </connections>
                 </tabViewController>
             </objects>
-            <point key="canvasLocation" x="445" y="1962"/>
+            <point key="canvasLocation" x="787" y="1893"/>
         </scene>
         <!--SettingsVC-->
         <scene sceneID="YXr-Yx-ehD">
@@ -1413,7 +1413,7 @@
                 <customObject id="hkX-AP-kdW" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
                 <userDefaultsController representsSharedInstance="YES" id="aIr-nW-rpE"/>
             </objects>
-            <point key="canvasLocation" x="179.5" y="1459"/>
+            <point key="canvasLocation" x="493" y="1301"/>
         </scene>
         <!--Window Controller-->
         <scene sceneID="CMw-kB-FRG">
@@ -1668,19 +1668,19 @@
                                             <real value="3.4028234663852886e+38"/>
                                         </customSpacing>
                                     </stackView>
-                                    <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="51" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="wAX-5l-K20">
-                                        <rect key="frame" x="0.0" y="0.0" width="378" height="25"/>
+                                    <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="58" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="wAX-5l-K20">
+                                        <rect key="frame" x="0.0" y="0.0" width="381" height="25"/>
                                         <subviews>
                                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="oL3-UL-l2P">
-                                                <rect key="frame" x="-2" y="3" width="130" height="19"/>
-                                                <textFieldCell key="cell" lineBreakMode="clipping" title="Global Search  Key:" id="Sen-8C-BRn">
+                                                <rect key="frame" x="-2" y="3" width="126" height="19"/>
+                                                <textFieldCell key="cell" lineBreakMode="clipping" title="Global Search Key:" id="Sen-8C-BRn">
                                                     <font key="font" size="14" name="AvenirNext-Medium"/>
                                                     <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
                                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                                                 </textFieldCell>
                                             </textField>
                                             <customView translatesAutoresizingMaskIntoConstraints="NO" id="cb8-DZ-02R">
-                                                <rect key="frame" x="177" y="0.0" width="201" height="25"/>
+                                                <rect key="frame" x="180" y="0.0" width="201" height="25"/>
                                                 <constraints>
                                                     <constraint firstAttribute="width" constant="201" id="EEo-k4-mxA"/>
                                                     <constraint firstAttribute="height" constant="25" id="hOZ-wQ-M90"/>
@@ -1749,7 +1749,7 @@
                 </viewController>
                 <customObject id="mAS-d6-1cG" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="952.5" y="2460.5"/>
+            <point key="canvasLocation" x="1017" y="2689"/>
         </scene>
         <!--MusicVC-->
         <scene sceneID="Tdu-bp-48f">
@@ -2021,7 +2021,7 @@
     <inferredMetricsTieBreakers>
         <segue reference="Lr2-gf-hK7"/>
         <segue reference="gCT-AH-W7T"/>
-        <segue reference="DER-JH-wxt"/>
+        <segue reference="fYK-Gu-LlM"/>
     </inferredMetricsTieBreakers>
     <resources>
         <image name="NSActionTemplate" width="20" height="20"/>

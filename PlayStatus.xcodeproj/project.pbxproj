@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 52;
+	objectVersion = 53;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -27,8 +27,7 @@
 		4EAD2B5A272DD6AC00575FEB /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 4EAD2B59272DD6AC00575FEB /* LaunchAtLogin */; };
 		4EC07811259A9A5A00989B8C /* Variables.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC07810259A9A5A00989B8C /* Variables.swift */; };
 		4EC7E8D1272DDA4600DAF681 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 4EC7E8D0272DDA4600DAF681 /* KeyboardShortcuts */; };
-		4EC7E8D6272F348D00DAF681 /* CircularProgress in Frameworks */ = {isa = PBXBuildFile; productRef = 4EC7E8D5272F348D00DAF681 /* CircularProgress */; };
-		730A35C05EC3242F6C170242 /* Pods_PlayStatus.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ACD7ADCA35EC88A555549D8F /* Pods_PlayStatus.framework */; settings = {ATTRIBUTES = (Required, ); }; };
+		4ED3B73A2A2BBEEC00A0AA45 /* CircularProgress in Frameworks */ = {isa = PBXBuildFile; productRef = 4ED3B7392A2BBEEC00A0AA45 /* CircularProgress */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -44,7 +43,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		0628D03BDC04D109D55FD6B4 /* Pods-PlayStatus.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-PlayStatus.release.xcconfig"; path = "Pods/Target Support Files/Pods-PlayStatus/Pods-PlayStatus.release.xcconfig"; sourceTree = "<group>"; };
 		4E08E45323B9DB820035A479 /* Scripts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scripts.swift; sourceTree = "<group>"; };
 		4E2433E523BC6DA7009F8DBB /* TrackDurationCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackDurationCell.swift; sourceTree = "<group>"; };
 		4E26E404227848F5005A53EE /* CustomSliderCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomSliderCell.swift; sourceTree = "<group>"; };
@@ -65,8 +63,6 @@
 		4E9F8E8A2271EECF00B87B4A /* MusicVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicVC.swift; sourceTree = "<group>"; };
 		4EA0AADF2442C0780047F9E7 /* ScrollingTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollingTextView.swift; sourceTree = "<group>"; };
 		4EC07810259A9A5A00989B8C /* Variables.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Variables.swift; sourceTree = "<group>"; };
-		51B0363789F287240463AAFF /* Pods-PlayStatus.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-PlayStatus.debug.xcconfig"; path = "Pods/Target Support Files/Pods-PlayStatus/Pods-PlayStatus.debug.xcconfig"; sourceTree = "<group>"; };
-		ACD7ADCA35EC88A555549D8F /* Pods_PlayStatus.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_PlayStatus.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,26 +70,16 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4ED3B73A2A2BBEEC00A0AA45 /* CircularProgress in Frameworks */,
 				4E18C80929C1750F00C32839 /* Sparkle in Frameworks */,
-				4EC7E8D6272F348D00DAF681 /* CircularProgress in Frameworks */,
 				4EC7E8D1272DDA4600DAF681 /* KeyboardShortcuts in Frameworks */,
 				4EAD2B5A272DD6AC00575FEB /* LaunchAtLogin in Frameworks */,
-				730A35C05EC3242F6C170242 /* Pods_PlayStatus.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		0E983E0F69F38105109B235B /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				51B0363789F287240463AAFF /* Pods-PlayStatus.debug.xcconfig */,
-				0628D03BDC04D109D55FD6B4 /* Pods-PlayStatus.release.xcconfig */,
-			);
-			name = Pods;
-			sourceTree = "<group>";
-		};
 		4E412EC82592D991003C53DE /* Preferences */ = {
 			isa = PBXGroup;
 			children = (
@@ -128,7 +114,6 @@
 			children = (
 				4E9F8E7922719AB500B87B4A /* PlayStatus */,
 				4E9F8E7822719AB500B87B4A /* Products */,
-				0E983E0F69F38105109B235B /* Pods */,
 				993F83FD21DA739CF51E5585 /* Frameworks */,
 			);
 			sourceTree = "<group>";
@@ -165,7 +150,6 @@
 		993F83FD21DA739CF51E5585 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				ACD7ADCA35EC88A555549D8F /* Pods_PlayStatus.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -177,7 +161,6 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 4E9F8E8722719AB600B87B4A /* Build configuration list for PBXNativeTarget "PlayStatus" */;
 			buildPhases = (
-				5DE757992E6472CA2FF9F61D /* [CP] Check Pods Manifest.lock */,
 				4E9F8E7322719AB500B87B4A /* Sources */,
 				4E9F8E7422719AB500B87B4A /* Frameworks */,
 				4E9F8E7522719AB500B87B4A /* Resources */,
@@ -194,8 +177,8 @@
 			packageProductDependencies = (
 				4EAD2B59272DD6AC00575FEB /* LaunchAtLogin */,
 				4EC7E8D0272DDA4600DAF681 /* KeyboardShortcuts */,
-				4EC7E8D5272F348D00DAF681 /* CircularProgress */,
 				4E18C80829C1750F00C32839 /* Sparkle */,
+				4ED3B7392A2BBEEC00A0AA45 /* CircularProgress */,
 			);
 			productName = PlayStatus;
 			productReference = 4E9F8E7722719AB500B87B4A /* PlayStatus.app */;
@@ -207,8 +190,9 @@
 		4E9F8E6F22719AB500B87B4A /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
+				BuildIndependentTargetsInParallel = YES;
 				LastSwiftUpdateCheck = 1010;
-				LastUpgradeCheck = 1230;
+				LastUpgradeCheck = 1430;
 				ORGANIZATIONNAME = "Nikhil Bolar";
 				TargetAttributes = {
 					4E9F8E7622719AB500B87B4A = {
@@ -237,8 +221,8 @@
 			packageReferences = (
 				4EAD2B58272DD6AC00575FEB /* XCRemoteSwiftPackageReference "LaunchAtLogin" */,
 				4EC7E8CF272DDA4600DAF681 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
-				4EC7E8D4272F348D00DAF681 /* XCRemoteSwiftPackageReference "CircularProgress" */,
 				4E18C80729C1750F00C32839 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				4ED3B7382A2BBEEC00A0AA45 /* XCRemoteSwiftPackageReference "CircularProgress" */,
 			);
 			productRefGroup = 4E9F8E7822719AB500B87B4A /* Products */;
 			projectDirPath = "";
@@ -299,38 +283,14 @@
 			files = (
 			);
 			inputPaths = (
-				"${SRCROOT}/Pods/Target Support Files/Pods-PlayStatus/Pods-PlayStatus-frameworks.sh",
-				"${BUILT_PRODUCTS_DIR}/CircularProgressMac/CircularProgressMac.framework",
-				"${BUILT_PRODUCTS_DIR}/KeyboardShortcuts/KeyboardShortcuts.framework",
-				"${BUILT_PRODUCTS_DIR}/LoginServiceKit/LoginServiceKit.framework",
 			);
 			name = "[CP] Embed Pods Frameworks";
 			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CircularProgressMac.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/KeyboardShortcuts.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/LoginServiceKit.framework",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${SRCROOT}/Pods/Target Support Files/Pods-PlayStatus/Pods-PlayStatus-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		5DE757992E6472CA2FF9F61D /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-PlayStatus-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			shellScript = "
+";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -407,6 +367,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "Mac Developer";
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -470,6 +431,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "Mac Developer";
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -493,7 +455,6 @@
 		};
 		4E9F8E8822719AB600B87B4A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 51B0363789F287240463AAFF /* Pods-PlayStatus.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = PlayStatus/PlayStatus.entitlements;
@@ -501,7 +462,8 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 22;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = KALT4PNG4U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -514,7 +476,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
-				MARKETING_VERSION = 2.5;
+				MARKETING_VERSION = 2.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bolar.PlayStatus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -524,7 +486,6 @@
 		};
 		4E9F8E8922719AB600B87B4A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 0628D03BDC04D109D55FD6B4 /* Pods-PlayStatus.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = PlayStatus/PlayStatus.entitlements;
@@ -532,7 +493,8 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 22;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = KALT4PNG4U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -545,7 +507,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
-				MARKETING_VERSION = 2.5;
+				MARKETING_VERSION = 2.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bolar.PlayStatus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -597,11 +559,11 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
 			requirement = {
-				branch = main;
-				kind = branch;
+				kind = exactVersion;
+				version = 1.8.0;
 			};
 		};
-		4EC7E8D4272F348D00DAF681 /* XCRemoteSwiftPackageReference "CircularProgress" */ = {
+		4ED3B7382A2BBEEC00A0AA45 /* XCRemoteSwiftPackageReference "CircularProgress" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sindresorhus/CircularProgress";
 			requirement = {
@@ -627,9 +589,9 @@
 			package = 4EC7E8CF272DDA4600DAF681 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
 			productName = KeyboardShortcuts;
 		};
-		4EC7E8D5272F348D00DAF681 /* CircularProgress */ = {
+		4ED3B7392A2BBEEC00A0AA45 /* CircularProgress */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 4EC7E8D4272F348D00DAF681 /* XCRemoteSwiftPackageReference "CircularProgress" */;
+			package = 4ED3B7382A2BBEEC00A0AA45 /* XCRemoteSwiftPackageReference "CircularProgress" */;
 			productName = CircularProgress;
 		};
 /* End XCSwiftPackageProductDependency section */
