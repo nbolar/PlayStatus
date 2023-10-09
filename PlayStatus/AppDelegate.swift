@@ -80,6 +80,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
             
         }
     }
+    var iconOnlyCurrentTrack: String? {
+        didSet {
+            if oldValue != iconOnlyCurrentTrack {
+                NotificationCenter.default.post(name: NSNotification.Name(rawValue: "newSong"), object: nil)                
+            }else{
+                NotificationCenter.default.post(name: NSNotification.Name(rawValue: "removeSplash"), object: nil)
+            }
+            
+        }
+    }
     
     override init() {
         updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
@@ -388,6 +398,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
                 
             })
             statutsItemTitle = musicBarTitle()
+            if UserDefaults.standard.integer(forKey: "options") == 3
+            {
+                iconOnlyCurrentTrack = " \(artistName ?? "") - \(songName ?? "")"
+            }
         }
         else{
             statutsItemTitle = " "

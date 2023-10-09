@@ -122,8 +122,6 @@ class MusicVC: NSViewController {
         prevButton.isHidden = true
         nextButton.isHidden = true
         quitButton.isHidden = true
-        skipBack.isHidden = true
-        skipAhead.isHidden = true
         musicSlider.isHidden = true
         trackDurationSliderCell.isHidden = false
         startTime.isHidden = true
@@ -274,7 +272,9 @@ class MusicVC: NSViewController {
     @objc func loadAlbumArtwork()
     {
         checkStatus()
-        trackDuration()
+        if MusicController.shared.checkPlayerStatus() == 1{
+            trackDuration()
+        }
         
         if currentSongName == "" {
             songName.stringValue = pausedSong
