@@ -499,6 +499,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, CAAnimationDelegate {
         }else{
             loadStatusItem()
             loadSubviews()
+            newStatusItem.button!.removeFromSuperview()
             currentTrack = newTitle
             lastStatusTitle = newTitle
             scrollingStatusItemView.icon = NSImage(named: "\(iconName!)")

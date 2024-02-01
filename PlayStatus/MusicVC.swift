@@ -168,16 +168,22 @@ class MusicVC: NSViewController {
     func checkStatus()
     {
         check = MusicController.shared.checkPlayerStatus()
-        NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
-            if out?.stringValue == "Spotify"{
-                app = .spotify
-                
-            }
-            else if out?.stringValue == itunesMusicName{
-                app = .itunes
-            }
-        })
         
+        if NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.spotify.client") == nil{
+            app = .itunes
+        }
+        else{
+            NSAppleScript.go(code: NSAppleScript.musicApp(), completionHandler: {_,out,_ in
+                if out?.stringValue == "Spotify"{
+                    app = .spotify
+    
+                }
+                else if out?.stringValue == itunesMusicName{
+                    app = .itunes
+                }
+            })
+        }
+
     }
     func hideUnhide(hide: Bool){
         songDetails.isHidden = hide
@@ -287,10 +293,10 @@ class MusicVC: NSViewController {
         
         if songName.stringValue != ""
         {
-            if MusicController.shared.musicApp() == "Spotify"{
+            if app == .spotify{
                 spotifyArtwork()
                 
-            }else if MusicController.shared.musicApp() == "\(itunesMusicName!)"{
+            }else if app == .itunes{
                 iTunesArtwork()
             }else{
                 if lastPausedApp == "Spotify"{
