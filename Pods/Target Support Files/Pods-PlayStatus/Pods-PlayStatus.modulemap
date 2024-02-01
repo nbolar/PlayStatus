@@ -1,6 +1,0 @@
-framework module Pods_PlayStatus {
-  umbrella header "Pods-PlayStatus-umbrella.h"
-
-  export *
-  module * { export * }
-}
