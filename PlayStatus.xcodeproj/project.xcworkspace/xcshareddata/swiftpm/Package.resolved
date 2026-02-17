@@ -1,41 +1,15 @@
 {
+  "originHash" : "e721da7f9826abdffcb6185e886155efa2514bd6234475f1afa893e29eb258d6",
   "pins" : [
-    {
-      "identity" : "circularprogress",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/sindresorhus/CircularProgress",
-      "state" : {
-        "branch" : "main",
-        "revision" : "8bb9dd2820b1cc123f2629c86c569c9f6e5edb66"
-      }
-    },
-    {
-      "identity" : "keyboardshortcuts",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/sindresorhus/KeyboardShortcuts",
-      "state" : {
-        "revision" : "be789e0fac9ecced6978440b27f696e864f3057d",
-        "version" : "1.8.0"
-      }
-    },
-    {
-      "identity" : "launchatlogin",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/sindresorhus/LaunchAtLogin",
-      "state" : {
-        "branch" : "main",
-        "revision" : "7ad6331f9c38953eb1ce8737758e18f7607e984a"
-      }
-    },
     {
       "identity" : "sparkle",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",
       "state" : {
-        "branch" : "2.x",
-        "revision" : "4ac6ea827a7eb988439253c0d4ce6862c3dc900b"
+        "revision" : "5581748cef2bae787496fe6d61139aebe0a451f6",
+        "version" : "2.8.1"
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }

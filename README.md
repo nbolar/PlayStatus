@@ -1,12 +1,13 @@
 # ![playstatus_header](https://user-images.githubusercontent.com/45484873/56880861-09cb3980-6a67-11e9-9d45-037a9165b212.png)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) 
-[![Version: 2.7](https://img.shields.io/badge/Version-2.7-green.svg)](https://github.com/nbolar/PlayStatus/releases/tag/v2.7) 
+[![Version: 2.8](https://img.shields.io/badge/Version-2.8-green.svg)](https://github.com/nbolar/PlayStatus/releases) 
 [![Platform](http://img.shields.io/badge/platform-macOS-black.svg?style=flat)](https://developer.apple.com/resources/)
 [![Platform](https://img.shields.io/badge/swift-5.0-orange.svg?style=flat)](https://swift.org/blog/swift-5-released/)
 [![Open Source Love svg1](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/nbolar/playstatus/)
 [![GitHub All Releases](https://img.shields.io/github/downloads/nbolar/playstatus/total)](https://github.com/nbolar/PlayStatus/releases/latest/)
 
-PlayStatus is a simple macOS app that allows the control of Spotify, Apple Music(macOS 10.15+) and iTunes including iTunes Radio/Beats1 playback from the menu bar.
+PlayStatus is a native SwiftUI macOS menu bar app for controlling Spotify and Apple Music playback.
+This repository now contains the rewritten SwiftUI codebase that replaces the legacy AppKit implementation while preserving Sparkle update continuity for existing PlayStatus users.
 
 
 ### As of macOS Big Sur 11.3 this bug has been fixed.      
