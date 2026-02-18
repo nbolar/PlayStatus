@@ -301,12 +301,6 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private let iconSize: CGFloat = 13
     private var lastStatusLength: CGFloat = -1
     private var lastStatusIconName: String = ""
-    private var modeMorphCompletionWorkItem: DispatchWorkItem?
-    private let modeMorphDuration: TimeInterval = 0.44
-    private var cachedMiniHeight: CGFloat = 380
-    private var cachedRegularHeight: CGFloat = 260
-    private var hasCachedMiniHeight = true
-    private var hasCachedRegularHeight = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -333,10 +327,6 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         popover.behavior = .transient
         popover.delegate = self
         popover.contentViewController = popoverHost
-        popoverHost.rootView = AnyView(NowPlayingPopover(model: model))
-        model.modeMorphProgress = model.miniMode ? 0 : 1
-        model.modeMorphIsActive = false
-        model.modeMorphSourceMini = model.miniMode
         updatePopoverLayout()
         _ = SparkleUpdater.shared
 
@@ -373,14 +363,6 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
                 DispatchQueue.main.async {
                     self?.updatePopoverLayout(animated: true)
                 }
-            }
-            .store(in: &cancellables)
-
-        model.$miniModeRevision
-            .dropFirst()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.startModeMorphTransition(toMiniMode: self?.model.miniMode ?? false)
             }
             .store(in: &cancellables)
 
@@ -431,11 +413,6 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
 
     func popoverDidClose(_ notification: Notification) {
         model.isPopoverVisible = false
-        modeMorphCompletionWorkItem?.cancel()
-        modeMorphCompletionWorkItem = nil
-        model.modeMorphIsActive = false
-        model.modeMorphProgress = model.miniMode ? 0 : 1
-        model.modeMorphSourceMini = model.miniMode
     }
 
     private func updateStatusButton() {
@@ -495,106 +472,24 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         )
     }
 
-    private func updatePopoverLayout(animated: Bool = true, preferMeasuredHeight: Bool = true) {
-        guard !model.modeMorphIsActive else { return }
-        let targetProgress: CGFloat = model.miniMode ? 0 : 1
-        let targetSize = contentSize(for: targetProgress, preferMeasuredHeight: preferMeasuredHeight)
-        applyPopoverSize(targetSize, animated: animated)
-    }
-
-    private func startModeMorphTransition(toMiniMode miniMode: Bool) {
-        let target: CGFloat = miniMode ? 0 : 1
-        let current = min(max(model.modeMorphProgress, 0), 1)
-
-        if !popover.isShown {
-            modeMorphCompletionWorkItem?.cancel()
-            modeMorphCompletionWorkItem = nil
-            model.modeMorphIsActive = false
-            model.modeMorphProgress = target
-            model.modeMorphSourceMini = miniMode
-            updatePopoverLayout(animated: false)
-            return
-        }
-
-        guard abs(current - target) > 0.001 else {
-            modeMorphCompletionWorkItem?.cancel()
-            modeMorphCompletionWorkItem = nil
-            model.modeMorphIsActive = false
-            model.modeMorphProgress = target
-            model.modeMorphSourceMini = miniMode
-            updatePopoverLayout(animated: false)
-            return
-        }
-
-        modeMorphCompletionWorkItem?.cancel()
-        modeMorphCompletionWorkItem = nil
-
-        if let window = popover.contentViewController?.view.window {
-            let currentHeight = max(1, window.contentRect(forFrameRect: window.frame).height)
-            if target > current {
-                cachedMiniHeight = currentHeight
-                hasCachedMiniHeight = true
-            } else {
-                cachedRegularHeight = currentHeight
-                hasCachedRegularHeight = true
-            }
-        }
-
-        model.modeMorphSourceMini = current < 0.5
-        model.modeMorphIsActive = true
-        withAnimation(.timingCurve(0.22, 0.90, 0.20, 1.0, duration: modeMorphDuration)) {
-            model.modeMorphProgress = target
-        }
-
-        let targetSize = contentSize(for: target, preferMeasuredHeight: false)
-        applyPopoverSize(targetSize, animated: true, duration: modeMorphDuration)
-
-        let completion = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.model.modeMorphIsActive = false
-            self.model.modeMorphProgress = target
-            self.model.modeMorphSourceMini = miniMode
-            self.updatePopoverLayout(animated: false, preferMeasuredHeight: false)
-            DispatchQueue.main.async { [weak self] in
-                self?.updatePopoverLayout(animated: false, preferMeasuredHeight: true)
-            }
-        }
-        modeMorphCompletionWorkItem = completion
-        DispatchQueue.main.asyncAfter(deadline: .now() + modeMorphDuration + 0.03, execute: completion)
-    }
-
-    private func contentSize(for progress: CGFloat, preferMeasuredHeight: Bool) -> NSSize {
-        let clampedProgress = min(max(progress, 0), 1)
-        let width = model.miniPopoverWidth + ((model.regularPopoverWidth - model.miniPopoverWidth) * clampedProgress)
+    private func updatePopoverLayout(animated: Bool = false) {
+        let width = model.popoverWidth
         let hostView = popoverHost.view
         if abs(hostView.frame.width - width) > 0.5 {
             hostView.setFrameSize(NSSize(width: width, height: hostView.frame.height))
         }
 
-        var measuredHeight: CGFloat?
-        if preferMeasuredHeight {
-            hostView.layoutSubtreeIfNeeded()
-            let fittingHeight = ceil(hostView.fittingSize.height)
-            if fittingHeight > 1 {
-                measuredHeight = fittingHeight
-                if clampedProgress < 0.5 {
-                    cachedMiniHeight = fittingHeight
-                    hasCachedMiniHeight = true
-                } else {
-                    cachedRegularHeight = fittingHeight
-                    hasCachedRegularHeight = true
-                }
-            }
+        // Only rebuild the root view when the popover is not yet shown (initial
+        // setup). While shown, SwiftUI's own reactive update cycle keeps the view
+        // current — rebuilding here tears down in-flight animations.
+        if !popover.isShown {
+            popoverHost.rootView = AnyView(NowPlayingPopover(model: model))
         }
 
-        let miniHeight = hasCachedMiniHeight ? cachedMiniHeight : model.miniPopoverHeight
-        let regularHeight = hasCachedRegularHeight ? cachedRegularHeight : model.estimatedRegularPopoverHeight
-        let fallbackHeight = miniHeight + ((regularHeight - miniHeight) * clampedProgress)
-        let height = measuredHeight ?? fallbackHeight
-        return NSSize(width: width, height: max(1, ceil(height)))
-    }
+        hostView.layoutSubtreeIfNeeded()
+        let fittingHeight = ceil(hostView.fittingSize.height)
+        let targetSize = NSSize(width: width, height: max(1, fittingHeight))
 
-    private func applyPopoverSize(_ targetSize: NSSize, animated: Bool, duration: TimeInterval = 0.32) {
         guard popover.isShown else {
             if popover.contentSize != targetSize {
                 popover.contentSize = targetSize
@@ -634,12 +529,10 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         }
 
         if animated {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = duration
-                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.22, 0.90, 0.20, 1.0)
-                context.allowsImplicitAnimation = true
-                window.animator().setFrame(targetFrame, display: true)
-            }
+            // Use AppKit's built-in frame animation path here instead of custom
+            // NSAnimationContext animator choreography; this has been more stable
+            // with glass/material rendering while still smoothing size changes.
+            window.setFrame(targetFrame, display: true, animate: true)
         } else {
             window.setFrame(targetFrame, display: true)
         }

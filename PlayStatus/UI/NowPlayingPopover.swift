@@ -8,51 +8,17 @@ struct NowPlayingPopover: View {
     @FocusState private var isSearchFocused: Bool
     @State private var searchSectionFrame: CGRect = .zero
 
-    private var regularProgress: CGFloat {
-        min(max(model.modeMorphProgress, 0), 1)
-    }
-
-    private var sourceMiniMode: Bool {
-        model.modeMorphSourceMini
-    }
-
-    private var targetMiniMode: Bool {
-        model.miniMode
-    }
-
-    private var isMorphing: Bool {
-        model.modeMorphIsActive
-    }
-
-    private var morphProgress: CGFloat {
-        if sourceMiniMode == targetMiniMode {
-            return 1
-        }
-        return sourceMiniMode ? regularProgress : (1 - regularProgress)
-    }
-
-    private var crossfadeProgress: CGFloat {
-        let start: CGFloat = 0.52
-        let p = min(max(morphProgress, 0), 1)
-        return min(max((p - start) / (1 - start), 0), 1)
-    }
-
     var body: some View {
         ZStack {
-            if isMorphing, sourceMiniMode != targetMiniMode {
-                modeContent(miniMode: sourceMiniMode)
-                    .opacity(1 - crossfadeProgress)
-                    .allowsHitTesting(false)
-
-                if crossfadeProgress > 0.001 {
-                    modeContent(miniMode: targetMiniMode)
-                        .opacity(crossfadeProgress)
-                        .allowsHitTesting(false)
-                }
+            if model.miniMode {
+                modeContent(miniMode: true)
+                    .transition(.opacity)
             } else {
-                modeContent(miniMode: targetMiniMode)
+                modeContent(miniMode: false)
+                    .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.20), value: model.miniMode)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .coordinateSpace(name: "popoverRoot")
         .onPreferenceChange(SearchSectionFramePreferenceKey.self) { frame in
@@ -90,7 +56,7 @@ struct NowPlayingPopover: View {
     @ViewBuilder
     private func modeContent(miniMode: Bool) -> some View {
         if miniMode {
-            MiniNowPlayingCard(model: model, transitionActive: isMorphing)
+            MiniNowPlayingCard(model: model)
         } else {
             regularContent
         }
@@ -119,7 +85,7 @@ struct NowPlayingPopover: View {
                             text: model.artistAlbumLine,
                             enabled: model.scrollableTitle,
                             isVisible: model.isPopoverVisible,
-                            laneWidth: min(320, max(130, model.regularPopoverWidth - model.artworkDisplaySize - 78)),
+                            laneWidth: min(320, max(130, model.popoverWidth - model.artworkDisplaySize - 78)),
                             usesSecondaryStyle: false
                         )
 
@@ -152,7 +118,7 @@ struct NowPlayingPopover: View {
                 if model.provider == .music {
                     HStack {
                         Spacer(minLength: 0)
-                        searchSection(maxWidth: min(280, max(170, model.regularPopoverWidth * 0.50)))
+                        searchSection(maxWidth: min(280, max(170, model.popoverWidth * 0.50)))
                     }
                     .padding(.top, -28)
                     .padding(.bottom, -12)
@@ -326,7 +292,7 @@ private struct SearchSectionFramePreferenceKey: PreferenceKey {
 
 private struct MiniNowPlayingCard: View {
     @ObservedObject var model: NowPlayingModel
-    let transitionActive: Bool
+    let transitionActive: Bool = false
     @State private var isHovering = false
 
     var body: some View {
@@ -527,7 +493,7 @@ private struct MiniNowPlayingCard: View {
                         text: model.artistAlbumLine,
                         enabled: model.scrollableTitle,
                         isVisible: model.isPopoverVisible,
-                        laneWidth: max(120, model.miniPopoverWidth - 64),
+                        laneWidth: max(120, model.popoverWidth - 64),
                         usesSecondaryStyle: false
                     )
                     .foregroundStyle(.white.opacity(0.90))

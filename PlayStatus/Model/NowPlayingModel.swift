@@ -32,7 +32,6 @@ final class NowPlayingModel: ObservableObject {
     @AppStorage("miniMode") var miniMode: Bool = false {
         didSet {
             bumpStatusBarConfigRevision()
-            miniModeRevision &+= 1
         }
     }
 
@@ -54,10 +53,6 @@ final class NowPlayingModel: ObservableObject {
         Color.white.opacity(0.10),
         Color.clear
     ]
-    @Published var modeMorphProgress: CGFloat = 1
-    @Published var modeMorphIsActive: Bool = false
-    @Published var modeMorphSourceMini: Bool = false
-    @Published var miniModeRevision: Int = 0
     @Published var statusBarConfigRevision: Int = 0
     @Published var menuBarDisplayTitle: String = "Not Playing"
     @Published var availableOutputDevices: [AudioOutputDevice] = []
@@ -143,10 +138,6 @@ final class NowPlayingModel: ObservableObject {
         miniMode ? miniPopoverWidth : regularPopoverWidth
     }
 
-    var visualPopoverWidth: CGFloat {
-        miniPopoverWidth + ((regularPopoverWidth - miniPopoverWidth) * modeMorphProgress)
-    }
-
     var miniPopoverHeight: CGFloat { 380 }
 
     var estimatedRegularPopoverHeight: CGFloat {
@@ -164,8 +155,6 @@ final class NowPlayingModel: ObservableObject {
 
         startTimer(interval: 0.5)
         launchAtLoginSupported = launchAtLoginStatus() != nil
-        modeMorphProgress = miniMode ? 0 : 1
-        modeMorphSourceMini = miniMode
         refresh()
     }
 
