@@ -153,6 +153,7 @@ struct NowPlayingPopover: View {
                             )
                     }
                     .buttonStyle(.plain)
+                    .help("Settings")
                 }
                 .padding(.top, 8)
                 .padding(.trailing, 8)
@@ -407,6 +408,7 @@ private struct MiniNowPlayingCard: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .help("Settings")
             }
             .opacity(effectiveHover ? 1 : 0)
             .padding(.top, 10)
