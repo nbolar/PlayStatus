@@ -375,8 +375,15 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         }
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.54
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            if model.miniMode {
+                // Collapsing → mini: easeOut starts fast to match the spring's
+                // initial velocity, finishing just before SwiftUI settles (~0.55s).
+                context.duration = 0.44
+            } else {
+                // Expanding → regular: same easeOut feel, slightly snappier.
+                context.duration = 0.40
+            }
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             context.allowsImplicitAnimation = true
             window.animator().setFrame(targetFrame, display: true)
         }
