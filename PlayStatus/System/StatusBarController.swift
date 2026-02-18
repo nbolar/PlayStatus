@@ -529,10 +529,12 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         }
 
         if animated {
-            // Use AppKit's built-in frame animation path here instead of custom
-            // NSAnimationContext animator choreography; this has been more stable
-            // with glass/material rendering while still smoothing size changes.
-            window.setFrame(targetFrame, display: true, animate: true)
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.44
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                context.allowsImplicitAnimation = true
+                window.animator().setFrame(targetFrame, display: true)
+            }
         } else {
             window.setFrame(targetFrame, display: true)
         }

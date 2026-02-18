@@ -12,13 +12,23 @@ struct NowPlayingPopover: View {
         ZStack {
             if model.miniMode {
                 modeContent(miniMode: true)
-                    .transition(.opacity)
+                    .transition(
+                        .asymmetric(
+                            insertion: .move(edge: .top).combined(with: .opacity),
+                            removal: .move(edge: .leading).combined(with: .scale(scale: 0.05, anchor: .center))
+                        )
+                    )
             } else {
                 modeContent(miniMode: false)
-                    .transition(.opacity)
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 1.01, anchor: .topLeading)),
+                            removal: .opacity.combined(with: .scale(scale: 0.19, anchor: .topLeading))
+                        )
+                    )
             }
         }
-        .animation(.easeInOut(duration: 0.20), value: model.miniMode)
+        .animation(.timingCurve(0.22, 0.96, 0.30, 1.0, duration: 0.92), value: model.miniMode)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .coordinateSpace(name: "popoverRoot")
         .onPreferenceChange(SearchSectionFramePreferenceKey.self) { frame in
@@ -74,7 +84,7 @@ struct NowPlayingPopover: View {
                         Button(action: { model.openProviderApp() }) {
                             NowPlayingTitleMarquee(
                                 text: model.displayTitle,
-                                enabled: model.scrollableTitle,
+                                enabled: true,
                                 isVisible: model.isPopoverVisible
                             )
                             .contentShape(Rectangle())
@@ -83,7 +93,7 @@ struct NowPlayingPopover: View {
 
                         NowPlayingSecondaryMarquee(
                             text: model.artistAlbumLine,
-                            enabled: model.scrollableTitle,
+                            enabled: true,
                             isVisible: model.isPopoverVisible,
                             laneWidth: min(320, max(130, model.popoverWidth - model.artworkDisplaySize - 78)),
                             usesSecondaryStyle: false
@@ -480,7 +490,7 @@ private struct MiniNowPlayingCard: View {
                     Button(action: { model.openProviderApp() }) {
                         NowPlayingTitleMarquee(
                             text: model.displayTitle,
-                            enabled: model.scrollableTitle,
+                            enabled: true,
                             isVisible: model.isPopoverVisible
                         )
                         .foregroundStyle(.white.opacity(0.98))
@@ -491,7 +501,7 @@ private struct MiniNowPlayingCard: View {
 
                     NowPlayingSecondaryMarquee(
                         text: model.artistAlbumLine,
-                        enabled: model.scrollableTitle,
+                        enabled: true,
                         isVisible: model.isPopoverVisible,
                         laneWidth: max(120, model.popoverWidth - 64),
                         usesSecondaryStyle: false
