@@ -679,7 +679,7 @@ struct PlayStatusSettingsView: View {
 
             SettingsSliderRow(
                 title: "Title Width",
-                caption: "Maximum width before menu bar text truncates.",
+                caption: "Maximum width before menu bar text truncates/scrolls (if enabled).",
                 value: Binding(
                     get: { model.statusTextWidthValue },
                     set: { model.statusTextWidthValue = $0 }
