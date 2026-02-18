@@ -29,6 +29,15 @@ final class NowPlayingModel: ObservableObject {
     @AppStorage("statusTextWidth") private var statusTextWidthStorage: Double = 140
     @AppStorage("artworkColorIntensity") private var artworkColorIntensityStorage: Double = 1.0
     @AppStorage("artworkDisplaySize") private var artworkDisplaySizeStorage: Double = 200
+    @AppStorage("showLyricsPanel") var showLyricsPanel: Bool = true { didSet { requestPopoverLayoutRefresh() } }
+    @AppStorage("expandLyricsByDefault") var expandLyricsByDefault: Bool = false {
+        didSet {
+            guard showLyricsPanel else { return }
+            if expandLyricsByDefault {
+                lyricsPanelExpanded = true
+            }
+        }
+    }
     @AppStorage("miniMode") var miniMode: Bool = false {
         didSet {
             bumpStatusBarConfigRevision()
@@ -59,6 +68,21 @@ final class NowPlayingModel: ObservableObject {
     @Published var selectedOutputDeviceID: AudioDeviceID = 0
     @Published var outputVolume: Double = 1.0
     @Published var outputMuted: Bool = false
+    @Published var lyricsPayload: LyricsPayload? {
+        didSet {
+            guard lyricsPayload != oldValue else { return }
+            requestPopoverLayoutRefresh()
+        }
+    }
+    @Published var lyricsState: LyricsState = .idle {
+        didSet {
+            guard lyricsState != oldValue else { return }
+            requestPopoverLayoutRefresh()
+        }
+    }
+    @Published var lyricsPanelExpanded: Bool = false {
+        didSet { requestPopoverLayoutRefresh() }
+    }
     private var marqueeTimer: AnyCancellable?
     private var marqueeSignature: String = ""
     private var marqueeTrack: [Character] = []
@@ -73,6 +97,14 @@ final class NowPlayingModel: ObservableObject {
     private var launchAtLoginSupported: Bool = true
     private var fallbackArtworkTaskKey: String?
     private var pendingFallbackWork: DispatchWorkItem?
+    private var lyricsFetchTask: Task<Void, Never>?
+    private var currentLyricsTrackKey: String = ""
+    #if DEBUG
+    private var lyricsMetricMusicAppHits: Int = 0
+    private var lyricsMetricLRCLIBHits: Int = 0
+    private var lyricsMetricUnavailable: Int = 0
+    private var lyricsMetricFailures: Int = 0
+    #endif
     private let refreshQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.refresh", qos: .userInitiated)
     private var refreshInFlight = false
     private var refreshPending = false
@@ -145,6 +177,7 @@ final class NowPlayingModel: ObservableObject {
     }
 
     init() {
+        lyricsPanelExpanded = expandLyricsByDefault
         // Adaptive polling: fast while playing, slower when idle.
         $isPlaying
             .removeDuplicates()
@@ -289,7 +322,10 @@ final class NowPlayingModel: ObservableObject {
     }
 
     private func apply(snapshot: NowPlayingSnapshot) {
+        let previousSnapshot = lastSnapshot
+        let trackChanged = !isSameTrack(previousSnapshot, snapshot)
         lastSnapshot = snapshot
+
         DispatchQueue.main.async {
             self.provider = snapshot.provider
             self.isPlaying = snapshot.isPlaying
@@ -301,6 +337,19 @@ final class NowPlayingModel: ObservableObject {
             self.artwork = snapshot.artwork
             self.updateTint(from: snapshot.artwork)
             self.configureMarquee()
+        }
+
+        if snapshot.provider == .music, !snapshot.title.isEmpty {
+            if trackChanged {
+                startLyricsFetch(for: snapshot, forceRefresh: false, resetState: true)
+            }
+        } else {
+            lyricsFetchTask?.cancel()
+            currentLyricsTrackKey = ""
+            DispatchQueue.main.async {
+                self.lyricsPayload = nil
+                self.lyricsState = .idle
+            }
         }
 
         pendingFallbackWork?.cancel()
@@ -328,6 +377,113 @@ final class NowPlayingModel: ObservableObject {
             pendingFallbackWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
         }
+    }
+
+    private func isSameTrack(_ a: NowPlayingSnapshot?, _ b: NowPlayingSnapshot) -> Bool {
+        guard let a else { return false }
+        return a.provider == b.provider &&
+            a.title == b.title &&
+            a.artist == b.artist &&
+            a.album == b.album &&
+            Int(a.duration.rounded()) == Int(b.duration.rounded())
+    }
+
+    private func startLyricsFetch(for snapshot: NowPlayingSnapshot, forceRefresh: Bool, resetState: Bool) {
+        let descriptor = LyricsTrackDescriptor(
+            provider: snapshot.provider,
+            title: snapshot.title,
+            artist: snapshot.artist,
+            album: snapshot.album,
+            duration: snapshot.duration
+        )
+        let trackKey = descriptor.cacheKey
+        currentLyricsTrackKey = trackKey
+        lyricsFetchTask?.cancel()
+
+        if resetState {
+            DispatchQueue.main.async {
+                self.lyricsPayload = nil
+                self.lyricsState = .loading
+                if self.showLyricsPanel {
+                    self.lyricsPanelExpanded = self.expandLyricsByDefault
+                }
+            }
+        }
+
+        lyricsFetchTask = Task { [weak self] in
+            guard let self else { return }
+            let outcome = await self.fetchLyricsWithRetry(for: descriptor, forceRefresh: forceRefresh)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                guard self.currentLyricsTrackKey == trackKey else { return }
+                guard self.provider == descriptor.provider,
+                      self.title == descriptor.title,
+                      self.artist == descriptor.artist,
+                      self.album == descriptor.album else { return }
+
+                switch outcome {
+                case .available(let payload):
+                    self.lyricsPayload = payload
+                    self.lyricsState = .available
+                    #if DEBUG
+                    if payload.source == .musicApp {
+                        self.lyricsMetricMusicAppHits += 1
+                    } else if payload.source == .lrclib {
+                        self.lyricsMetricLRCLIBHits += 1
+                    }
+                    NSLog(
+                        "PlayStatus lyrics metrics: musicApp=\(self.lyricsMetricMusicAppHits) lrclib=\(self.lyricsMetricLRCLIBHits) unavailable=\(self.lyricsMetricUnavailable) failed=\(self.lyricsMetricFailures)"
+                    )
+                    #endif
+                case .unavailable:
+                    self.lyricsPayload = nil
+                    self.lyricsState = .unavailable
+                    #if DEBUG
+                    self.lyricsMetricUnavailable += 1
+                    NSLog(
+                        "PlayStatus lyrics metrics: musicApp=\(self.lyricsMetricMusicAppHits) lrclib=\(self.lyricsMetricLRCLIBHits) unavailable=\(self.lyricsMetricUnavailable) failed=\(self.lyricsMetricFailures)"
+                    )
+                    #endif
+                case .failed:
+                    self.lyricsPayload = nil
+                    self.lyricsState = .failed
+                    #if DEBUG
+                    self.lyricsMetricFailures += 1
+                    NSLog(
+                        "PlayStatus lyrics metrics: musicApp=\(self.lyricsMetricMusicAppHits) lrclib=\(self.lyricsMetricLRCLIBHits) unavailable=\(self.lyricsMetricUnavailable) failed=\(self.lyricsMetricFailures)"
+                    )
+                    #endif
+                }
+            }
+        }
+    }
+
+    private func fetchLyricsWithRetry(for descriptor: LyricsTrackDescriptor, forceRefresh: Bool) async -> LyricsFetchOutcome {
+        let maxAttempts = forceRefresh ? 5 : 4
+        var attempt = 0
+        var lastOutcome: LyricsFetchOutcome = .unavailable
+
+        while attempt < maxAttempts {
+            if Task.isCancelled { return .failed }
+
+            let shouldForceRefresh = forceRefresh || attempt > 0
+            let outcome = await LyricsService.shared.fetchLyrics(for: descriptor, forceRefresh: shouldForceRefresh)
+            lastOutcome = outcome
+
+            switch outcome {
+            case .available:
+                return outcome
+            case .unavailable, .failed:
+                attempt += 1
+                guard attempt < maxAttempts else { return outcome }
+                let delaySeconds = 0.9 + (Double(attempt - 1) * 0.7)
+                let delayNanos = UInt64(delaySeconds * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: delayNanos)
+            }
+        }
+
+        return lastOutcome
     }
 
     private func updateTint(from image: NSImage?) {
@@ -484,6 +640,13 @@ final class NowPlayingModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
             self.refresh()
         }
+    }
+
+    func retryLyricsFetch() {
+        guard let snapshot = lastSnapshot,
+              snapshot.provider == .music,
+              !snapshot.title.isEmpty else { return }
+        startLyricsFetch(for: snapshot, forceRefresh: true, resetState: true)
     }
 
     func setLaunchAtLogin(enabled: Bool) {

@@ -753,6 +753,19 @@ struct PlayStatusSettingsView: View {
                 caption: "Allow Spotify to provide now playing data.",
                 isOn: $model.enableSpotify
             )
+
+            Divider().padding(.vertical, 2)
+
+            SettingsToggleRow(
+                title: "Show Lyrics Panel",
+                caption: "Displays an expandable lyrics section in the popover.",
+                isOn: $model.showLyricsPanel
+            )
+            SettingsToggleRow(
+                title: "Expand Lyrics by Default",
+                caption: "Opens the lyrics section automatically for new tracks.",
+                isOn: $model.expandLyricsByDefault
+            )
         }
     }
 

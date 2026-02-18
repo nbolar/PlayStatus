@@ -37,7 +37,7 @@ struct NowPlayingTitleMarquee: View {
     @State private var startDate = Date()
 
     private let gap: CGFloat = 108
-    private let speed: CGFloat = 30
+    private let speed: CGFloat = 26
     private let leadInDelay: Double = 0.65
 
     private var resolvedText: String { text.isEmpty ? "Nothing Playing" : text }

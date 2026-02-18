@@ -151,6 +151,14 @@ struct NowPlayingPopover: View {
                     .padding(.top, -28)
                     .padding(.bottom, -12)
                 }
+
+                if model.showLyricsPanel {
+                    Divider()
+                        .padding(.top, 2)
+                        .padding(.bottom, 2)
+
+                    LyricsPanel(model: model)
+                }
             }
             }
             .overlay(alignment: .topTrailing) {
@@ -329,6 +337,170 @@ private struct SearchSectionFramePreferenceKey: PreferenceKey {
 
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
         value = nextValue()
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func forceHideScrollIndicators() -> some View {
+        if #available(macOS 13.0, *) {
+            self.scrollIndicators(.hidden)
+        } else {
+            self
+        }
+    }
+}
+
+private struct LyricsPanel: View {
+    @ObservedObject var model: NowPlayingModel
+    @State private var lastActiveLineID: UUID?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Label("Lyrics", systemImage: "quote.bubble")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary.opacity(0.92))
+
+//                if model.lyricsState == .loading {
+//                    ProgressView()
+//                        .controlSize(.small)
+//                        .scaleEffect(0.75)
+//                }
+
+                Spacer(minLength: 0)
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        model.lyricsPanelExpanded.toggle()
+                    }
+                } label: {
+                    Image(systemName: model.lyricsPanelExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                        .background(.thinMaterial, in: Circle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            if model.lyricsPanelExpanded {
+                panelContent
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var panelContent: some View {
+        switch model.lyricsState {
+        case .idle:
+            Text("Start playback in Music to load lyrics.")
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 4)
+        case .loading:
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Fetching lyrics…")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
+        case .available:
+            lyricsScrollContent
+        case .unavailable:
+            unavailableContent(message: "Lyrics unavailable for this track.")
+        case .failed:
+            unavailableContent(message: "Couldn’t fetch lyrics right now.")
+        }
+    }
+
+    private func unavailableContent(message: String) -> some View {
+        HStack(spacing: 10) {
+            Text(message)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+
+            Spacer(minLength: 0)
+
+            Button("Retry") {
+                model.retryLyricsFetch()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+    }
+
+    private var lyricsScrollContent: some View {
+        let lines = model.lyricsPayload?.lines ?? []
+        let activeID = activeLineID
+
+        return ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: 6) {
+                    ForEach(lines) { line in
+                        let isActive = line.id == activeID
+                        Text(line.text)
+                            .font(.system(size: isActive ? 17 : 12, weight: isActive ? .semibold : .medium, design: .rounded))
+                            .foregroundStyle(isActive ? .primary : .secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 1)
+                            .animation(.easeInOut(duration: 0.16), value: isActive)
+                            .id(line.id)
+                    }
+                }
+                .padding(.vertical, 8)
+            }
+            .forceHideScrollIndicators()
+            .frame(maxHeight: 140)
+            .onAppear {
+                if let id = activeID {
+                    lastActiveLineID = id
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(id, anchor: .top)
+                    }
+                }
+            }
+            .onChange(of: activeID) { id in
+                guard model.lyricsPanelExpanded, let id else { return }
+                guard lastActiveLineID != id else { return }
+                lastActiveLineID = id
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    proxy.scrollTo(id, anchor: .center)
+                }
+            }
+        }
+    }
+
+    private var activeLineID: UUID? {
+        guard let payload = model.lyricsPayload else { return nil }
+        let lines = payload.lines
+        guard !lines.isEmpty else { return nil }
+
+        if payload.isTimed {
+            let elapsed = model.elapsed
+            var selected: LyricsLine?
+            for line in lines {
+                guard let start = line.startTime else { continue }
+                if start <= elapsed {
+                    selected = line
+                } else {
+                    break
+                }
+            }
+            return (selected ?? lines.first)?.id
+        }
+
+        if lines.count == 1 { return lines[0].id }
+        let ratio = model.duration > 0 ? min(max(model.elapsed / model.duration, 0), 1) : 0
+        let index = min(lines.count - 1, max(0, Int((ratio * Double(lines.count - 1)).rounded())))
+        return lines[index].id
     }
 }
 

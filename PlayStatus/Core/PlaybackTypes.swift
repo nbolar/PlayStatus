@@ -64,6 +64,39 @@ enum PreferredProvider: String, CaseIterable {
     }
 }
 
+enum LyricsSource: String, Equatable {
+    case musicApp
+    case lrclib
+    case none
+}
+
+enum LyricsState: Equatable {
+    case idle
+    case loading
+    case available
+    case unavailable
+    case failed
+}
+
+struct LyricsLine: Equatable, Identifiable {
+    let id: UUID
+    let text: String
+    let startTime: Double?
+
+    init(id: UUID = UUID(), text: String, startTime: Double?) {
+        self.id = id
+        self.text = text
+        self.startTime = startTime
+    }
+}
+
+struct LyricsPayload: Equatable {
+    let source: LyricsSource
+    let rawText: String
+    let lines: [LyricsLine]
+    let isTimed: Bool
+}
+
 struct NowPlayingSnapshot: Equatable {
     enum NativeArtworkState: Equatable {
         case available
@@ -81,4 +114,6 @@ struct NowPlayingSnapshot: Equatable {
     var elapsed: Double
     var duration: Double
     var canSeek: Bool
+    var lyrics: LyricsPayload? = nil
+    var lyricsState: LyricsState = .idle
 }
