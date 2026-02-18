@@ -1,34 +1,23 @@
 import SwiftUI
 import AppKit
 
+private let modeMorphDuration: Double = 0.64
+private let modeMorphAnimation = Animation.timingCurve(0.20, 0.94, 0.28, 1.0, duration: modeMorphDuration)
+
 struct NowPlayingPopover: View {
     @ObservedObject var model: NowPlayingModel
+    @Namespace private var artworkMorphNamespace
     @State private var searchText = ""
     @State private var isSearchExpanded = false
     @FocusState private var isSearchFocused: Bool
     @State private var searchSectionFrame: CGRect = .zero
+    @State private var modeTransitionActive = false
+    @State private var modeTransitionResetWorkItem: DispatchWorkItem?
+    @State private var artworkMorphEnabled = false
+    @State private var regularArtworkOpacity: Double = 1
 
     var body: some View {
-        ZStack {
-            if model.miniMode {
-                modeContent(miniMode: true)
-                    .transition(
-                        .asymmetric(
-                            insertion: .move(edge: .top).combined(with: .opacity),
-                            removal: .move(edge: .leading).combined(with: .scale(scale: 0.05, anchor: .center))
-                        )
-                    )
-            } else {
-                modeContent(miniMode: false)
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 1.01, anchor: .topLeading)),
-                            removal: .opacity.combined(with: .scale(scale: 0.19, anchor: .topLeading))
-                        )
-                    )
-            }
-        }
-        .animation(.timingCurve(0.22, 0.96, 0.30, 1.0, duration: 0.92), value: model.miniMode)
+        modeContent(miniMode: model.miniMode)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .coordinateSpace(name: "popoverRoot")
         .onPreferenceChange(SearchSectionFramePreferenceKey.self) { frame in
@@ -43,10 +32,20 @@ struct NowPlayingPopover: View {
             }
         }
         .onChange(of: model.miniMode) { miniMode in
+            beginModeTransition()
+            if miniMode {
+                artworkMorphEnabled = true
+            } else {
+                artworkMorphEnabled = false
+                regularArtworkOpacity = 0
+                withAnimation(.easeInOut(duration: 0.80)) {
+                    regularArtworkOpacity = 1
+                }
+            }
             guard miniMode else { return }
             searchText = ""
             isSearchFocused = false
-            withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.86, blendDuration: 0.12)) {
+            withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.90, blendDuration: 0.10)) {
                 isSearchExpanded = false
             }
         }
@@ -55,7 +54,7 @@ struct NowPlayingPopover: View {
                 guard isSearchExpanded else { return }
                 guard model.provider == .music else { return }
                 guard !searchSectionFrame.contains(value.location) else { return }
-                withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.86, blendDuration: 0.12)) {
+                withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.90, blendDuration: 0.10)) {
                     isSearchExpanded = false
                 }
                 isSearchFocused = false
@@ -66,7 +65,17 @@ struct NowPlayingPopover: View {
     @ViewBuilder
     private func modeContent(miniMode: Bool) -> some View {
         if miniMode {
-            MiniNowPlayingCard(model: model)
+            MiniNowPlayingCard(
+                model: model,
+                artworkMorphNamespace: artworkMorphNamespace,
+                transitionActive: modeTransitionActive,
+                onToggleMode: {
+                    withAnimation(modeMorphAnimation) {
+                        artworkMorphEnabled = false
+                        model.miniMode = false
+                    }
+                }
+            )
         } else {
             regularContent
         }
@@ -77,8 +86,17 @@ struct NowPlayingPopover: View {
             LiquidGlassCard(tint: model.glassTint, palette: model.cardBackgroundPalette) {
             VStack(spacing: 8) {
                 HStack(alignment: .center, spacing: 16) {
-                    ArtworkView(image: model.artwork, tint: model.glassTint)
-                        .frame(width: model.artworkDisplaySize, height: model.artworkDisplaySize)
+                    Group {
+                        if artworkMorphEnabled {
+                            ArtworkView(image: model.artwork, tint: model.glassTint)
+                                .frame(width: model.artworkDisplaySize, height: model.artworkDisplaySize)
+                                .matchedGeometryEffect(id: "heroArtwork", in: artworkMorphNamespace)
+                        } else {
+                            ArtworkView(image: model.artwork, tint: model.glassTint)
+                                .frame(width: model.artworkDisplaySize, height: model.artworkDisplaySize)
+                                .opacity(regularArtworkOpacity)
+                        }
+                    }
 
                     VStack(alignment: .leading, spacing: 6) {
                         Button(action: { model.openProviderApp() }) {
@@ -137,8 +155,11 @@ struct NowPlayingPopover: View {
             }
             .overlay(alignment: .topTrailing) {
                 HStack(spacing: 6) {
-                    ModeToggleControl(isMiniMode: false) {
-                        model.miniMode = true
+                    ModeToggleControl(isMiniMode: false, transitionActive: modeTransitionActive) {
+                        withAnimation(modeMorphAnimation) {
+                            artworkMorphEnabled = true
+                            model.miniMode = true
+                        }
                     }
 
                     SettingsOpenControl {
@@ -291,6 +312,16 @@ struct NowPlayingPopover: View {
         searchText = ""
     }
 
+    private func beginModeTransition() {
+        modeTransitionResetWorkItem?.cancel()
+        modeTransitionActive = true
+        let reset = DispatchWorkItem {
+            modeTransitionActive = false
+        }
+        modeTransitionResetWorkItem = reset
+        DispatchQueue.main.asyncAfter(deadline: .now() + modeMorphDuration + 0.06, execute: reset)
+    }
+
 }
 
 private struct SearchSectionFramePreferenceKey: PreferenceKey {
@@ -303,8 +334,11 @@ private struct SearchSectionFramePreferenceKey: PreferenceKey {
 
 private struct MiniNowPlayingCard: View {
     @ObservedObject var model: NowPlayingModel
-    let transitionActive: Bool = false
+    let artworkMorphNamespace: Namespace.ID
+    let transitionActive: Bool
+    let onToggleMode: () -> Void
     @State private var isHovering = false
+    @State private var hoverCoordinator = MiniCardHoverCoordinator()
 
     var body: some View {
         let effectiveHover = isHovering && !transitionActive
@@ -378,6 +412,7 @@ private struct MiniNowPlayingCard: View {
                     )
                 }
             }
+            .matchedGeometryEffect(id: "heroArtwork", in: artworkMorphNamespace)
             .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 13, style: .continuous)
@@ -393,9 +428,7 @@ private struct MiniNowPlayingCard: View {
         )
         .overlay(alignment: .topTrailing) {
             HStack(spacing: 6) {
-                ModeToggleControl(isMiniMode: true) {
-                    model.miniMode = false
-                }
+                ModeToggleControl(isMiniMode: true, transitionActive: transitionActive, action: onToggleMode)
 
                 SettingsOpenControl {
                     Image(systemName: "gearshape.fill")
@@ -541,22 +574,38 @@ private struct MiniNowPlayingCard: View {
                 .padding(.bottom, 12)
             }
         }
-        .onHover { hovering in
-            guard !transitionActive else {
-                if isHovering {
-                    isHovering = false
+        .overlay {
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear {
+                        hoverCoordinator.updateFrame(proxy.frame(in: .named("popoverRoot")))
+                    }
+                    .onChange(of: proxy.size) { _ in
+                        hoverCoordinator.updateFrame(proxy.frame(in: .named("popoverRoot")))
+                    }
+            }
+            .allowsHitTesting(false)
+        }
+        .onAppear {
+            hoverCoordinator.onHoverChanged = { hovering in
+                guard hovering != isHovering else { return }
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isHovering = hovering
                 }
-                return
             }
-            withAnimation(.easeInOut(duration: 0.18)) {
-                isHovering = hovering
-            }
+            hoverCoordinator.updateTransitionActive(transitionActive)
+            hoverCoordinator.start()
+        }
+        .onDisappear {
+            hoverCoordinator.stop()
         }
         .onChange(of: transitionActive) { active in
-            guard active else { return }
-            if isHovering {
-                withAnimation(.easeInOut(duration: 0.12)) {
-                    isHovering = false
+            hoverCoordinator.updateTransitionActive(active)
+            if active {
+                if isHovering {
+                    withAnimation(.easeOut(duration: 0.08)) {
+                        isHovering = false
+                    }
                 }
             }
         }
@@ -574,8 +623,49 @@ private struct MiniNowPlayingCard: View {
     }
 }
 
+private final class MiniCardHoverCoordinator {
+    var onHoverChanged: ((Bool) -> Void)?
+    private var frameInPopoverRoot: CGRect = .zero
+    private var transitionActive = false
+    private var hoverPollingTimer: Timer?
+    private var lastHoverState = false
+
+    func updateFrame(_ frame: CGRect) {
+        frameInPopoverRoot = frame
+    }
+
+    func updateTransitionActive(_ active: Bool) {
+        transitionActive = active
+    }
+
+    func start() {
+        stop()
+        hoverPollingTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            self?.poll()
+        }
+    }
+
+    func stop() {
+        hoverPollingTimer?.invalidate()
+        hoverPollingTimer = nil
+        lastHoverState = false
+    }
+
+    private func poll() {
+        guard !transitionActive else { return }
+        let mouse = NSEvent.mouseLocation
+        guard let window = NSApplication.shared.keyWindow else { return }
+        let mouseInWindow = window.convertPoint(fromScreen: mouse)
+        let hovering = frameInPopoverRoot.contains(mouseInWindow)
+        guard hovering != lastHoverState else { return }
+        lastHoverState = hovering
+        onHoverChanged?(hovering)
+    }
+}
+
 private struct ModeToggleControl: View {
     let isMiniMode: Bool
+    let transitionActive: Bool
     let action: () -> Void
     @State private var hovering = false
 
@@ -594,6 +684,12 @@ private struct ModeToggleControl: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering in
+            guard !transitionActive else {
+                if self.hovering {
+                    self.hovering = false
+                }
+                return
+            }
             withAnimation(.easeOut(duration: 0.16)) {
                 self.hovering = hovering
             }

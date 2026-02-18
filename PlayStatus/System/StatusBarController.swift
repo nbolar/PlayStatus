@@ -358,8 +358,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.updateStatusButton()
-                // Delay by one runloop pass so SwiftUI commits its layout change
-                // (e.g. mini mode toggle) before we measure fittingSize.
+                // Wait one main-queue pass so SwiftUI commits layout before measurement.
                 DispatchQueue.main.async {
                     self?.updatePopoverLayout(animated: true)
                 }
@@ -530,8 +529,13 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
 
         if animated {
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.44
-                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                context.duration = 0.64
+                context.timingFunction = CAMediaTimingFunction(
+                    controlPoints: 0.20,
+                    0.94,
+                    0.28,
+                    1.0
+                )
                 context.allowsImplicitAnimation = true
                 window.animator().setFrame(targetFrame, display: true)
             }
