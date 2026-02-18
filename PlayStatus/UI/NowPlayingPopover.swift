@@ -1,11 +1,6 @@
 import SwiftUI
 import AppKit
 
-private enum ModeTransition {
-    static let collapse = Animation.spring(response: 0.46, dampingFraction: 0.88)
-    static let expand   = Animation.spring(response: 0.42, dampingFraction: 0.82)
-}
-
 struct NowPlayingPopover: View {
     @ObservedObject var model: NowPlayingModel
     @State private var searchText = ""
@@ -17,12 +12,7 @@ struct NowPlayingPopover: View {
         ZStack {
             if model.miniMode {
                 MiniNowPlayingCard(model: model)
-                    .transition(
-                        .asymmetric(
-                            insertion: .scale(scale: 0.90, anchor: .top).combined(with: .opacity),
-                            removal:   .scale(scale: 0.92, anchor: .top).combined(with: .opacity)
-                        )
-                    )
+                    .transition(.opacity)
             } else {
                 VStack(spacing: 12) {
                     LiquidGlassCard(tint: model.glassTint, palette: model.cardBackgroundPalette) {
@@ -89,9 +79,7 @@ struct NowPlayingPopover: View {
                     .overlay(alignment: .topTrailing) {
                         HStack(spacing: 6) {
                             ModeToggleControl(isMiniMode: false) {
-                                withAnimation(ModeTransition.collapse) {
-                                    model.miniMode = true
-                                }
+                                model.miniMode = true
                             }
 
                             SettingsOpenControl {
@@ -117,15 +105,10 @@ struct NowPlayingPopover: View {
                         LiquidGlassBackground(tint: model.glassTint)
                     }
                 )
-                .transition(
-                    .asymmetric(
-                        insertion: .scale(scale: 0.94, anchor: .top).combined(with: .opacity),
-                        removal:   .scale(scale: 0.88, anchor: .top).combined(with: .opacity)
-                    )
-                )
+                .transition(.opacity)
             }
         }
-        .animation(model.miniMode ? ModeTransition.collapse : ModeTransition.expand, value: model.miniMode)
+        .animation(.easeInOut(duration: 0.22), value: model.miniMode)
         .coordinateSpace(name: "popoverRoot")
         .onPreferenceChange(SearchSectionFramePreferenceKey.self) { frame in
             searchSectionFrame = frame
@@ -384,9 +367,7 @@ private struct MiniNowPlayingCard: View {
         .overlay(alignment: .topTrailing) {
             HStack(spacing: 6) {
                 ModeToggleControl(isMiniMode: true) {
-                    withAnimation(ModeTransition.expand) {
-                        model.miniMode = false
-                    }
+                    model.miniMode = false
                 }
 
                 SettingsOpenControl {

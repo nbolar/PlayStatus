@@ -224,7 +224,11 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.updateStatusButton()
-                self?.updatePopoverLayout()
+                // Delay by one runloop pass so SwiftUI commits its layout change
+                // (e.g. mini mode toggle) before we measure fittingSize.
+                DispatchQueue.main.async {
+                    self?.updatePopoverLayout(animated: true)
+                }
             }
             .store(in: &cancellables)
 
@@ -329,9 +333,16 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         marqueeView.update(text: model.menuBarTitle, enabled: model.scrollableTitle, laneWidth: laneWidth)
     }
 
-    private func updatePopoverLayout() {
+    private func updatePopoverLayout(animated: Bool = false) {
         let width = model.popoverWidth
-        popoverHost.rootView = AnyView(NowPlayingPopover(model: model).frame(width: width))
+
+        // Only rebuild the root view when the popover is not yet shown (initial
+        // setup). While shown, SwiftUI's own reactive update cycle keeps the view
+        // current — rebuilding here tears down in-flight animations.
+        if !popover.isShown {
+            popoverHost.rootView = AnyView(NowPlayingPopover(model: model).frame(width: width))
+        }
+
         popoverHost.view.layoutSubtreeIfNeeded()
         let fittingHeight = ceil(popoverHost.view.fittingSize.height)
         let targetSize = NSSize(width: width, height: max(1, fittingHeight))
@@ -374,18 +385,15 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             )
         }
 
-        NSAnimationContext.runAnimationGroup { context in
-            if model.miniMode {
-                // Collapsing → mini: easeOut starts fast to match the spring's
-                // initial velocity, finishing just before SwiftUI settles (~0.55s).
-                context.duration = 0.44
-            } else {
-                // Expanding → regular: same easeOut feel, slightly snappier.
-                context.duration = 0.40
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.22
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                context.allowsImplicitAnimation = true
+                window.animator().setFrame(targetFrame, display: true)
             }
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            context.allowsImplicitAnimation = true
-            window.animator().setFrame(targetFrame, display: true)
+        } else {
+            window.setFrame(targetFrame, display: true)
         }
     }
 }
