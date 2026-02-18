@@ -11,6 +11,7 @@ final class PassthroughImageView: NSImageView {
 final class StatusBarMarqueeView: NSView {
     private let primaryLabel = NSTextField(labelWithString: "")
     private let secondaryLabel = NSTextField(labelWithString: "")
+    private let transitionLabel = NSTextField(labelWithString: "")
 
     private let font = NSFont.systemFont(ofSize: 13, weight: .regular)
     private let gap: CGFloat = 18
@@ -21,6 +22,7 @@ final class StatusBarMarqueeView: NSView {
     private var laneWidth: CGFloat = 120
     private var textWidth: CGFloat = 0
     private var shouldScroll = false
+    private var isTransitioning = false
     private var xOffset: CGFloat = 0
     private var tickTimer: Timer?
     private var lastTickTime: CFTimeInterval = 0
@@ -33,9 +35,12 @@ final class StatusBarMarqueeView: NSView {
 
         configureLabel(primaryLabel)
         configureLabel(secondaryLabel)
+        configureLabel(transitionLabel)
         addSubview(primaryLabel)
         addSubview(secondaryLabel)
+        addSubview(transitionLabel)
         secondaryLabel.isHidden = true
+        transitionLabel.isHidden = true
     }
 
     required init?(coder: NSCoder) {
@@ -50,7 +55,7 @@ final class StatusBarMarqueeView: NSView {
         super.viewDidMoveToWindow()
         if window == nil {
             stopTicker()
-        } else if shouldScroll {
+        } else if shouldScroll && !isTransitioning {
             startTickerIfNeeded()
         }
     }
@@ -60,13 +65,15 @@ final class StatusBarMarqueeView: NSView {
         applyLayout()
     }
 
-    func update(text: String, enabled: Bool, laneWidth: CGFloat) {
+    func update(text: String, enabled: Bool, laneWidth: CGFloat, slideOnChange: Bool) {
         let text = text.isEmpty ? "Not Playing" : text
         let width = floor(max(80, laneWidth))
-        let signature = "\(text)|\(enabled)|\(Int(width.rounded()))"
+        let signature = "\(text)|\(enabled)|\(Int(width.rounded()))|\(slideOnChange ? 1 : 0)"
         if signature == currentSignature { return }
         currentSignature = signature
 
+        let previousText = resolvedText
+        let previousShouldScroll = shouldScroll
         resolvedText = text
         self.laneWidth = width
         textWidth = measuredTextWidth(text, font: font)
@@ -77,17 +84,38 @@ final class StatusBarMarqueeView: NSView {
         xOffset = 0
         lastTickTime = 0
 
+        primaryLabel.lineBreakMode = shouldScroll ? .byClipping : .byTruncatingTail
+        secondaryLabel.lineBreakMode = .byClipping
+
+        let shouldAnimateTitleSwap =
+            slideOnChange &&
+            previousText != text &&
+            window != nil
+
+        if shouldAnimateTitleSwap {
+            let useSlideMotion = !(previousShouldScroll || shouldScroll)
+            animateTitleSwap(
+                from: previousText,
+                to: text,
+                newShouldScroll: shouldScroll,
+                useSlideMotion: useSlideMotion
+            )
+            return
+        }
+
         if shouldScroll {
-            primaryLabel.lineBreakMode = .byClipping
-            secondaryLabel.lineBreakMode = .byClipping
             secondaryLabel.isHidden = false
+            transitionLabel.isHidden = true
+            transitionLabel.alphaValue = 1
             startTickerIfNeeded()
         } else {
-            primaryLabel.lineBreakMode = .byTruncatingTail
             secondaryLabel.isHidden = true
             stopTicker()
         }
 
+        isTransitioning = false
+        transitionLabel.isHidden = true
+        transitionLabel.alphaValue = 1
         applyLayout()
     }
 
@@ -106,6 +134,7 @@ final class StatusBarMarqueeView: NSView {
     }
 
     private func applyLayout() {
+        guard !isTransitioning else { return }
         let h = bounds.height
         let y = floor((h - 16) / 2)
         if shouldScroll {
@@ -118,7 +147,112 @@ final class StatusBarMarqueeView: NSView {
             primaryLabel.frame = CGRect(x: 0, y: y, width: laneWidth, height: 16)
             secondaryLabel.frame = .zero
             secondaryLabel.isHidden = true
+            if transitionLabel.isHidden {
+                transitionLabel.frame = CGRect(x: 0, y: y, width: laneWidth, height: 16)
+            }
         }
+    }
+
+    private func animateTitleSwap(from oldTitle: String, to newTitle: String, newShouldScroll: Bool, useSlideMotion: Bool) {
+        let h = bounds.height
+        let y = floor((h - 16) / 2)
+        let animationOffset: CGFloat = useSlideMotion ? 12 : 0
+        let cycle = max(1, textWidth + gap)
+
+        stopTicker()
+
+        transitionLabel.stringValue = oldTitle
+        transitionLabel.frame = CGRect(x: 0, y: y, width: laneWidth, height: 16)
+        transitionLabel.alphaValue = 1
+        transitionLabel.isHidden = false
+        isTransitioning = true
+
+        primaryLabel.stringValue = newTitle
+        secondaryLabel.stringValue = newTitle
+        secondaryLabel.isHidden = true
+        secondaryLabel.alphaValue = 1
+
+        if !useSlideMotion {
+            let targetPrimaryWidth = newShouldScroll ? (textWidth + 2) : laneWidth
+            primaryLabel.frame = CGRect(x: 0, y: y, width: targetPrimaryWidth, height: 16)
+            primaryLabel.alphaValue = 0
+            if newShouldScroll {
+                secondaryLabel.frame = CGRect(x: cycle, y: y, width: textWidth + 2, height: 16)
+            } else {
+                secondaryLabel.frame = .zero
+            }
+
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.20
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                context.allowsImplicitAnimation = true
+                transitionLabel.animator().alphaValue = 0
+            } completionHandler: { [weak self] in
+                guard let self else { return }
+                self.transitionLabel.isHidden = true
+                self.transitionLabel.alphaValue = 1
+
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.26
+                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                    context.allowsImplicitAnimation = true
+                    self.primaryLabel.animator().alphaValue = 1
+                } completionHandler: { [weak self] in
+                    guard let self else { return }
+                    self.finishTitleSwap(newShouldScroll: newShouldScroll)
+                }
+            }
+            return
+        }
+
+        if newShouldScroll {
+            primaryLabel.frame = CGRect(x: animationOffset, y: y, width: textWidth + 2, height: 16)
+            secondaryLabel.frame = CGRect(x: cycle, y: y, width: textWidth + 2, height: 16)
+        } else {
+            primaryLabel.frame = CGRect(x: animationOffset, y: y, width: laneWidth, height: 16)
+            secondaryLabel.frame = .zero
+        }
+        primaryLabel.alphaValue = 0
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            context.allowsImplicitAnimation = true
+            transitionLabel.animator().alphaValue = 0
+        } completionHandler: { [weak self] in
+            guard let self else { return }
+            self.transitionLabel.isHidden = true
+            self.transitionLabel.alphaValue = 1
+
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.40
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                context.allowsImplicitAnimation = true
+                let targetPrimaryWidth = newShouldScroll ? (self.textWidth + 2) : self.laneWidth
+                self.primaryLabel.animator().frame = CGRect(x: 0, y: y, width: targetPrimaryWidth, height: 16)
+                self.primaryLabel.animator().alphaValue = 1
+            } completionHandler: { [weak self] in
+                guard let self else { return }
+                self.finishTitleSwap(newShouldScroll: newShouldScroll)
+            }
+        }
+    }
+
+    private func finishTitleSwap(newShouldScroll: Bool) {
+        isTransitioning = false
+        transitionLabel.isHidden = true
+        transitionLabel.alphaValue = 1
+        primaryLabel.alphaValue = 1
+        if newShouldScroll {
+            secondaryLabel.isHidden = false
+            secondaryLabel.alphaValue = 1
+            startTickerIfNeeded()
+        } else {
+            secondaryLabel.isHidden = true
+            secondaryLabel.alphaValue = 1
+            stopTicker()
+        }
+        applyLayout()
     }
 
     private func startTickerIfNeeded() {
@@ -167,6 +301,12 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private let iconSize: CGFloat = 13
     private var lastStatusLength: CGFloat = -1
     private var lastStatusIconName: String = ""
+    private var modeMorphCompletionWorkItem: DispatchWorkItem?
+    private let modeMorphDuration: TimeInterval = 0.44
+    private var cachedMiniHeight: CGFloat = 380
+    private var cachedRegularHeight: CGFloat = 260
+    private var hasCachedMiniHeight = true
+    private var hasCachedRegularHeight = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -193,6 +333,10 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         popover.behavior = .transient
         popover.delegate = self
         popover.contentViewController = popoverHost
+        popoverHost.rootView = AnyView(NowPlayingPopover(model: model))
+        model.modeMorphProgress = model.miniMode ? 0 : 1
+        model.modeMorphIsActive = false
+        model.modeMorphSourceMini = model.miniMode
         updatePopoverLayout()
         _ = SparkleUpdater.shared
 
@@ -229,6 +373,14 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
                 DispatchQueue.main.async {
                     self?.updatePopoverLayout(animated: true)
                 }
+            }
+            .store(in: &cancellables)
+
+        model.$miniModeRevision
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.startModeMorphTransition(toMiniMode: self?.model.miniMode ?? false)
             }
             .store(in: &cancellables)
 
@@ -279,6 +431,11 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
 
     func popoverDidClose(_ notification: Notification) {
         model.isPopoverVisible = false
+        modeMorphCompletionWorkItem?.cancel()
+        modeMorphCompletionWorkItem = nil
+        model.modeMorphIsActive = false
+        model.modeMorphProgress = model.miniMode ? 0 : 1
+        model.modeMorphSourceMini = model.miniMode
     }
 
     private func updateStatusButton() {
@@ -330,23 +487,114 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         if !marqueeView.frame.equalTo(targetFrame) {
             marqueeView.frame = targetFrame
         }
-        marqueeView.update(text: model.menuBarTitle, enabled: model.scrollableTitle, laneWidth: laneWidth)
+        marqueeView.update(
+            text: model.menuBarTitle,
+            enabled: model.scrollableTitle,
+            laneWidth: laneWidth,
+            slideOnChange: model.slideTitleOnChange
+        )
     }
 
-    private func updatePopoverLayout(animated: Bool = false) {
-        let width = model.popoverWidth
+    private func updatePopoverLayout(animated: Bool = true, preferMeasuredHeight: Bool = true) {
+        guard !model.modeMorphIsActive else { return }
+        let targetProgress: CGFloat = model.miniMode ? 0 : 1
+        let targetSize = contentSize(for: targetProgress, preferMeasuredHeight: preferMeasuredHeight)
+        applyPopoverSize(targetSize, animated: animated)
+    }
 
-        // Only rebuild the root view when the popover is not yet shown (initial
-        // setup). While shown, SwiftUI's own reactive update cycle keeps the view
-        // current — rebuilding here tears down in-flight animations.
+    private func startModeMorphTransition(toMiniMode miniMode: Bool) {
+        let target: CGFloat = miniMode ? 0 : 1
+        let current = min(max(model.modeMorphProgress, 0), 1)
+
         if !popover.isShown {
-            popoverHost.rootView = AnyView(NowPlayingPopover(model: model).frame(width: width))
+            modeMorphCompletionWorkItem?.cancel()
+            modeMorphCompletionWorkItem = nil
+            model.modeMorphIsActive = false
+            model.modeMorphProgress = target
+            model.modeMorphSourceMini = miniMode
+            updatePopoverLayout(animated: false)
+            return
         }
 
-        popoverHost.view.layoutSubtreeIfNeeded()
-        let fittingHeight = ceil(popoverHost.view.fittingSize.height)
-        let targetSize = NSSize(width: width, height: max(1, fittingHeight))
+        guard abs(current - target) > 0.001 else {
+            modeMorphCompletionWorkItem?.cancel()
+            modeMorphCompletionWorkItem = nil
+            model.modeMorphIsActive = false
+            model.modeMorphProgress = target
+            model.modeMorphSourceMini = miniMode
+            updatePopoverLayout(animated: false)
+            return
+        }
 
+        modeMorphCompletionWorkItem?.cancel()
+        modeMorphCompletionWorkItem = nil
+
+        if let window = popover.contentViewController?.view.window {
+            let currentHeight = max(1, window.contentRect(forFrameRect: window.frame).height)
+            if target > current {
+                cachedMiniHeight = currentHeight
+                hasCachedMiniHeight = true
+            } else {
+                cachedRegularHeight = currentHeight
+                hasCachedRegularHeight = true
+            }
+        }
+
+        model.modeMorphSourceMini = current < 0.5
+        model.modeMorphIsActive = true
+        withAnimation(.timingCurve(0.22, 0.90, 0.20, 1.0, duration: modeMorphDuration)) {
+            model.modeMorphProgress = target
+        }
+
+        let targetSize = contentSize(for: target, preferMeasuredHeight: false)
+        applyPopoverSize(targetSize, animated: true, duration: modeMorphDuration)
+
+        let completion = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.model.modeMorphIsActive = false
+            self.model.modeMorphProgress = target
+            self.model.modeMorphSourceMini = miniMode
+            self.updatePopoverLayout(animated: false, preferMeasuredHeight: false)
+            DispatchQueue.main.async { [weak self] in
+                self?.updatePopoverLayout(animated: false, preferMeasuredHeight: true)
+            }
+        }
+        modeMorphCompletionWorkItem = completion
+        DispatchQueue.main.asyncAfter(deadline: .now() + modeMorphDuration + 0.03, execute: completion)
+    }
+
+    private func contentSize(for progress: CGFloat, preferMeasuredHeight: Bool) -> NSSize {
+        let clampedProgress = min(max(progress, 0), 1)
+        let width = model.miniPopoverWidth + ((model.regularPopoverWidth - model.miniPopoverWidth) * clampedProgress)
+        let hostView = popoverHost.view
+        if abs(hostView.frame.width - width) > 0.5 {
+            hostView.setFrameSize(NSSize(width: width, height: hostView.frame.height))
+        }
+
+        var measuredHeight: CGFloat?
+        if preferMeasuredHeight {
+            hostView.layoutSubtreeIfNeeded()
+            let fittingHeight = ceil(hostView.fittingSize.height)
+            if fittingHeight > 1 {
+                measuredHeight = fittingHeight
+                if clampedProgress < 0.5 {
+                    cachedMiniHeight = fittingHeight
+                    hasCachedMiniHeight = true
+                } else {
+                    cachedRegularHeight = fittingHeight
+                    hasCachedRegularHeight = true
+                }
+            }
+        }
+
+        let miniHeight = hasCachedMiniHeight ? cachedMiniHeight : model.miniPopoverHeight
+        let regularHeight = hasCachedRegularHeight ? cachedRegularHeight : model.estimatedRegularPopoverHeight
+        let fallbackHeight = miniHeight + ((regularHeight - miniHeight) * clampedProgress)
+        let height = measuredHeight ?? fallbackHeight
+        return NSSize(width: width, height: max(1, ceil(height)))
+    }
+
+    private func applyPopoverSize(_ targetSize: NSSize, animated: Bool, duration: TimeInterval = 0.32) {
         guard popover.isShown else {
             if popover.contentSize != targetSize {
                 popover.contentSize = targetSize
@@ -387,8 +635,8 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
 
         if animated {
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.22
-                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                context.duration = duration
+                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.22, 0.90, 0.20, 1.0)
                 context.allowsImplicitAnimation = true
                 window.animator().setFrame(targetFrame, display: true)
             }
@@ -396,4 +644,5 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             window.setFrame(targetFrame, display: true)
         }
     }
+
 }

@@ -30,7 +30,10 @@ final class NowPlayingModel: ObservableObject {
     @AppStorage("artworkColorIntensity") private var artworkColorIntensityStorage: Double = 1.0
     @AppStorage("artworkDisplaySize") private var artworkDisplaySizeStorage: Double = 200
     @AppStorage("miniMode") var miniMode: Bool = false {
-        didSet { bumpStatusBarConfigRevision() }
+        didSet {
+            bumpStatusBarConfigRevision()
+            miniModeRevision &+= 1
+        }
     }
 
     // UI state
@@ -51,6 +54,10 @@ final class NowPlayingModel: ObservableObject {
         Color.white.opacity(0.10),
         Color.clear
     ]
+    @Published var modeMorphProgress: CGFloat = 1
+    @Published var modeMorphIsActive: Bool = false
+    @Published var modeMorphSourceMini: Bool = false
+    @Published var miniModeRevision: Int = 0
     @Published var statusBarConfigRevision: Int = 0
     @Published var menuBarDisplayTitle: String = "Not Playing"
     @Published var availableOutputDevices: [AudioOutputDevice] = []
@@ -125,12 +132,25 @@ final class NowPlayingModel: ObservableObject {
         CGFloat(min(max(artworkDisplaySizeStorage, 120), 260))
     }
 
-    var popoverWidth: CGFloat {
-        if miniMode {
-            return 380
-        }
+    var miniPopoverWidth: CGFloat { 380 }
+
+    var regularPopoverWidth: CGFloat {
         // Artwork + spacing + readable text/controls column + container padding.
         return max(410, artworkDisplaySize + 330)
+    }
+
+    var popoverWidth: CGFloat {
+        miniMode ? miniPopoverWidth : regularPopoverWidth
+    }
+
+    var visualPopoverWidth: CGFloat {
+        miniPopoverWidth + ((regularPopoverWidth - miniPopoverWidth) * modeMorphProgress)
+    }
+
+    var miniPopoverHeight: CGFloat { 380 }
+
+    var estimatedRegularPopoverHeight: CGFloat {
+        max(220, artworkDisplaySize + 54)
     }
 
     init() {
@@ -144,6 +164,8 @@ final class NowPlayingModel: ObservableObject {
 
         startTimer(interval: 0.5)
         launchAtLoginSupported = launchAtLoginStatus() != nil
+        modeMorphProgress = miniMode ? 0 : 1
+        modeMorphSourceMini = miniMode
         refresh()
     }
 
@@ -371,6 +393,10 @@ final class NowPlayingModel: ObservableObject {
 
     private func bumpStatusBarConfigRevision() {
         statusBarConfigRevision &+= 1
+    }
+
+    func requestPopoverLayoutRefresh() {
+        bumpStatusBarConfigRevision()
     }
 
     private func applyAudioState(_ state: AudioOutputState) {

@@ -546,144 +546,250 @@ struct SettingsOpenControl<Label: View>: View {
 struct PlayStatusSettingsView: View {
     @ObservedObject var model: NowPlayingModel
     @State private var selectedTab: SettingsTab = .display
+    @State private var tabDirection: SettingsTabDirection = .forward
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            Form {
-                Section("Menu Bar Text") {
-                    Picker("Mode", selection: Binding(
-                        get: { model.menuBarTextMode },
-                        set: { model.menuBarTextMode = $0 }
-                    )) {
-                        ForEach(MenuBarTextMode.allCases, id: \.self) { mode in
-                            Text(mode.displayName).tag(mode)
+        HStack(spacing: 0) {
+            SettingsSidebar(selectedTab: tabSelection)
+
+            Divider()
+
+            ScrollViewReader { scrollProxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Color.clear
+                            .frame(height: 0)
+                            .id("settings-top")
+
+                        ZStack(alignment: .topLeading) {
+                            VStack(alignment: .leading, spacing: 18) {
+                                SettingsPageHeader(tab: selectedTab)
+                                tabContent
+                            }
+                            .id(selectedTab.rawValue)
+                            .transition(tabTransition)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .animation(.spring(response: 0.36, dampingFraction: 0.88), value: selectedTab)
                     }
-                    .pickerStyle(.radioGroup)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-
-                Section("Display Options") {
-                    Toggle("Ignore (...) in title", isOn: $model.ignoreParentheses)
-                    Toggle("Scrollable title", isOn: $model.scrollableTitle)
-                    Toggle("Slide title on new song", isOn: $model.slideTitleOnChange)
-//                    Toggle("Mini mode", isOn: $model.miniMode)
-                }
-
-                Section("Sizing & Intensity") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("Title Width")
-                            Spacer()
-                            Text("\(Int(model.statusTextWidthValue))")
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
-                        }
-                        Slider(
-                            value: Binding(
-                                get: { model.statusTextWidthValue },
-                                set: { model.statusTextWidthValue = $0 }
-                            ),
-                            in: 80...320
-                        )
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("Artwork Color Intensity")
-                            Spacer()
-                            Text("\(Int(model.artworkColorIntensity * 100))%")
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
-                        }
-                        Slider(
-                            value: Binding(
-                                get: { model.artworkColorIntensity },
-                                set: { model.artworkColorIntensity = $0 }
-                            ),
-                            in: 0.5...1.8
-                        )
+                .onChange(of: selectedTab) { _ in
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        scrollProxy.scrollTo("settings-top", anchor: .top)
                     }
                 }
+                .background(
+                    LinearGradient(
+                        colors: [
+                            Color(nsColor: .windowBackgroundColor),
+                            Color(nsColor: .underPageBackgroundColor).opacity(0.65)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
             }
-            .formStyle(.grouped)
-            .tabItem { Label("Display", systemImage: "textformat") }
-            .tag(SettingsTab.display)
-
-            Form {
-                Section("Preferred Source") {
-                    Picker("App", selection: Binding(
-                        get: { model.preferredProvider },
-                        set: { model.preferredProvider = $0 }
-                    )) {
-                        ForEach(PreferredProvider.allCases, id: \.self) { provider in
-                            Text(provider.displayName).tag(provider)
-                        }
-                    }
-                    .pickerStyle(.radioGroup)
-                }
-
-                Section("Automatic Priority") {
-                    Picker("Order", selection: Binding(
-                        get: { model.providerPriority },
-                        set: { model.providerPriority = $0 }
-                    )) {
-                        ForEach(ProviderPriority.allCases, id: \.self) { priority in
-                            Text(priority.displayName).tag(priority)
-                        }
-                    }
-                    .pickerStyle(.radioGroup)
-                }
-
-                Section("Enabled Players") {
-                    Toggle("Enable Music", isOn: $model.enableMusic)
-                    Toggle("Enable Spotify", isOn: $model.enableSpotify)
-                }
-            }
-            .formStyle(.grouped)
-            .tabItem { Label("Playback", systemImage: "waveform") }
-            .tag(SettingsTab.playback)
-
-            Form {
-                Section("Startup") {
-                    Toggle("Launch at login", isOn: Binding(
-                        get: { model.launchAtLoginEnabled },
-                        set: { model.setLaunchAtLogin(enabled: $0) }
-                    ))
-                }
-
-                Section("Updates") {
-                    Button("Check for Updates…") {
-                        SparkleUpdater.shared.checkForUpdates(nil)
-                    }
-                }
-            }
-            .formStyle(.grouped)
-            .tabItem { Label("System", systemImage: "gearshape.2") }
-            .tag(SettingsTab.system)
-
-            Form {
-                Section("Global Shortcuts") {
-                    ForEach(AppHotkeyAction.allCases, id: \.self) { action in
-                        HotkeyRecorderRow(action: action)
-                    }
-                }
-            }
-            .formStyle(.grouped)
-            .tabItem { Label("Hotkeys", systemImage: "keyboard") }
-            .tag(SettingsTab.hotkeys)
         }
-        .frame(width: 560, height: selectedTab.preferredSize.height)
-        .tint(.blue)
-        .overlay(alignment: .topTrailing) {
-            Button("Quit App") {
-                NSApp.terminate(nil)
+        .frame(width: settingsWindowSize.width, height: settingsWindowSize.height)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .background(SettingsWindowChromeConfigurator(targetSize: settingsWindowSize))
+    }
+
+    private var tabSelection: Binding<SettingsTab> {
+        Binding(
+            get: { selectedTab },
+            set: { newValue in
+                guard newValue != selectedTab else { return }
+                tabDirection = newValue.sortIndex >= selectedTab.sortIndex ? .forward : .backward
+                selectedTab = newValue
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .padding(.top, 10)
-            .padding(.trailing, 12)
+        )
+    }
+
+    private var tabTransition: AnyTransition {
+        let insertion: Edge = tabDirection == .forward ? .trailing : .leading
+        let removal: Edge = tabDirection == .forward ? .leading : .trailing
+        return .asymmetric(
+            insertion: .move(edge: insertion).combined(with: .opacity),
+            removal: .move(edge: removal).combined(with: .opacity)
+        )
+    }
+
+    private var settingsWindowSize: CGSize {
+        let widths = SettingsTab.allCases.map(\.preferredSize.width)
+        let heights = SettingsTab.allCases.map(\.preferredSize.height)
+        return CGSize(width: widths.max() ?? 780, height: heights.max() ?? 640)
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case .display:
+            displayContent
+        case .playback:
+            playbackContent
+        case .system:
+            systemContent
+        case .hotkeys:
+            hotkeysContent
         }
-        .background(SettingsWindowChromeConfigurator())
+    }
+
+    private var displayContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsControlRow(
+                title: "Display Mode",
+                caption: "Changes the status text format in the menubar."
+            ) {
+                Picker("Display Mode", selection: Binding(
+                    get: { model.menuBarTextMode },
+                    set: { model.menuBarTextMode = $0 }
+                )) {
+                    ForEach(MenuBarTextMode.allCases, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(width: 220, alignment: .trailing)
+            }
+
+            Divider().padding(.vertical, 2)
+
+            SettingsToggleRow(
+                title: "Ignore (...) in title",
+                caption: "Removes parenthetical fragments from song titles.",
+                isOn: $model.ignoreParentheses
+            )
+            SettingsToggleRow(
+                title: "Scrollable title",
+                caption: "Allows long track names to scroll in the menu bar.",
+                isOn: $model.scrollableTitle
+            )
+            SettingsToggleRow(
+                title: "Slide title on new song",
+                caption: "Animates title transitions when tracks change.",
+                isOn: $model.slideTitleOnChange
+            )
+
+            Divider().padding(.vertical, 2)
+
+            SettingsSliderRow(
+                title: "Title Width",
+                caption: "Maximum width before menu bar text truncates.",
+                value: Binding(
+                    get: { model.statusTextWidthValue },
+                    set: { model.statusTextWidthValue = $0 }
+                ),
+                range: 80...320,
+                valueText: "\(Int(model.statusTextWidthValue)) px"
+            )
+
+            Divider().padding(.vertical, 2)
+
+            SettingsSliderRow(
+                title: "Artwork Color Intensity",
+                caption: "Controls how strongly artwork colors tint the popover.",
+                value: Binding(
+                    get: { model.artworkColorIntensity },
+                    set: { model.artworkColorIntensity = $0 }
+                ),
+                range: 0.5...1.8,
+                valueText: "\(Int(model.artworkColorIntensity * 100))%"
+            )
+        }
+    }
+
+    private var playbackContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsControlRow(
+                title: "Preferred App",
+                caption: "Used when multiple players are running."
+            ) {
+                Picker("Preferred App", selection: Binding(
+                    get: { model.preferredProvider },
+                    set: { model.preferredProvider = $0 }
+                )) {
+                    ForEach(PreferredProvider.allCases, id: \.self) { provider in
+                        Text(provider.displayName).tag(provider)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(width: 220, alignment: .trailing)
+            }
+
+            Divider().padding(.vertical, 2)
+
+            SettingsControlRow(
+                title: "Automatic Priority",
+                caption: "Fallback ordering when no preferred source is active."
+            ) {
+                Picker("Automatic Priority", selection: Binding(
+                    get: { model.providerPriority },
+                    set: { model.providerPriority = $0 }
+                )) {
+                    ForEach(ProviderPriority.allCases, id: \.self) { priority in
+                        Text(priority.displayName).tag(priority)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(width: 220, alignment: .trailing)
+            }
+
+            Divider().padding(.vertical, 2)
+
+            SettingsToggleRow(
+                title: "Enable Music",
+                caption: "Allow Apple Music to provide now playing data.",
+                isOn: $model.enableMusic
+            )
+            SettingsToggleRow(
+                title: "Enable Spotify",
+                caption: "Allow Spotify to provide now playing data.",
+                isOn: $model.enableSpotify
+            )
+        }
+    }
+
+    private var systemContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsToggleRow(
+                title: "Launch at login",
+                caption: "Start PlayStatus automatically when you sign in.",
+                isOn: Binding(
+                    get: { model.launchAtLoginEnabled },
+                    set: { model.setLaunchAtLogin(enabled: $0) }
+                )
+            )
+
+            Divider().padding(.vertical, 2)
+
+            SettingsControlRow(
+                title: "App Updates",
+                caption: "Check for newer PlayStatus builds through Sparkle."
+            ) {
+                Button {
+                    SparkleUpdater.shared.checkForUpdates(nil)
+                } label: {
+                    Label("Check Now", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+        }
+    }
+
+    private var hotkeysContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(AppHotkeyAction.allCases, id: \.self) { action in
+                HotkeyRecorderRow(action: action)
+            }
+        }
     }
 }
 
@@ -693,16 +799,277 @@ private enum SettingsTab: String, CaseIterable {
     case system
     case hotkeys
 
+    var title: String {
+        switch self {
+        case .display: return "Display"
+        case .playback: return "Playback"
+        case .system: return "System"
+        case .hotkeys: return "Hotkeys"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .display: return "Text, visuals, and animation"
+        case .playback: return "Player source and priority"
+        case .system: return "Startup and updates"
+        case .hotkeys: return "Global keyboard shortcuts"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .display: return "textformat"
+        case .playback: return "waveform"
+        case .system: return "gearshape.2"
+        case .hotkeys: return "keyboard"
+        }
+    }
+
+    var sortIndex: Int {
+        switch self {
+        case .display: return 0
+        case .playback: return 1
+        case .system: return 2
+        case .hotkeys: return 3
+        }
+    }
+
     var preferredSize: CGSize {
         switch self {
         case .display:
-            return CGSize(width: 560, height: 500)
+            return CGSize(width: 780, height: 640)
         case .playback:
-            return CGSize(width: 560, height: 350)
+            return CGSize(width: 780, height: 560)
         case .system:
-            return CGSize(width: 560, height: 180)
+            return CGSize(width: 780, height: 430)
         case .hotkeys:
-            return CGSize(width: 560, height: 300)
+            return CGSize(width: 780, height: 520)
+        }
+    }
+}
+
+private enum SettingsTabDirection {
+    case forward
+    case backward
+}
+
+private struct SettingsSidebar: View {
+    @Binding var selectedTab: SettingsTab
+
+    private var versionText: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+        return "v\(version) (\(build))"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 10) {
+                    Image("SettingsAppIcon")
+                        .renderingMode(.original)
+                        .resizable()
+                        .interpolation(.none)
+                        .frame(width: 32, height: 32)
+
+                    Text("PlayStatus")
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                }
+                Text(versionText)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(SettingsTab.allCases, id: \.self) { tab in
+                    SettingsSidebarItem(tab: tab, selectedTab: $selectedTab)
+                }
+            }
+            .padding(10)
+
+            Spacer(minLength: 10)
+
+            Divider()
+
+            Button {
+                NSApp.terminate(nil)
+            } label: {
+                Label("Quit PlayStatus", systemImage: "power")
+                    .foregroundStyle(Color.accentColor.opacity(0.95))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.accentColor.opacity(0.12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(Color.accentColor.opacity(0.22), lineWidth: 1)
+                            )
+                    )
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .padding(12)
+        }
+        .frame(width: 230, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(nsColor: .underPageBackgroundColor).opacity(0.85),
+                    Color(nsColor: .controlBackgroundColor).opacity(0.80)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+}
+
+private struct SettingsSidebarItem: View {
+    let tab: SettingsTab
+    @Binding var selectedTab: SettingsTab
+
+    private var isSelected: Bool {
+        selectedTab == tab
+    }
+
+    var body: some View {
+        Button {
+            selectedTab = tab
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: tab.icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(isSelected ? .white : .secondary)
+                    .frame(width: 16)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(tab.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(isSelected ? .white : .primary)
+
+                    Text(tab.subtitle)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(isSelected ? .white.opacity(0.9) : .secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(
+                        isSelected
+                        ? Color.accentColor.opacity(0.92)
+                        : Color.clear
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .animation(.easeInOut(duration: 0.18), value: isSelected)
+    }
+}
+
+private struct SettingsPageHeader: View {
+    let tab: SettingsTab
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(tab.title)
+                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+            Text(tab.subtitle)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.bottom, 2)
+    }
+}
+
+private struct SettingsControlRow<Control: View>: View {
+    let title: String
+    let caption: String
+    @ViewBuilder var control: () -> Control
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(caption)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
+            control()
+        }
+    }
+}
+
+private struct SettingsToggleRow: View {
+    let title: String
+    let caption: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(caption)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 12)
+
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .accessibilityLabel(Text(title))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct SettingsSliderRow: View {
+    let title: String
+    let caption: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let valueText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(caption)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 10)
+                Text(valueText)
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.ultraThinMaterial, in: Capsule())
+            }
+
+            Slider(value: $value, in: range)
         }
     }
 }
@@ -720,16 +1087,17 @@ private struct HotkeyRecorderRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .center, spacing: 10) {
             Text(action.label)
-            Spacer()
+                .font(.system(size: 13, weight: .semibold))
+            Spacer(minLength: 8)
 
             Text(hotkeyDisplayString(binding))
                 .foregroundStyle(.secondary)
                 .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.thinMaterial, in: Capsule())
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(.ultraThinMaterial, in: Capsule())
 
             Button(isRecording ? "Press keys..." : "Record") {
                 if isRecording {
@@ -750,6 +1118,7 @@ private struct HotkeyRecorderRow: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
+        .padding(.vertical, 2)
         .onDisappear {
             stopRecording()
         }
@@ -784,6 +1153,8 @@ private struct HotkeyRecorderRow: View {
 }
 
 private struct SettingsWindowChromeConfigurator: NSViewRepresentable {
+    let targetSize: CGSize
+
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
@@ -811,6 +1182,7 @@ private struct SettingsWindowChromeConfigurator: NSViewRepresentable {
         window.standardWindowButton(.closeButton)?.isHidden = false
         window.standardWindowButton(.miniaturizeButton)?.isHidden = false
         window.standardWindowButton(.zoomButton)?.isHidden = false
+        resizeWindowIfNeeded(window: window, coordinator: coordinator)
 
         if !coordinator.didActivateWindow {
             coordinator.didActivateWindow = true
@@ -821,7 +1193,29 @@ private struct SettingsWindowChromeConfigurator: NSViewRepresentable {
         }
     }
 
+    private func resizeWindowIfNeeded(window: NSWindow, coordinator: Coordinator) {
+        guard coordinator.lastAppliedSize != targetSize else { return }
+
+        var frame = window.frame
+        let oldHeight = frame.height
+        frame.size = targetSize
+        frame.origin.y += oldHeight - targetSize.height
+
+        if coordinator.lastAppliedSize == nil {
+            window.setFrame(frame, display: true)
+        } else {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.24
+                context.allowsImplicitAnimation = true
+                window.animator().setFrame(frame, display: true)
+            }
+        }
+
+        coordinator.lastAppliedSize = targetSize
+    }
+
     final class Coordinator {
         var didActivateWindow = false
+        var lastAppliedSize: CGSize?
     }
 }

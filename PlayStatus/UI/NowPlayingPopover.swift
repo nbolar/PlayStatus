@@ -8,107 +8,52 @@ struct NowPlayingPopover: View {
     @FocusState private var isSearchFocused: Bool
     @State private var searchSectionFrame: CGRect = .zero
 
+    private var regularProgress: CGFloat {
+        min(max(model.modeMorphProgress, 0), 1)
+    }
+
+    private var sourceMiniMode: Bool {
+        model.modeMorphSourceMini
+    }
+
+    private var targetMiniMode: Bool {
+        model.miniMode
+    }
+
+    private var isMorphing: Bool {
+        model.modeMorphIsActive
+    }
+
+    private var morphProgress: CGFloat {
+        if sourceMiniMode == targetMiniMode {
+            return 1
+        }
+        return sourceMiniMode ? regularProgress : (1 - regularProgress)
+    }
+
+    private var crossfadeProgress: CGFloat {
+        let start: CGFloat = 0.52
+        let p = min(max(morphProgress, 0), 1)
+        return min(max((p - start) / (1 - start), 0), 1)
+    }
+
     var body: some View {
         ZStack {
-            if model.miniMode {
-                MiniNowPlayingCard(model: model)
-                    .transition(.opacity)
-            } else {
-                VStack(spacing: 12) {
-                    LiquidGlassCard(tint: model.glassTint, palette: model.cardBackgroundPalette) {
-                    VStack(spacing: 8) {
-                        HStack(alignment: .center, spacing: 16) {
-                            ArtworkView(image: model.artwork, tint: model.glassTint)
-                                .frame(width: model.artworkDisplaySize, height: model.artworkDisplaySize)
+            if isMorphing, sourceMiniMode != targetMiniMode {
+                modeContent(miniMode: sourceMiniMode)
+                    .opacity(1 - crossfadeProgress)
+                    .allowsHitTesting(false)
 
-                            VStack(alignment: .leading, spacing: 6) {
-                                Button(action: { model.openProviderApp() }) {
-                                    NowPlayingTitleMarquee(
-                                        text: model.displayTitle,
-                                        enabled: model.scrollableTitle,
-                                        isVisible: model.isPopoverVisible
-                                    )
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-
-                                NowPlayingSecondaryMarquee(
-                                    text: model.artistAlbumLine,
-                                    enabled: model.scrollableTitle,
-                                    isVisible: model.isPopoverVisible,
-                                    laneWidth: min(320, max(130, model.popoverWidth - model.artworkDisplaySize - 78)),
-                                    usesSecondaryStyle: false
-                                )
-
-                                ProgressBlock(
-                                    progress: model.progress,
-                                    elapsed: model.elapsed,
-                                    duration: model.duration,
-                                    canSeek: model.canSeek,
-                                    onSeek: { model.seek(to: $0) }
-                                )
-
-                                HStack {
-                                    Spacer(minLength: 0)
-                                    ControlsRow(
-                                        isPlaying: model.isPlaying,
-                                        onPrev: { model.previousTrack() },
-                                        onPlayPause: { model.playPause() },
-                                        onNext: { model.nextTrack() }
-                                    )
-                                    Spacer(minLength: 0)
-                                }
-                                .padding(.top, 2)
-
-                                OutputControlsRow(model: model, showDeviceName: true)
-                                    .padding(.top, 2)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-
-                        if model.provider == .music {
-                            HStack {
-                                Spacer(minLength: 0)
-                                searchSection(maxWidth: min(280, max(170, model.popoverWidth * 0.50)))
-                            }
-                            .padding(.top, -28)
-                            .padding(.bottom, -12)
-                        }
-                    }
-                    }
-                    .overlay(alignment: .topTrailing) {
-                        HStack(spacing: 6) {
-                            ModeToggleControl(isMiniMode: false) {
-                                model.miniMode = true
-                            }
-
-                            SettingsOpenControl {
-                                Image(systemName: "gearshape.fill")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(.primary.opacity(0.9))
-                                    .frame(width: 24, height: 24)
-                                    .background(.ultraThinMaterial, in: Circle())
-                                    .overlay(
-                                        Circle()
-                                            .stroke(.white.opacity(0.16), lineWidth: 1)
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .padding(.top, 8)
-                        .padding(.trailing, 8)
-                    }
+                if crossfadeProgress > 0.001 {
+                    modeContent(miniMode: targetMiniMode)
+                        .opacity(crossfadeProgress)
+                        .allowsHitTesting(false)
                 }
-//                .padding(7)
-                .background(
-                    ZStack {
-                        LiquidGlassBackground(tint: model.glassTint)
-                    }
-                )
-                .transition(.opacity)
+            } else {
+                modeContent(miniMode: targetMiniMode)
             }
         }
-        .animation(.easeInOut(duration: 0.22), value: model.miniMode)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .coordinateSpace(name: "popoverRoot")
         .onPreferenceChange(SearchSectionFramePreferenceKey.self) { frame in
             searchSectionFrame = frame
@@ -138,6 +83,108 @@ struct NowPlayingPopover: View {
                     isSearchExpanded = false
                 }
                 isSearchFocused = false
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func modeContent(miniMode: Bool) -> some View {
+        if miniMode {
+            MiniNowPlayingCard(model: model, transitionActive: isMorphing)
+        } else {
+            regularContent
+        }
+    }
+
+    private var regularContent: some View {
+        VStack(spacing: 12) {
+            LiquidGlassCard(tint: model.glassTint, palette: model.cardBackgroundPalette) {
+            VStack(spacing: 8) {
+                HStack(alignment: .center, spacing: 16) {
+                    ArtworkView(image: model.artwork, tint: model.glassTint)
+                        .frame(width: model.artworkDisplaySize, height: model.artworkDisplaySize)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Button(action: { model.openProviderApp() }) {
+                            NowPlayingTitleMarquee(
+                                text: model.displayTitle,
+                                enabled: model.scrollableTitle,
+                                isVisible: model.isPopoverVisible
+                            )
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        NowPlayingSecondaryMarquee(
+                            text: model.artistAlbumLine,
+                            enabled: model.scrollableTitle,
+                            isVisible: model.isPopoverVisible,
+                            laneWidth: min(320, max(130, model.regularPopoverWidth - model.artworkDisplaySize - 78)),
+                            usesSecondaryStyle: false
+                        )
+
+                        ProgressBlock(
+                            progress: model.progress,
+                            elapsed: model.elapsed,
+                            duration: model.duration,
+                            canSeek: model.canSeek,
+                            onSeek: { model.seek(to: $0) }
+                        )
+
+                        HStack {
+                            Spacer(minLength: 0)
+                            ControlsRow(
+                                isPlaying: model.isPlaying,
+                                onPrev: { model.previousTrack() },
+                                onPlayPause: { model.playPause() },
+                                onNext: { model.nextTrack() }
+                            )
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.top, 2)
+
+                        OutputControlsRow(model: model, showDeviceName: true)
+                            .padding(.top, 2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                if model.provider == .music {
+                    HStack {
+                        Spacer(minLength: 0)
+                        searchSection(maxWidth: min(280, max(170, model.regularPopoverWidth * 0.50)))
+                    }
+                    .padding(.top, -28)
+                    .padding(.bottom, -12)
+                }
+            }
+            }
+            .overlay(alignment: .topTrailing) {
+                HStack(spacing: 6) {
+                    ModeToggleControl(isMiniMode: false) {
+                        model.miniMode = true
+                    }
+
+                    SettingsOpenControl {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.primary.opacity(0.9))
+                            .frame(width: 24, height: 24)
+                            .background(.ultraThinMaterial, in: Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(.white.opacity(0.16), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.top, 8)
+                .padding(.trailing, 8)
+            }
+        }
+        .background(
+            ZStack {
+                LiquidGlassBackground(tint: model.glassTint)
             }
         )
     }
@@ -279,22 +326,25 @@ private struct SearchSectionFramePreferenceKey: PreferenceKey {
 
 private struct MiniNowPlayingCard: View {
     @ObservedObject var model: NowPlayingModel
+    let transitionActive: Bool
     @State private var isHovering = false
 
     var body: some View {
+        let effectiveHover = isHovering && !transitionActive
         let luminance = artworkLuminance
         let lightArtworkBoost = max(0, (luminance - 0.54) / 0.46)
         let veryLightBoost = max(0, (luminance - 0.72) / 0.28)
         let darkArtworkBoost = max(0, (0.52 - luminance) / 0.52)
-        let bottomShade = min(0.82, 0.34 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.18) + (isHovering ? 0.10 : 0.04))
+        let bottomShade = min(0.82, 0.34 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.18) + (effectiveHover ? 0.10 : 0.04))
         let topShade = min(0.34, 0.10 + (darkArtworkBoost * 0.14))
-        let readabilityDarken = min(0.84, 0.42 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.24) + (isHovering ? 0.08 : 0.02))
+        let readabilityDarken = min(0.84, 0.42 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.24) + (effectiveHover ? 0.08 : 0.02))
         let neutralWashOpacity = min(0.52, 0.16 + (lightArtworkBoost * 0.20) + (veryLightBoost * 0.18))
         let blueFogOpacity = min(0.34, 0.08 + (lightArtworkBoost * 0.10) + (veryLightBoost * 0.14))
         let mistOpacity = min(0.60, 0.20 + (lightArtworkBoost * 0.18) + (veryLightBoost * 0.16))
         let primaryShadowOpacity = min(0.94, 0.56 + (lightArtworkBoost * 0.22) + (darkArtworkBoost * 0.12))
         let secondaryShadowOpacity = min(0.84, 0.46 + (lightArtworkBoost * 0.18) + (darkArtworkBoost * 0.10))
-        let infoBandHeight: CGFloat = isHovering ? 196 : 126
+        let infoBandHeight: CGFloat = effectiveHover ? 196 : 126
+        let blurFadeHeight: CGFloat = min(44, infoBandHeight * 0.34)
 
         ZStack {
             ZStack {
@@ -382,12 +432,42 @@ private struct MiniNowPlayingCard: View {
                 }
                 .buttonStyle(.plain)
             }
-            .opacity(isHovering ? 1 : 0)
+            .opacity(effectiveHover ? 1 : 0)
             .padding(.top, 10)
             .padding(.trailing, 10)
         }
         .overlay(alignment: .bottom) {
             ZStack(alignment: .bottom) {
+                if effectiveHover, let artwork = model.artwork {
+                    Image(nsImage: artwork)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFill()
+                        .blur(radius: 14)
+                        .scaleEffect(1.01)
+                        .padding(8)
+                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                        .mask(
+                            VStack(spacing: 0) {
+                                Spacer(minLength: 0)
+                                VStack(spacing: 0) {
+                                    LinearGradient(
+                                        colors: [.clear, .white],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                    .frame(height: blurFadeHeight)
+
+                                    Rectangle()
+                                        .frame(height: max(0, infoBandHeight - 20 - blurFadeHeight))
+                                }
+                            }
+                        )
+                        .opacity(0.85)
+                        .animation(.easeInOut(duration: 0.18), value: effectiveHover)
+                        .allowsHitTesting(false)
+                }
+
                 Rectangle()
                     .fill(.ultraThinMaterial)
                     .overlay(
@@ -447,13 +527,13 @@ private struct MiniNowPlayingCard: View {
                         text: model.artistAlbumLine,
                         enabled: model.scrollableTitle,
                         isVisible: model.isPopoverVisible,
-                        laneWidth: max(120, model.popoverWidth - 64),
+                        laneWidth: max(120, model.miniPopoverWidth - 64),
                         usesSecondaryStyle: false
                     )
                     .foregroundStyle(.white.opacity(0.90))
                     .shadow(color: .black.opacity(secondaryShadowOpacity), radius: 1.8, x: 0, y: 1)
 
-                    if isHovering {
+                    if effectiveHover {
                         ProgressBlock(
                             progress: model.progress,
                             elapsed: model.elapsed,
@@ -484,8 +564,22 @@ private struct MiniNowPlayingCard: View {
             }
         }
         .onHover { hovering in
+            guard !transitionActive else {
+                if isHovering {
+                    isHovering = false
+                }
+                return
+            }
             withAnimation(.easeInOut(duration: 0.18)) {
                 isHovering = hovering
+            }
+        }
+        .onChange(of: transitionActive) { active in
+            guard active else { return }
+            if isHovering {
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    isHovering = false
+                }
             }
         }
     }
