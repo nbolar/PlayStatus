@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xcodebuild:*)"
+      "Bash(xcodebuild:*)",
+      "Bash(wc:*)",
+      "Bash(sw_vers:*)"
     ]
   }
 }

@@ -301,8 +301,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private let iconSize: CGFloat = 13
     private var lastStatusLength: CGFloat = -1
     private var lastStatusIconName: String = ""
-    private var pendingPopoverLayoutUpdate: DispatchWorkItem?
-    private var pendingPopoverLayoutShouldAnimate = true
+    private var lastAppliedPopoverSize: NSSize = .zero
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -327,7 +326,14 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         }
 
         popover.behavior = .transient
+        popover.animates = false
         popover.delegate = self
+        if #available(macOS 13.0, *) {
+            // We drive popover sizing explicitly via updatePopoverLayout().
+            // Disable HostingController auto-size propagation to avoid transient
+            // intermediate window sizes during rapid SwiftUI tree changes.
+            popoverHost.sizingOptions = []
+        }
         popover.contentViewController = popoverHost
         updatePopoverLayout()
         _ = SparkleUpdater.shared
@@ -361,20 +367,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.updateStatusButton()
-                let shouldAnimateLayout = self.model.popoverLayoutShouldAnimate
-                self.model.popoverLayoutShouldAnimate = true
-
-                // Coalesce rapid layout-refresh bursts into one measurement pass.
-                self.pendingPopoverLayoutUpdate?.cancel()
-                self.pendingPopoverLayoutShouldAnimate = shouldAnimateLayout
-                let work = DispatchWorkItem { [weak self] in
-                    guard let self else { return }
-                    let animate = self.pendingPopoverLayoutShouldAnimate
-                    self.pendingPopoverLayoutShouldAnimate = true
-                    self.updatePopoverLayout(animated: animate)
-                }
-                self.pendingPopoverLayoutUpdate = work
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02, execute: work)
+                self.updatePopoverLayout()
             }
             .store(in: &cancellables)
 
@@ -405,13 +398,9 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     @objc private func togglePopover(_ sender: Any?) {
         guard let button = statusItem?.button else { return }
         if popover.isShown {
-            pendingPopoverLayoutUpdate?.cancel()
-            pendingPopoverLayoutUpdate = nil
             popover.performClose(sender)
             model.isPopoverVisible = false
         } else {
-            pendingPopoverLayoutUpdate?.cancel()
-            pendingPopoverLayoutUpdate = nil
             updatePopoverLayout()
             model.isPopoverVisible = true
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
@@ -428,8 +417,6 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     }
 
     func popoverDidClose(_ notification: Notification) {
-        pendingPopoverLayoutUpdate?.cancel()
-        pendingPopoverLayoutUpdate = nil
         model.isPopoverVisible = false
     }
 
@@ -490,99 +477,98 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         )
     }
 
-    private func updatePopoverLayout(animated: Bool = false) {
+    private func updatePopoverLayout() {
         let width = model.popoverWidth
         let hostView = popoverHost.view
-        if abs(hostView.frame.width - width) > 0.5 {
+        if !popover.isShown && abs(hostView.frame.width - width) > 0.5 {
             hostView.setFrameSize(NSSize(width: width, height: hostView.frame.height))
         }
 
-        // Only rebuild the root view when the popover is not yet shown (initial
-        // setup). While shown, SwiftUI's own reactive update cycle keeps the view
-        // current — rebuilding here tears down in-flight animations.
+        // Use pre-calculated heights for BOTH modes — never call layoutSubtreeIfNeeded().
+        //
+        // On macOS 26, calling layoutSubtreeIfNeeded() on an NSHostingController view
+        // invokes DesignLibrary.AppKitPlatformGlassDefinition (the Liquid Glass compositor).
+        // When SwiftUI's own layout is concurrently in-flight (e.g. during the 0.5-second
+        // PlaybackClock tick that updates lyrics scroll position), this creates a recursive
+        // compositor call chain that exhausts the stack → EXC_BAD_ACCESS on the guard page.
+        //
+        // Both modes have statically-known heights:
+        //   • Regular: artworkDisplaySize + fixed padding + optional lyrics pane height
+        //   • Mini:    miniBaseHeight (380 pt) + optional miniLyricsPaneHeight (180 pt)
+        // MiniNowPlayingCard already uses .frame(height: model.miniPopoverHeight), so the
+        // view's intrinsic size matches these values exactly.
+        let resolvedContentHeight: CGFloat = model.miniMode
+            ? model.miniPopoverHeight
+            : model.regularPopoverHeight
+
+        let targetSize = NSSize(width: width, height: resolvedContentHeight)
+        if !popover.isShown && !sizeApproximatelyEqual(hostView.frame.size, targetSize) {
+            hostView.setFrameSize(targetSize)
+        }
+
+        // Only rebuild the root view when the popover is not yet shown (initial setup).
+        // While shown, keep the existing SwiftUI tree and only adjust the outer window
+        // frame to avoid transient intermediate layout states.
         if !popover.isShown {
             popoverHost.rootView = AnyView(NowPlayingPopover(model: model))
         }
 
-        hostView.layoutSubtreeIfNeeded()
-        let fittingHeight = ceil(hostView.fittingSize.height)
-        let measuredContentHeight = max(1, fittingHeight)
-        let resolvedContentHeight = measuredContentHeight
-
         guard popover.isShown else {
-            let targetSize = NSSize(width: width, height: resolvedContentHeight)
-            if popover.contentSize != targetSize {
+            if !sizeApproximatelyEqual(popover.contentSize, targetSize) {
                 popover.contentSize = targetSize
             }
+            lastAppliedPopoverSize = targetSize
             return
         }
 
-        // In regular mode, keep sizing on NSPopover contentSize only. This avoids
-        // manual window-frame anchor corrections that can produce down/up jitter.
-        if !model.miniMode {
-            let targetSize = NSSize(width: width, height: resolvedContentHeight)
-            if popover.contentSize != targetSize {
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0
-                    context.allowsImplicitAnimation = false
-                    popover.contentSize = targetSize
-                }
+        // While shown, always resize via the backing window frame (instead of
+        // popover.contentSize) to avoid NSPopover's internal intermediate size
+        // transitions that can flash during rapid SwiftUI tree updates.
+        if let window = popover.contentViewController?.view.window {
+            let targetFrameSize = window.frameRect(
+                forContentRect: NSRect(origin: .zero, size: targetSize)
+            ).size
+            let current = window.frame
+            if abs(current.width - targetFrameSize.width) < 0.5
+                && abs(current.height - targetFrameSize.height) < 0.5 {
+                return
             }
-            return
-        }
 
-        guard let window = popover.contentViewController?.view.window else { return }
-        let targetSize = NSSize(width: width, height: resolvedContentHeight)
-        let targetFrameSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: targetSize)).size
+            let currentTop = current.maxY
+            var targetX = current.midX - (targetFrameSize.width / 2)
+            if let button = statusItem?.button, let buttonWindow = button.window {
+                let buttonRectInWindow = button.convert(button.bounds, to: nil)
+                let buttonRectOnScreen = buttonWindow.convertToScreen(buttonRectInWindow)
+                targetX = buttonRectOnScreen.midX - (targetFrameSize.width / 2)
+            }
 
-        let current = window.frame
-        if abs(current.width - targetFrameSize.width) < 0.5 && abs(current.height - targetFrameSize.height) < 0.5 {
-            return
-        }
-
-        let currentTop = current.maxY
-        var targetX = current.midX - (targetFrameSize.width / 2)
-
-        if let button = statusItem?.button, let buttonWindow = button.window {
-            let buttonRectInWindow = button.convert(button.bounds, to: nil)
-            let buttonRectOnScreen = buttonWindow.convertToScreen(buttonRectInWindow)
-            targetX = buttonRectOnScreen.midX - (targetFrameSize.width / 2)
-        }
-
-        var targetFrame = NSRect(
-            x: round(targetX),
-            y: round(currentTop - targetFrameSize.height),
-            width: targetFrameSize.width,
-            height: targetFrameSize.height
-        )
-
-        if let screenFrame = window.screen?.visibleFrame {
-            targetFrame.origin.x = min(
-                max(targetFrame.origin.x, screenFrame.minX + 6),
-                max(screenFrame.minX + 6, screenFrame.maxX - targetFrame.width - 6)
+            var targetFrame = NSRect(
+                x: round(targetX),
+                y: round(currentTop - targetFrameSize.height),
+                width: targetFrameSize.width,
+                height: targetFrameSize.height
             )
-        }
-
-        let heightDelta = abs(current.height - targetFrame.height)
-        let widthDelta = abs(current.width - targetFrame.width)
-        let isLargeModeTransition = heightDelta > 180 || widthDelta > 120
-        let shouldAnimateWindowFrame = animated && isLargeModeTransition
-
-        if shouldAnimateWindowFrame {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.64
-                context.timingFunction = CAMediaTimingFunction(
-                    controlPoints: 0.20,
-                    0.94,
-                    0.28,
-                    1.0
+            if let screenFrame = window.screen?.visibleFrame {
+                targetFrame.origin.x = min(
+                    max(targetFrame.origin.x, screenFrame.minX + 6),
+                    max(screenFrame.minX + 6, screenFrame.maxX - targetFrame.width - 6)
                 )
-                context.allowsImplicitAnimation = true
-                window.animator().setFrame(targetFrame, display: true)
             }
-        } else {
+
             window.setFrame(targetFrame, display: true)
+            lastAppliedPopoverSize = targetSize
+        } else {
+            // Fallback path if window is temporarily unavailable.
+            if !sizeApproximatelyEqual(popover.contentSize, targetSize) ||
+               !sizeApproximatelyEqual(lastAppliedPopoverSize, targetSize) {
+                popover.contentSize = targetSize
+                lastAppliedPopoverSize = targetSize
+            }
         }
+    }
+
+    private func sizeApproximatelyEqual(_ lhs: NSSize, _ rhs: NSSize, tolerance: CGFloat = 0.5) -> Bool {
+        abs(lhs.width - rhs.width) < tolerance && abs(lhs.height - rhs.height) < tolerance
     }
 
 }

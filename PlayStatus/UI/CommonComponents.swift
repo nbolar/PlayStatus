@@ -22,7 +22,7 @@ struct ProviderBadge: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(.thinMaterial, in: Capsule())
+        .background(Capsule().fill(Color.primary.opacity(0.08)))
         .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 1))
     }
 }
@@ -85,7 +85,7 @@ struct OutputControlsRow: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
                 .frame(maxWidth: showDeviceName ? 168 : nil, alignment: .leading)
-                .background(.thinMaterial, in: Capsule())
+                .background(Capsule().fill(Color.primary.opacity(0.08)))
                 .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
             }
             .menuStyle(.borderlessButton)
@@ -97,7 +97,7 @@ struct OutputControlsRow: View {
                 Image(systemName: model.outputMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                     .font(.system(size: 10, weight: .semibold))
                     .frame(width: 22, height: 22)
-                    .background(.thinMaterial, in: Circle())
+                    .background(Circle().fill(Color.primary.opacity(0.08)))
                     .overlay(Circle().stroke(.white.opacity(0.10), lineWidth: 1))
                     .foregroundStyle(model.outputMuted ? Color.secondary : Color.primary.opacity(0.9))
             }
@@ -139,8 +139,11 @@ struct GlassButton: View {
         .foregroundStyle(.primary.opacity(isPrimary ? 1.0 : 0.92))
         .background(
             ZStack {
+                // macOS 26: avoid system materials (.ultraThinMaterial/.thinMaterial) inside
+                // NSHostingController — they trigger DesignLibrary glass compositor on every
+                // SwiftUI re-render, causing recursive stack overflow. Use plain fills instead.
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isPrimary ? .ultraThinMaterial : .thinMaterial)
+                    .fill(Color.primary.opacity(isPrimary ? 0.13 : 0.08))
 
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(
@@ -259,8 +262,21 @@ struct ArtworkView: View {
                     .scaleEffect(0.92)
                     .opacity(0.9)
 
+                // macOS 26: .ultraThinMaterial triggers DesignLibrary glass compositor
+                // on every SwiftUI re-render, causing recursive stack overflow.
+                // Use a gradient approximation instead.
                 outer
-                    .fill(.ultraThinMaterial)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.18),
+                                Color.white.opacity(0.10),
+                                tint.opacity(0.14)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .overlay(outer.stroke(.white.opacity(0.22), lineWidth: 1.2))
                     .overlay(outer.stroke(tint.opacity(0.2), lineWidth: 1))
 

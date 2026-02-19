@@ -15,10 +15,19 @@ struct NowPlayingPopover: View {
     @State private var modeTransitionResetWorkItem: DispatchWorkItem?
     @State private var artworkMorphEnabled = false
     @State private var regularArtworkOpacity: Double = 1
+    @State private var pendingMiniInitialExpand = false
+    private var resolvedPopoverHeight: CGFloat {
+        model.miniMode ? model.miniPopoverHeight : model.regularPopoverHeight
+    }
 
     var body: some View {
         modeContent(miniMode: model.miniMode)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(
+            width: model.popoverWidth,
+            height: resolvedPopoverHeight,
+            alignment: .topLeading
+        )
+        .clipped()
         .coordinateSpace(name: "popoverRoot")
         .onPreferenceChange(SearchSectionFramePreferenceKey.self) { frame in
             searchSectionFrame = frame
@@ -69,6 +78,10 @@ struct NowPlayingPopover: View {
                 model: model,
                 artworkMorphNamespace: artworkMorphNamespace,
                 transitionActive: modeTransitionActive,
+                startExpandedOnAppear: pendingMiniInitialExpand,
+                onInitialExpandConsumed: {
+                    pendingMiniInitialExpand = false
+                },
                 onToggleMode: {
                     withAnimation(modeMorphAnimation) {
                         artworkMorphEnabled = false
@@ -82,7 +95,7 @@ struct NowPlayingPopover: View {
     }
 
     private var regularContent: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 0) {
             LiquidGlassCard(tint: model.glassTint, palette: model.cardBackgroundPalette) {
             VStack(spacing: 8) {
                 HStack(alignment: .center, spacing: 16) {
@@ -117,13 +130,7 @@ struct NowPlayingPopover: View {
                             usesSecondaryStyle: false
                         )
 
-                        ProgressBlock(
-                            progress: model.progress,
-                            elapsed: model.elapsed,
-                            duration: model.duration,
-                            canSeek: model.canSeek,
-                            onSeek: { model.seek(to: $0) }
-                        )
+                        PlaybackProgressBlock(onSeek: { model.seek(to: $0) })
 
                         HStack {
                             Spacer(minLength: 0)
@@ -159,7 +166,17 @@ struct NowPlayingPopover: View {
                     ModeToggleControl(isMiniMode: false, transitionActive: modeTransitionActive) {
                         withAnimation(modeMorphAnimation) {
                             artworkMorphEnabled = true
+                            pendingMiniInitialExpand = true
                             model.miniMode = true
+                        }
+                    }
+
+                    if model.showLyricsPanel {
+                        RegularLyricsToggleControl(
+                            isOn: model.lyricsPanelExpanded,
+                            lyricsState: model.lyricsState
+                        ) {
+                            model.setLyricsPanelExpanded(!model.lyricsPanelExpanded)
                         }
                     }
 
@@ -168,7 +185,7 @@ struct NowPlayingPopover: View {
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.primary.opacity(0.9))
                             .frame(width: 24, height: 24)
-                            .background(.ultraThinMaterial, in: Circle())
+                            .background(Circle().fill(Color.primary.opacity(0.08)))
                             .overlay(
                                 Circle()
                                     .stroke(.white.opacity(0.16), lineWidth: 1)
@@ -179,6 +196,16 @@ struct NowPlayingPopover: View {
                 }
                 .padding(.top, 8)
                 .padding(.trailing, 8)
+            }
+
+            if model.showLyricsPanel && model.lyricsPanelExpanded {
+                RegularLyricsPane(
+                    model: model,
+                    lyricsState: model.lyricsState,
+                    lyricsPayload: model.lyricsPayload,
+                    glassTint: model.glassTint,
+                    artwork: model.artwork
+                )
             }
         }
         .background(
@@ -258,7 +285,7 @@ struct NowPlayingPopover: View {
             }
             .padding(.horizontal, isSearchExpanded ? 8 : 0)
             .frame(width: containerWidth, height: 34, alignment: isSearchExpanded ? .leading : .center)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.primary.opacity(0.08)))
             .overlay(
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
                     .stroke(.white.opacity(0.12), lineWidth: 1)
@@ -344,23 +371,42 @@ private extension View {
     }
 }
 
+/// Thin wrapper around ProgressBlock that observes PlaybackClock instead of
+/// NowPlayingModel. This prevents NowPlayingPopover (which observes NowPlayingModel)
+/// from receiving objectWillChange notifications on every 0.5-second elapsed tick.
+private struct PlaybackProgressBlock: View {
+    @ObservedObject private var clock = PlaybackClock.shared
+    let onSeek: (Double) -> Void
+
+    var body: some View {
+        ProgressBlock(
+            progress: clock.progress,
+            elapsed: clock.elapsed,
+            duration: clock.duration,
+            canSeek: clock.canSeek,
+            onSeek: onSeek
+        )
+    }
+}
+
 private struct MiniNowPlayingCard: View {
     @ObservedObject var model: NowPlayingModel
     let artworkMorphNamespace: Namespace.ID
     let transitionActive: Bool
+    let startExpandedOnAppear: Bool
+    let onInitialExpandConsumed: () -> Void
     let onToggleMode: () -> Void
-    @State private var isHovering = false
     @State private var pointerHovering = false
-    @State private var hoverCoordinator = MiniCardHoverCoordinator()
+    @State private var forceExpandedUntilPointerExit = false
 
     var body: some View {
         let luminance = artworkLuminance
         let lightArtworkBoost = max(0, (luminance - 0.54) / 0.46)
         let veryLightBoost = max(0, (luminance - 0.72) / 0.28)
         let darkArtworkBoost = max(0, (0.52 - luminance) / 0.52)
-        let effectiveHover = (isHovering || pointerHovering) && !transitionActive
+        let effectiveHover = (pointerHovering || forceExpandedUntilPointerExit) && !transitionActive
         let controlsVisible = effectiveHover || model.miniLyricsEnabled
-        let infoExpanded = effectiveHover
+        let infoExpanded = effectiveHover || model.miniLyricsEnabled
         let bottomShade = min(0.82, 0.34 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.18) + (effectiveHover ? 0.10 : 0.04))
         let topShade = min(0.34, 0.10 + (darkArtworkBoost * 0.14))
         let readabilityDarken = min(0.84, 0.42 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.24) + (effectiveHover ? 0.08 : 0.02))
@@ -450,10 +496,11 @@ private struct MiniNowPlayingCard: View {
                         isOn: model.miniLyricsEnabled,
                         transitionActive: transitionActive
                     ) {
-                        if !model.miniLyricsEnabled {
-                            // Enter lyrics mode from a stable compact header baseline.
-                            isHovering = false
-                            pointerHovering = false
+                        if model.miniLyricsEnabled {
+                            // Closing lyrics shrinks the card immediately; keep controls visible
+                            // until we receive a definitive pointer-exit event.
+                            pointerHovering = true
+                            forceExpandedUntilPointerExit = true
                         }
                         // Avoid compounding internal SwiftUI animation with popover resize animation.
                         model.miniLyricsEnabled.toggle()
@@ -464,7 +511,7 @@ private struct MiniNowPlayingCard: View {
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.94))
                             .frame(width: 26, height: 26)
-                            .background(.ultraThinMaterial, in: Circle())
+                            .background(Circle().fill(Color.white.opacity(0.14)))
                             .overlay(
                                 Circle().stroke(.white.opacity(0.18), lineWidth: 1)
                             )
@@ -472,9 +519,30 @@ private struct MiniNowPlayingCard: View {
                     .buttonStyle(.plain)
                     .help("Settings")
                 }
-                .opacity(controlsVisible ? 1 : 0)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.black.opacity(0.26))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.white.opacity(0.10), .clear],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(.white.opacity(0.18), lineWidth: 1)
+                        )
+                )
+                .shadow(color: .black.opacity(0.30), radius: 6, x: 0, y: 2)
                 .padding(.top, 10)
                 .padding(.trailing, 10)
+                .opacity(controlsVisible ? 1 : 0)
             }
             .overlay(alignment: .bottom) {
                 ZStack(alignment: .bottom) {
@@ -509,7 +577,7 @@ private struct MiniNowPlayingCard: View {
                     }
 
                     Rectangle()
-                        .fill(.ultraThinMaterial)
+                        .fill(Color.black.opacity(0.30))
                         .overlay(
                             Color(red: 0.60, green: 0.66, blue: 0.74)
                                 .opacity(neutralWashOpacity)
@@ -574,13 +642,7 @@ private struct MiniNowPlayingCard: View {
                         .shadow(color: .black.opacity(secondaryShadowOpacity), radius: 1.8, x: 0, y: 1)
 
                         if infoExpanded {
-                            ProgressBlock(
-                                progress: model.progress,
-                                elapsed: model.elapsed,
-                                duration: model.duration,
-                                canSeek: model.canSeek,
-                                onSeek: { model.seek(to: $0) }
-                            )
+                            PlaybackProgressBlock(onSeek: { model.seek(to: $0) })
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
 
                             HStack {
@@ -606,44 +668,25 @@ private struct MiniNowPlayingCard: View {
             // Re-clip after all overlays so bottom-band content cannot spill into the lyrics pane.
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay {
-                GeometryReader { proxy in
-                    Color.clear
-                        .onAppear {
-                            hoverCoordinator.updateFrame(proxy.frame(in: .named("popoverRoot")))
+                MiniCardPointerTrackingOverlay(enabled: !transitionActive) { hovering in
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        pointerHovering = hovering
+                        if !hovering {
+                            forceExpandedUntilPointerExit = false
                         }
-                        .onChange(of: proxy.size) { _ in
-                            hoverCoordinator.updateFrame(proxy.frame(in: .named("popoverRoot")))
-                        }
+                    }
                 }
                 .allowsHitTesting(false)
             }
             .onAppear {
-                hoverCoordinator.onHoverChanged = { hovering in
-                    guard hovering != isHovering else { return }
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        isHovering = hovering
-                    }
-                }
-                hoverCoordinator.updateTransitionActive(transitionActive)
-                hoverCoordinator.start()
-            }
-            .onDisappear {
-                hoverCoordinator.stop()
-            }
-            .onHover { hovering in
-                guard !transitionActive else {
-                    if pointerHovering { pointerHovering = false }
-                    return
-                }
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    pointerHovering = hovering
+                if startExpandedOnAppear {
+                    forceExpandedUntilPointerExit = true
+                    onInitialExpandConsumed()
                 }
             }
             .onChange(of: transitionActive) { active in
-                hoverCoordinator.updateTransitionActive(active)
                 if active {
                     withAnimation(.easeOut(duration: 0.08)) {
-                        isHovering = false
                         pointerHovering = false
                     }
                 }
@@ -676,49 +719,102 @@ private struct MiniNowPlayingCard: View {
     }
 }
 
-private final class MiniCardHoverCoordinator {
+private struct MiniCardPointerTrackingOverlay: NSViewRepresentable {
+    let enabled: Bool
+    let onHoverChanged: (Bool) -> Void
+
+    func makeNSView(context: Context) -> TrackingNSView {
+        let view = TrackingNSView()
+        view.onHoverChanged = onHoverChanged
+        view.enabled = enabled
+        return view
+    }
+
+    func updateNSView(_ nsView: TrackingNSView, context: Context) {
+        nsView.onHoverChanged = onHoverChanged
+        nsView.enabled = enabled
+        nsView.syncHoverState()
+    }
+}
+
+private final class TrackingNSView: NSView {
     var onHoverChanged: ((Bool) -> Void)?
-    private var frameInPopoverRoot: CGRect = .zero
-    private var transitionActive = false
-    private var hoverPollingTimer: Timer?
-    private var lastHoverState = false
-
-    func updateFrame(_ frame: CGRect) {
-        frameInPopoverRoot = frame
-    }
-
-    func updateTransitionActive(_ active: Bool) {
-        transitionActive = active
-    }
-
-    func start() {
-        stop()
-        hoverPollingTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-            self?.poll()
+    var enabled: Bool = true {
+        didSet {
+            if oldValue != enabled {
+                updateTrackingAreas()
+                if !enabled {
+                    lastKnownHover = false
+                    onHoverChanged?(false)
+                }
+            }
         }
     }
+    private var trackingAreaRef: NSTrackingArea?
+    private var lastKnownHover = false
 
-    func stop() {
-        hoverPollingTimer?.invalidate()
-        hoverPollingTimer = nil
-        lastHoverState = false
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override var isFlipped: Bool { true }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        syncHoverState()
     }
 
-    private func poll() {
-        guard !transitionActive else { return }
-        let mouse = NSEvent.mouseLocation
-        guard let window = NSApplication.shared.keyWindow else { return }
-        let mouseInWindow = window.convertPoint(fromScreen: mouse)
-        let hovering = frameInPopoverRoot.contains(mouseInWindow)
-        guard hovering != lastHoverState else { return }
-        lastHoverState = hovering
-        onHoverChanged?(hovering)
+    override func updateTrackingAreas() {
+        if let trackingAreaRef {
+            removeTrackingArea(trackingAreaRef)
+            self.trackingAreaRef = nil
+        }
+        guard enabled else { return }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.activeAlways, .inVisibleRect, .mouseEnteredAndExited, .assumeInside],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingAreaRef = area
+        super.updateTrackingAreas()
+        syncHoverState()
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        syncHoverState()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        guard enabled else { return }
+        setHover(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        setHover(false)
+    }
+
+    func syncHoverState() {
+        guard enabled else { return }
+        guard let window else { return }
+        let pointInWindow = window.mouseLocationOutsideOfEventStream
+        let pointInView = convert(pointInWindow, from: nil)
+        setHover(bounds.contains(pointInView))
+    }
+
+    private func setHover(_ hovering: Bool) {
+        guard hovering != lastKnownHover else { return }
+        lastKnownHover = hovering
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.onHoverChanged?(hovering)
+        }
     }
 }
 
 private struct MiniExpandedLyricsPane: View {
     @ObservedObject var model: NowPlayingModel
-    @State private var lastActiveLineID: UUID?
+    @State private var activeLineID: UUID?
+    @State private var coordinator = LyricsScrollCoordinator()
 
     var body: some View {
         let clampedArtworkIntensity = min(max(model.artworkColorIntensity, 0.5), 1.8)
@@ -780,7 +876,7 @@ private struct MiniExpandedLyricsPane: View {
                 case .unavailable:
                     stateRow("Lyrics unavailable for this track.")
                 case .failed:
-                    stateRow("Couldn’t fetch lyrics right now.")
+                    stateRow("Couldn't fetch lyrics right now.")
                 case .available:
                     lyricsScroll
                 }
@@ -790,6 +886,17 @@ private struct MiniExpandedLyricsPane: View {
             .padding(.bottom, 10)
         }
         .frame(height: max(0, model.miniLyricsPaneHeight))
+        .onChange(of: model.lyricsPayload?.lines.first?.id) { _ in
+            // Track changed — restart the coordinator with fresh lines.
+            let lines = model.lyricsPayload?.lines ?? []
+            let isTimed = model.lyricsPayload?.isTimed ?? false
+            coordinator.lines = lines
+            coordinator.isTimed = isTimed
+            coordinator.onActiveLineChanged = { id in
+                activeLineID = id
+            }
+            coordinator.start()
+        }
     }
 
     private func stateRow(_ message: String) -> some View {
@@ -801,13 +908,12 @@ private struct MiniExpandedLyricsPane: View {
 
     private var lyricsScroll: some View {
         let lines = model.lyricsPayload?.lines ?? []
-        let activeID = activeLineID
 
         return ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 6) {
                     ForEach(lines) { line in
-                        let isActive = line.id == activeID
+                        let isActive = line.id == activeLineID
                         Text(line.text)
                             .font(.system(size: isActive ? 17 : 12, weight: isActive ? .semibold : .medium, design: .rounded))
                             .foregroundStyle(isActive ? .white.opacity(0.98) : .white.opacity(0.72))
@@ -821,46 +927,19 @@ private struct MiniExpandedLyricsPane: View {
             }
             .forceHideScrollIndicators()
             .onAppear {
-                guard let id = activeID else { return }
-                lastActiveLineID = id
-                DispatchQueue.main.async {
-                    proxy.scrollTo(id, anchor: .center)
+                coordinator.lines = lines
+                coordinator.isTimed = model.lyricsPayload?.isTimed ?? false
+                coordinator.scrollProxy = proxy
+                coordinator.onActiveLineChanged = { id in
+                    activeLineID = id
                 }
+                coordinator.start()
             }
-            .onChange(of: activeID) { id in
-                guard let id else { return }
-                guard lastActiveLineID != id else { return }
-                lastActiveLineID = id
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    proxy.scrollTo(id, anchor: .center)
-                }
+            .onDisappear {
+                coordinator.stop()
+                coordinator.scrollProxy = nil
             }
         }
-    }
-
-    private var activeLineID: UUID? {
-        guard let payload = model.lyricsPayload else { return nil }
-        let lines = payload.lines
-        guard !lines.isEmpty else { return nil }
-
-        if payload.isTimed {
-            let elapsed = model.elapsed
-            var selected: LyricsLine?
-            for line in lines {
-                guard let start = line.startTime else { continue }
-                if start <= elapsed {
-                    selected = line
-                } else {
-                    break
-                }
-            }
-            return (selected ?? lines.first)?.id
-        }
-
-        if lines.count == 1 { return lines[0].id }
-        let ratio = model.duration > 0 ? min(max(model.elapsed / model.duration, 0), 1) : 0
-        let index = min(lines.count - 1, max(0, Int((ratio * Double(lines.count - 1)).rounded())))
-        return lines[index].id
     }
 }
 
@@ -876,7 +955,7 @@ private struct ModeToggleControl: View {
                 .font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(.primary.opacity(0.92))
                 .frame(width: 24, height: 24)
-                .background(.ultraThinMaterial, in: Circle())
+                .background(Circle().fill(Color.primary.opacity(0.08)))
                 .overlay(
                     Circle()
                         .stroke(.white.opacity(hovering ? 0.24 : 0.16), lineWidth: 1)
@@ -911,7 +990,7 @@ private struct MiniLyricsToggleControl: View {
                 .font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(.primary.opacity(isOn ? 0.98 : 0.90))
                 .frame(width: 24, height: 24)
-                .background(.ultraThinMaterial, in: Circle())
+                .background(Circle().fill(Color.white.opacity(0.14)))
                 .overlay(
                     Circle()
                         .stroke(.white.opacity(hovering ? 0.24 : 0.16), lineWidth: 1)
@@ -929,5 +1008,332 @@ private struct MiniLyricsToggleControl: View {
             }
         }
         .help(isOn ? "Hide lyrics" : "Show lyrics")
+    }
+}
+
+// MARK: - Lyrics scroll coordinator
+
+/// Drives lyric line highlight and scroll position from a plain NSTimer without
+/// going through SwiftUI's reactive system (no @Published / @ObservedObject).
+///
+/// Every timer tick reads PlaybackClock.shared.elapsed directly and computes the
+/// active line. If the active line changed it:
+///   1. Calls the onActiveLineChanged closure (which updates a @State var in the view)
+///   2. Calls the scrollProxy to scroll to the new line
+///
+/// Because the @State update only fires when the active LINE changes (not every 0.5 s),
+/// the SwiftUI re-render rate is bounded by song structure — typically a few times per
+/// minute, not 120 times per minute. This avoids triggering DesignLibrary's glass
+/// compositor on every tick on macOS 26.
+private final class LyricsScrollCoordinator {
+    var lines: [LyricsLine] = []
+    var isTimed: Bool = false
+    var onActiveLineChanged: ((UUID?) -> Void)?
+    var scrollProxy: ScrollViewProxy?
+
+    private var timer: Timer?
+    private var lastActiveLineID: UUID?
+
+    func start() {
+        stop()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.tick()
+        }
+        RunLoop.main.add(timer!, forMode: .common)
+        tick() // immediate initial pass
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func tick() {
+        let elapsed = PlaybackClock.shared.elapsed
+        let duration = PlaybackClock.shared.duration
+        let newID = computeActiveLineID(elapsed: elapsed, duration: duration)
+        guard newID != lastActiveLineID else { return }
+        lastActiveLineID = newID
+        // Update SwiftUI state (causes a re-render only when the line changes)
+        onActiveLineChanged?(newID)
+        // Scroll the proxy without triggering a new render pass
+        if let proxy = scrollProxy, let id = newID {
+            proxy.scrollTo(id, anchor: .center)
+        }
+    }
+
+    private func computeActiveLineID(elapsed: Double, duration: Double) -> UUID? {
+        guard !lines.isEmpty else { return nil }
+        if isTimed {
+            var selected: LyricsLine?
+            for line in lines {
+                guard let start = line.startTime else { continue }
+                if start <= elapsed { selected = line } else { break }
+            }
+            return (selected ?? lines.first)?.id
+        }
+        if lines.count == 1 { return lines[0].id }
+        let ratio = duration > 0 ? min(max(elapsed / duration, 0), 1) : 0
+        let index = min(lines.count - 1, max(0, Int((ratio * Double(lines.count - 1)).rounded())))
+        return lines[index].id
+    }
+}
+
+// MARK: - Regular view lyrics
+
+private struct RegularLyricsToggleControl: View {
+    let isOn: Bool
+    let lyricsState: LyricsState
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Image(systemName: isOn ? "quote.bubble.fill" : "quote.bubble")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(isOn ? 0.98 : 0.88))
+
+                // Subtle loading indicator dot
+                if lyricsState == .loading && !isOn {
+                    Circle()
+                        .fill(Color.accentColor.opacity(0.72))
+                        .frame(width: 5, height: 5)
+                        .offset(x: 7, y: -7)
+                }
+            }
+            .frame(width: 24, height: 24)
+            .background(Circle().fill(Color.primary.opacity(0.08)))
+            .overlay(
+                Circle()
+                    .stroke(.white.opacity(hovering ? 0.24 : 0.16), lineWidth: 1)
+            )
+            .scaleEffect(hovering ? 1.06 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onHover { h in
+            withAnimation(.easeOut(duration: 0.16)) {
+                hovering = h
+            }
+        }
+        .help(isOn ? "Hide lyrics" : "Show lyrics")
+        .animation(.easeInOut(duration: 0.18), value: isOn)
+    }
+}
+
+/// Value-type wrapper so SwiftUI only re-renders RegularLyricsPane when its
+/// displayed properties actually change — not on every model.elapsed tick.
+private struct RegularLyricsPane: View {
+    // model is passed through only for child use (retryLyricsFetch, scroll content).
+    // The pane itself reads only value-type arguments so @ObservedObject churn is avoided.
+    let model: NowPlayingModel
+    let lyricsState: LyricsState
+    let lyricsPayload: LyricsPayload?
+    let glassTint: Color
+    let artwork: NSImage?
+
+    private let paneHeight: CGFloat = 240
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Divider()
+                .overlay(glassTint.opacity(0.18))
+
+            ZStack(alignment: .top) {
+                // Background: artwork tint bleed — pure gradients only, no system materials.
+                // System materials (.regularMaterial, .ultraThinMaterial) trigger
+                // AppKitPlatformGlassDefinition (DesignLibrary) on every layout pass on macOS 26,
+                // causing runaway GPU/memory allocation when the view re-renders.
+                ZStack {
+                    // Pure gradient background — no blurred Image, no system materials.
+                    // On macOS 26, scaledToFill+blur Image triggers DesignLibrary
+                    // glass compositor paths. Use gradients only, as MiniExpandedLyricsPane does.
+                    LinearGradient(
+                        colors: [
+                            glassTint.opacity(0.14),
+                            glassTint.opacity(0.06),
+                            Color.clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .init(x: 0.5, y: 0.55)
+                    )
+
+                    LinearGradient(
+                        colors: [.clear, .black.opacity(0.06)],
+                        startPoint: .init(x: 0.5, y: 0.60),
+                        endPoint: .bottom
+                    )
+                }
+
+                // Header label — plain color fill, no system material
+                HStack {
+                    Label("Lyrics", systemImage: "quote.bubble.fill")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.62))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color.white.opacity(0.10)))
+                        .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 1))
+
+                    Spacer(minLength: 0)
+
+                    // Source badge — plain color fill, no system material
+                    if let source = lyricsPayload?.source, source != .none {
+                        Text(source == .musicApp ? "Apple Music" : "LRCLib")
+                            .font(.system(size: 9, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.46))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.white.opacity(0.08)))
+                            .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+
+                // Content — switch on coarse state only; elapsed-driven scroll lives in child
+                VStack(alignment: .leading, spacing: 0) {
+                    switch lyricsState {
+                    case .idle:
+                        stateView("Start playback to load lyrics.", icon: "music.note")
+                    case .loading:
+                        HStack(spacing: 10) {
+                            ProgressView()
+                                .controlSize(.small)
+                                .scaleEffect(0.9)
+                            Text("Fetching lyrics…")
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    case .unavailable:
+                        stateView("Lyrics unavailable for this track.", icon: "text.bubble")
+                    case .failed:
+                        VStack(spacing: 10) {
+                            stateView("Couldn't fetch lyrics right now.", icon: "exclamationmark.bubble")
+                            Button("Retry") { model.retryLyricsFetch() }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    case .available:
+                        // Delegate elapsed-sensitive rendering to a dedicated child so that
+                        // the expensive background ZStack above is NOT re-evaluated every 0.5 s.
+                        RegularLyricsScrollContent(
+                            lines: lyricsPayload?.lines ?? [],
+                            isTimed: lyricsPayload?.isTimed ?? false
+                        )
+                    }
+                }
+                .padding(.top, 36)
+                .padding(.bottom, 12)
+                .padding(.horizontal, 14)
+            }
+            .frame(height: paneHeight)
+        }
+    }
+
+    private func stateView(_ message: String, icon: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 22, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text(message)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+}
+
+// Isolated child that drives lyric scrolling via LyricsScrollCoordinator — an
+// NSTimer-based coordinator that reads PlaybackClock directly WITHOUT going through
+// SwiftUI's reactive system. This means the view body is only re-evaluated when the
+// active lyric LINE changes, not every 0.5 s. On macOS 26, ANY SwiftUI re-render
+// inside the NSPopover triggers DesignLibrary's glass compositor; minimising re-renders
+// to actual line-boundary crossings prevents the recursive stack overflow crash.
+private struct RegularLyricsScrollContent: View {
+    let lines: [LyricsLine]
+    let isTimed: Bool
+    @State private var activeLineID: UUID?
+    @State private var coordinator = LyricsScrollCoordinator()
+    private let maxRenderableLines: Int = 500
+
+    private var renderLines: [LyricsLine] {
+        if lines.count > maxRenderableLines {
+            return Array(lines.prefix(maxRenderableLines))
+        }
+        return lines
+    }
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(renderLines) { line in
+                        let isActive = line.id == activeLineID
+                        lyricLineView(line: line, isActive: isActive)
+                            .id(line.id)
+                    }
+                    if lines.count > maxRenderableLines {
+                        Text("Showing first \(maxRenderableLines) lines.")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+            .forceHideScrollIndicators()
+            .overlay(alignment: .top) {
+                LinearGradient(
+                    colors: [.black.opacity(0.45), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 16)
+                .allowsHitTesting(false)
+            }
+            .overlay(alignment: .bottom) {
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.35)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 20)
+                .allowsHitTesting(false)
+            }
+            .onAppear {
+                coordinator.lines = renderLines
+                coordinator.isTimed = isTimed
+                coordinator.scrollProxy = proxy
+                coordinator.onActiveLineChanged = { id in
+                    activeLineID = id
+                }
+                coordinator.start()
+            }
+            .onDisappear {
+                coordinator.stop()
+                coordinator.scrollProxy = nil
+            }
+            .onChange(of: renderLines.first?.id) { _ in
+                coordinator.lines = renderLines
+                coordinator.isTimed = isTimed
+            }
+            .onChange(of: isTimed) { timed in
+                coordinator.isTimed = timed
+            }
+        }
+    }
+
+    private func lyricLineView(line: LyricsLine, isActive: Bool) -> some View {
+        Text(line.text)
+            .font(.system(size: isActive ? 18 : 13, weight: isActive ? .bold : .regular, design: .rounded))
+            .foregroundStyle(isActive ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary.opacity(0.72)))
+            .lineLimit(3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, isActive ? 7 : 4)
     }
 }

@@ -4,6 +4,25 @@ import Combine
 import ServiceManagement
 import CoreAudio
 
+/// Holds only the rapidly-changing playback position values.
+/// Separated from NowPlayingModel so that the 0.5-second elapsed/duration
+/// tick does NOT trigger objectWillChange on NowPlayingModel, which would
+/// force the entire NowPlayingPopover view tree to re-render on every tick.
+/// On macOS 26, every SwiftUI body re-render inside an NSPopover invokes
+/// DesignLibrary.AppKitPlatformGlassDefinition — keeping the tick isolated
+/// here prevents the glass compositor from running in a hot loop.
+final class PlaybackClock: ObservableObject {
+    static let shared = PlaybackClock()
+    @Published var elapsed: Double = 0
+    @Published var duration: Double = 0
+    var progress: Double {
+        guard duration > 0 else { return 0 }
+        return min(max(elapsed / duration, 0), 1)
+    }
+    var canSeek: Bool { duration > 0.5 }
+    private init() {}
+}
+
 final class NowPlayingModel: ObservableObject {
     static let shared = NowPlayingModel()
 
@@ -57,8 +76,8 @@ final class NowPlayingModel: ObservableObject {
     @Published var isPlaying: Bool = false
     @Published var artwork: NSImage? = nil
     @Published var isPopoverVisible: Bool = false
-    @Published var elapsed: Double = 0
-    @Published var duration: Double = 0
+    // elapsed and duration are managed by PlaybackClock.shared to avoid
+    // triggering NowPlayingModel.objectWillChange on every 0.5s tick.
     @Published var glassTint: Color = .white
     @Published var cardBackgroundPalette: [Color] = [
         Color.white.opacity(0.24),
@@ -86,7 +105,6 @@ final class NowPlayingModel: ObservableObject {
         }
     }
     @Published var lyricsPanelExpanded: Bool = false
-    @Published var popoverLayoutShouldAnimate: Bool = true
     private var marqueeTimer: AnyCancellable?
     private var marqueeSignature: String = ""
     private var marqueeTrack: [Character] = []
@@ -182,8 +200,16 @@ final class NowPlayingModel: ObservableObject {
         (miniMode && miniLyricsEnabled) ? miniExpandedHeight : miniBaseHeight
     }
 
+    var regularLyricsPaneHeight: CGFloat { 241 } // 1pt divider + 240pt pane
+
     var estimatedRegularPopoverHeight: CGFloat {
         max(220, artworkDisplaySize + 54)
+    }
+
+    var regularPopoverHeight: CGFloat {
+        let base = estimatedRegularPopoverHeight
+        guard showLyricsPanel && lyricsPanelExpanded && !miniMode else { return base }
+        return base + regularLyricsPaneHeight
     }
 
     init() {
@@ -236,12 +262,10 @@ final class NowPlayingModel: ObservableObject {
         }
     }
 
-    var progress: Double {
-        guard duration > 0 else { return 0 }
-        return min(max(elapsed / duration, 0), 1)
-    }
-
-    var canSeek: Bool { duration > 0.5 }
+    var progress: Double { PlaybackClock.shared.progress }
+    var elapsed: Double { PlaybackClock.shared.elapsed }
+    var duration: Double { PlaybackClock.shared.duration }
+    var canSeek: Bool { PlaybackClock.shared.canSeek }
     var statusIcon: String { provider.icon }
     var statusLine: String {
         if provider == .none { return "Idle" }
@@ -292,11 +316,8 @@ final class NowPlayingModel: ObservableObject {
 
         // Keep progress smooth without re-tinting unless track/provider changed
         if let last = lastSnapshot, snapshotsSimilar(last, snap) {
-            elapsed = snap.elapsed
-            duration = snap.duration
-            isPlaying = snap.isPlaying
-            provider = snap.provider
-            configureMarquee()
+            PlaybackClock.shared.elapsed = snap.elapsed
+            PlaybackClock.shared.duration = snap.duration
             return
         }
 
@@ -342,8 +363,8 @@ final class NowPlayingModel: ObservableObject {
             self.title = snapshot.title
             self.artist = snapshot.artist
             self.album = snapshot.album
-            self.elapsed = snapshot.elapsed
-            self.duration = snapshot.duration
+            PlaybackClock.shared.elapsed = snapshot.elapsed
+            PlaybackClock.shared.duration = snapshot.duration
             self.artwork = snapshot.artwork
             self.updateTint(from: snapshot.artwork)
             self.configureMarquee()
@@ -550,15 +571,14 @@ final class NowPlayingModel: ObservableObject {
         statusBarConfigRevision &+= 1
     }
 
-    func requestPopoverLayoutRefresh(animated: Bool = true) {
-        popoverLayoutShouldAnimate = animated
+    func requestPopoverLayoutRefresh() {
         bumpStatusBarConfigRevision()
     }
 
-    func setLyricsPanelExpanded(_ expanded: Bool, layoutAnimated: Bool = false) {
+    func setLyricsPanelExpanded(_ expanded: Bool) {
         guard lyricsPanelExpanded != expanded else { return }
         lyricsPanelExpanded = expanded
-        requestPopoverLayoutRefresh(animated: layoutAnimated)
+        requestPopoverLayoutRefresh()
     }
 
     private func applyAudioState(_ state: AudioOutputState) {
