@@ -721,6 +721,11 @@ private struct MiniExpandedLyricsPane: View {
     @State private var lastActiveLineID: UUID?
 
     var body: some View {
+        let clampedArtworkIntensity = min(max(model.artworkColorIntensity, 0.5), 1.8)
+        let bleedScale = (clampedArtworkIntensity - 0.5) / 1.3
+        let tintTopOpacity = 0.14 + (0.22 * bleedScale)
+        let tintMidOpacity = 0.06 + (0.12 * bleedScale)
+
         ZStack(alignment: .top) {
             ZStack {
                 LinearGradient(
@@ -732,6 +737,18 @@ private struct MiniExpandedLyricsPane: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
+
+                // Subtle tint bleed so the lyrics pane inherits current artwork mood.
+                LinearGradient(
+                    colors: [
+                        model.glassTint.opacity(tintTopOpacity),
+                        model.glassTint.opacity(tintMidOpacity),
+                        .clear
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .blendMode(.screen)
             }
             .overlay(
                 LinearGradient(
