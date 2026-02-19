@@ -301,6 +301,8 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private let iconSize: CGFloat = 13
     private var lastStatusLength: CGFloat = -1
     private var lastStatusIconName: String = ""
+    private var pendingPopoverLayoutUpdate: DispatchWorkItem?
+    private var pendingPopoverLayoutShouldAnimate = true
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -357,11 +359,22 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         model.$statusBarConfigRevision
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.updateStatusButton()
-                // Wait one main-queue pass so SwiftUI commits layout before measurement.
-                DispatchQueue.main.async {
-                    self?.updatePopoverLayout(animated: true)
+                guard let self else { return }
+                self.updateStatusButton()
+                let shouldAnimateLayout = self.model.popoverLayoutShouldAnimate
+                self.model.popoverLayoutShouldAnimate = true
+
+                // Coalesce rapid layout-refresh bursts into one measurement pass.
+                self.pendingPopoverLayoutUpdate?.cancel()
+                self.pendingPopoverLayoutShouldAnimate = shouldAnimateLayout
+                let work = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    let animate = self.pendingPopoverLayoutShouldAnimate
+                    self.pendingPopoverLayoutShouldAnimate = true
+                    self.updatePopoverLayout(animated: animate)
                 }
+                self.pendingPopoverLayoutUpdate = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02, execute: work)
             }
             .store(in: &cancellables)
 
@@ -392,9 +405,13 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     @objc private func togglePopover(_ sender: Any?) {
         guard let button = statusItem?.button else { return }
         if popover.isShown {
+            pendingPopoverLayoutUpdate?.cancel()
+            pendingPopoverLayoutUpdate = nil
             popover.performClose(sender)
             model.isPopoverVisible = false
         } else {
+            pendingPopoverLayoutUpdate?.cancel()
+            pendingPopoverLayoutUpdate = nil
             updatePopoverLayout()
             model.isPopoverVisible = true
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
@@ -411,6 +428,8 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     }
 
     func popoverDidClose(_ notification: Notification) {
+        pendingPopoverLayoutUpdate?.cancel()
+        pendingPopoverLayoutUpdate = nil
         model.isPopoverVisible = false
     }
 
@@ -487,16 +506,33 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
 
         hostView.layoutSubtreeIfNeeded()
         let fittingHeight = ceil(hostView.fittingSize.height)
-        let targetSize = NSSize(width: width, height: max(1, fittingHeight))
+        let measuredContentHeight = max(1, fittingHeight)
+        let resolvedContentHeight = measuredContentHeight
 
         guard popover.isShown else {
+            let targetSize = NSSize(width: width, height: resolvedContentHeight)
             if popover.contentSize != targetSize {
                 popover.contentSize = targetSize
             }
             return
         }
 
+        // In regular mode, keep sizing on NSPopover contentSize only. This avoids
+        // manual window-frame anchor corrections that can produce down/up jitter.
+        if !model.miniMode {
+            let targetSize = NSSize(width: width, height: resolvedContentHeight)
+            if popover.contentSize != targetSize {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0
+                    context.allowsImplicitAnimation = false
+                    popover.contentSize = targetSize
+                }
+            }
+            return
+        }
+
         guard let window = popover.contentViewController?.view.window else { return }
+        let targetSize = NSSize(width: width, height: resolvedContentHeight)
         let targetFrameSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: targetSize)).size
 
         let current = window.frame
@@ -527,7 +563,12 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             )
         }
 
-        if animated {
+        let heightDelta = abs(current.height - targetFrame.height)
+        let widthDelta = abs(current.width - targetFrame.width)
+        let isLargeModeTransition = heightDelta > 180 || widthDelta > 120
+        let shouldAnimateWindowFrame = animated && isLargeModeTransition
+
+        if shouldAnimateWindowFrame {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.64
                 context.timingFunction = CAMediaTimingFunction(

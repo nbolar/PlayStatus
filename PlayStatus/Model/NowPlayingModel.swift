@@ -43,6 +43,11 @@ final class NowPlayingModel: ObservableObject {
             bumpStatusBarConfigRevision()
         }
     }
+    @AppStorage("miniLyricsEnabled") var miniLyricsEnabled: Bool = false {
+        didSet {
+            requestPopoverLayoutRefresh()
+        }
+    }
 
     // UI state
     @Published var provider: NowPlayingProvider = .none
@@ -80,9 +85,8 @@ final class NowPlayingModel: ObservableObject {
             requestPopoverLayoutRefresh()
         }
     }
-    @Published var lyricsPanelExpanded: Bool = false {
-        didSet { requestPopoverLayoutRefresh() }
-    }
+    @Published var lyricsPanelExpanded: Bool = false
+    @Published var popoverLayoutShouldAnimate: Bool = true
     private var marqueeTimer: AnyCancellable?
     private var marqueeSignature: String = ""
     private var marqueeTrack: [Character] = []
@@ -170,7 +174,13 @@ final class NowPlayingModel: ObservableObject {
         miniMode ? miniPopoverWidth : regularPopoverWidth
     }
 
-    var miniPopoverHeight: CGFloat { 380 }
+    var miniBaseHeight: CGFloat { 380 }
+    var miniLyricsPaneHeight: CGFloat { 180 }
+    var miniExpandedHeight: CGFloat { miniBaseHeight + miniLyricsPaneHeight }
+
+    var miniPopoverHeight: CGFloat {
+        (miniMode && miniLyricsEnabled) ? miniExpandedHeight : miniBaseHeight
+    }
 
     var estimatedRegularPopoverHeight: CGFloat {
         max(220, artworkDisplaySize + 54)
@@ -540,8 +550,15 @@ final class NowPlayingModel: ObservableObject {
         statusBarConfigRevision &+= 1
     }
 
-    func requestPopoverLayoutRefresh() {
+    func requestPopoverLayoutRefresh(animated: Bool = true) {
+        popoverLayoutShouldAnimate = animated
         bumpStatusBarConfigRevision()
+    }
+
+    func setLyricsPanelExpanded(_ expanded: Bool, layoutAnimated: Bool = false) {
+        guard lyricsPanelExpanded != expanded else { return }
+        lyricsPanelExpanded = expanded
+        requestPopoverLayoutRefresh(animated: layoutAnimated)
     }
 
     private func applyAudioState(_ state: AudioOutputState) {
