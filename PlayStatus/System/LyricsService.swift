@@ -121,6 +121,8 @@ enum MusicLyricsProvider {
 enum LRCLIBLyricsProvider {
     private static let durationScoreWindowSeconds: Double = 10
     private static let requiredLooseSearchScore: Double = 0.9
+    private static let requestTimeoutSeconds: TimeInterval = 4
+    private static let maxSearchRequestsPerAttempt: Int = 3
 
     private struct Response: Decodable {
         let syncedLyrics: String?
@@ -159,62 +161,115 @@ enum LRCLIBLyricsProvider {
     }
 
     static func fetch(artist: String, title: String, album: String, duration: Double) async -> LyricsFetchOutcome {
-        var components = URLComponents(string: "https://lrclib.net/api/get")
-        components?.queryItems = [
-            URLQueryItem(name: "track_name", value: title),
-            URLQueryItem(name: "artist_name", value: artist),
-            URLQueryItem(name: "album_name", value: album),
-            URLQueryItem(name: "duration", value: String(Int(duration.rounded())))
-        ]
-
-        guard let url = components?.url else { return .failed }
-
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 10
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse else { return .failed }
-            if http.statusCode == 404 {
-                return await search(artist: artist, title: title, duration: duration)
-            }
-            guard (200...299).contains(http.statusCode) else { return .failed }
-
-            let decoded = try JSONDecoder().decode(Response.self, from: data)
-            if let payload = payloadFrom(syncedLyrics: decoded.syncedLyrics, plainLyrics: decoded.plainLyrics) {
-                #if DEBUG
-                NSLog("PlayStatus lyrics: lrclib_get_hit")
-                #endif
-                return .available(payload)
-            }
-            return await search(artist: artist, title: title, duration: duration)
-        } catch {
-            return .failed
-        }
-    }
-
-    static func search(artist: String, title: String, duration: Double) async -> LyricsFetchOutcome {
-        let queryItemsSet: [[URLQueryItem]] = [
-            [
-                URLQueryItem(name: "track_name", value: title),
-                URLQueryItem(name: "artist_name", value: artist)
-            ],
-            [
-                URLQueryItem(name: "q", value: "\(artist) \(title)")
-            ]
-        ]
-
+        let artistCandidates = artistQueryCandidates(from: artist)
         var sawFailure = false
-        for queryItems in queryItemsSet {
-            var components = URLComponents(string: "https://lrclib.net/api/search")
-            components?.queryItems = queryItems
+
+        for artistCandidate in artistCandidates {
+            var components = URLComponents(string: "https://lrclib.net/api/get")
+            components?.queryItems = [
+                URLQueryItem(name: "track_name", value: title),
+                URLQueryItem(name: "artist_name", value: artistCandidate),
+                URLQueryItem(name: "album_name", value: album),
+                URLQueryItem(name: "duration", value: String(Int(duration.rounded())))
+            ]
+
             guard let url = components?.url else {
                 sawFailure = true
                 continue
             }
 
             var request = URLRequest(url: url)
-            request.timeoutInterval = 10
+            request.timeoutInterval = requestTimeoutSeconds
+
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse else {
+                    sawFailure = true
+                    continue
+                }
+                if http.statusCode == 404 { continue }
+                guard (200...299).contains(http.statusCode) else {
+                    sawFailure = true
+                    continue
+                }
+
+                let decoded = try JSONDecoder().decode(Response.self, from: data)
+                if let payload = payloadFrom(syncedLyrics: decoded.syncedLyrics, plainLyrics: decoded.plainLyrics) {
+                    #if DEBUG
+                    NSLog("PlayStatus lyrics: lrclib_get_hit artist=%@", artistCandidate)
+                    #endif
+                    return .available(payload)
+                }
+            } catch {
+                sawFailure = true
+            }
+        }
+
+        let searchOutcome = await search(artist: artist, title: title, duration: duration)
+        if case .available = searchOutcome { return searchOutcome }
+        if sawFailure && searchOutcome == .unavailable { return .failed }
+        return searchOutcome
+    }
+
+    static func search(artist: String, title: String, duration: Double) async -> LyricsFetchOutcome {
+        let artistCandidates = artistQueryCandidates(from: artist)
+        var queryPlan: [(queryItems: [URLQueryItem], queryArtist: String)] = []
+        queryPlan.reserveCapacity(maxSearchRequestsPerAttempt)
+
+        let fullArtist = artistCandidates.first
+        let primaryArtist = artistCandidates.count > 1 ? artistCandidates.last : nil
+
+        // 1) track_name + artist_name (primary artist, if different)
+        if let primaryArtist {
+            queryPlan.append((
+                queryItems: [
+                    URLQueryItem(name: "track_name", value: title),
+                    URLQueryItem(name: "artist_name", value: primaryArtist)
+                ],
+                queryArtist: primaryArtist
+            ))
+        }
+
+        // 2) track_name + artist_name (full artist)
+        if queryPlan.count < maxSearchRequestsPerAttempt, let fullArtist {
+            queryPlan.append((
+                queryItems: [
+                    URLQueryItem(name: "track_name", value: title),
+                    URLQueryItem(name: "artist_name", value: fullArtist)
+                ],
+                queryArtist: fullArtist
+            ))
+        }
+
+        // 3) one broad q= fallback (primary/full artist)
+        if queryPlan.count < maxSearchRequestsPerAttempt {
+            let broadArtist = primaryArtist ?? fullArtist
+            if let broadArtist {
+                queryPlan.append((
+                    queryItems: [
+                        URLQueryItem(name: "q", value: "\(broadArtist) \(title)")
+                    ],
+                    queryArtist: broadArtist
+                ))
+            }
+        }
+
+        // Defensive cap.
+        if queryPlan.count > maxSearchRequestsPerAttempt {
+            queryPlan = Array(queryPlan.prefix(maxSearchRequestsPerAttempt))
+        }
+
+        var sawFailure = false
+        for plan in queryPlan {
+            var components = URLComponents(string: "https://lrclib.net/api/search")
+            components?.queryItems = plan.queryItems
+            guard let url = components?.url else {
+                sawFailure = true
+                continue
+            }
+
+            var request = URLRequest(url: url)
+            request.timeoutInterval = requestTimeoutSeconds
 
             do {
                 let (data, response) = try await URLSession.shared.data(for: request)
@@ -231,7 +286,7 @@ enum LRCLIBLyricsProvider {
                 let decoded = try JSONDecoder().decode([SearchItem].self, from: data)
                 guard let best = selectBestCandidate(
                     from: decoded,
-                    queryArtist: artist,
+                    queryArtist: plan.queryArtist,
                     queryTitle: title,
                     queryDuration: duration
                 ) else {
@@ -259,6 +314,38 @@ enum LRCLIBLyricsProvider {
         }
 
         return sawFailure ? .failed : .unavailable
+    }
+
+    private static func artistQueryCandidates(from artist: String) -> [String] {
+        let trimmed = artist.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        var candidates: [String] = []
+        candidates.append(trimmed)
+
+        let lower = trimmed.lowercased()
+        let delimiters = [" feat. ", " feat ", " featuring ", " ft. ", " ft ", ",", "&", " x ", " and ", ";", "/"]
+        var splitIndex: String.Index?
+        for delimiter in delimiters {
+            if let range = lower.range(of: delimiter), splitIndex == nil || range.lowerBound < splitIndex! {
+                splitIndex = range.lowerBound
+            }
+        }
+
+        if let splitIndex {
+            let firstArtist = String(trimmed[..<splitIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !firstArtist.isEmpty {
+                candidates.append(firstArtist)
+            }
+        }
+
+        var deduped: [String] = []
+        for candidate in candidates {
+            if !deduped.contains(where: { $0.caseInsensitiveCompare(candidate) == .orderedSame }) {
+                deduped.append(candidate)
+            }
+        }
+        return deduped
     }
 
     private static func selectBestCandidate(

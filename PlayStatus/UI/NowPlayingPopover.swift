@@ -405,8 +405,8 @@ private struct MiniNowPlayingCard: View {
         let veryLightBoost = max(0, (luminance - 0.72) / 0.28)
         let darkArtworkBoost = max(0, (0.52 - luminance) / 0.52)
         let effectiveHover = (pointerHovering || forceExpandedUntilPointerExit) && !transitionActive
-        let controlsVisible = effectiveHover || model.miniLyricsEnabled
-        let infoExpanded = effectiveHover || model.miniLyricsEnabled
+        let controlsVisible = effectiveHover
+        let infoExpanded = effectiveHover
         let bottomShade = min(0.82, 0.34 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.18) + (effectiveHover ? 0.10 : 0.04))
         let topShade = min(0.34, 0.10 + (darkArtworkBoost * 0.14))
         let readabilityDarken = min(0.84, 0.42 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.24) + (effectiveHover ? 0.08 : 0.02))
@@ -811,16 +811,22 @@ private final class TrackingNSView: NSView {
     }
 }
 
+private func lyricsBleedOpacities(for artworkColorIntensity: Double) -> (top: Double, mid: Double) {
+    let intensity = min(max(artworkColorIntensity, 0.5), 1.8)
+    // Directly scale bleed with the Settings "Artwork Color Intensity" slider.
+    return (
+        top: min(0.38, 0.20 * intensity),
+        mid: min(0.20, 0.10 * intensity)
+    )
+}
+
 private struct MiniExpandedLyricsPane: View {
     @ObservedObject var model: NowPlayingModel
     @State private var activeLineID: UUID?
     @State private var coordinator = LyricsScrollCoordinator()
 
     var body: some View {
-        let clampedArtworkIntensity = min(max(model.artworkColorIntensity, 0.5), 1.8)
-        let bleedScale = (clampedArtworkIntensity - 0.5) / 1.3
-        let tintTopOpacity = 0.14 + (0.22 * bleedScale)
-        let tintMidOpacity = 0.06 + (0.12 * bleedScale)
+        let bleed = lyricsBleedOpacities(for: model.artworkColorIntensity)
 
         ZStack(alignment: .top) {
             ZStack {
@@ -837,8 +843,8 @@ private struct MiniExpandedLyricsPane: View {
                 // Subtle tint bleed so the lyrics pane inherits current artwork mood.
                 LinearGradient(
                     colors: [
-                        model.glassTint.opacity(tintTopOpacity),
-                        model.glassTint.opacity(tintMidOpacity),
+                        model.glassTint.opacity(bleed.top),
+                        model.glassTint.opacity(bleed.mid),
                         .clear
                     ],
                     startPoint: .topLeading,
@@ -1135,6 +1141,8 @@ private struct RegularLyricsPane: View {
     private let paneHeight: CGFloat = 240
 
     var body: some View {
+        let bleed = lyricsBleedOpacities(for: model.artworkColorIntensity)
+
         VStack(spacing: 0) {
             Divider()
                 .overlay(glassTint.opacity(0.18))
@@ -1150,20 +1158,39 @@ private struct RegularLyricsPane: View {
                     // glass compositor paths. Use gradients only, as MiniExpandedLyricsPane does.
                     LinearGradient(
                         colors: [
-                            glassTint.opacity(0.14),
-                            glassTint.opacity(0.06),
-                            Color.clear
+                            Color.black.opacity(0.56),
+                            Color.black.opacity(0.62),
+                            Color.black.opacity(0.70)
                         ],
                         startPoint: .top,
-                        endPoint: .init(x: 0.5, y: 0.55)
+                        endPoint: .bottom
                     )
 
                     LinearGradient(
-                        colors: [.clear, .black.opacity(0.06)],
-                        startPoint: .init(x: 0.5, y: 0.60),
+                        colors: [
+                            glassTint.opacity(bleed.top),
+                            glassTint.opacity(bleed.mid),
+                            .clear
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .blendMode(.screen)
+                }
+                .overlay(
+                    LinearGradient(
+                        colors: [.white.opacity(0.04), .clear],
+                        startPoint: .top,
                         endPoint: .bottom
                     )
-                }
+                )
+                .overlay(
+                    LinearGradient(
+                        colors: [.clear, .black.opacity(0.16), .black.opacity(0.28)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
 
                 // Header label — plain color fill, no system material
                 HStack {
@@ -1203,7 +1230,7 @@ private struct RegularLyricsPane: View {
                                 .scaleEffect(0.9)
                             Text("Fetching lyrics…")
                                 .font(.system(size: 13, weight: .medium, design: .rounded))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.white.opacity(0.88))
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     case .unavailable:
@@ -1287,24 +1314,6 @@ private struct RegularLyricsScrollContent: View {
                 .padding(.vertical, 6)
             }
             .forceHideScrollIndicators()
-            .overlay(alignment: .top) {
-                LinearGradient(
-                    colors: [.black.opacity(0.45), .clear],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 16)
-                .allowsHitTesting(false)
-            }
-            .overlay(alignment: .bottom) {
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.35)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 20)
-                .allowsHitTesting(false)
-            }
             .onAppear {
                 coordinator.lines = renderLines
                 coordinator.isTimed = isTimed
