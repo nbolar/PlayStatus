@@ -318,6 +318,15 @@ final class NowPlayingModel: ObservableObject {
         if let last = lastSnapshot, snapshotsSimilar(last, snap) {
             PlaybackClock.shared.elapsed = snap.elapsed
             PlaybackClock.shared.duration = snap.duration
+            // Same track: if native provider artwork arrives later (e.g. Spotify URL fetch),
+            // promote it over any previously shown fallback art without forcing a full apply().
+            if snap.nativeArtworkState == .available, let artwork = snap.artwork {
+                lastSnapshot = snap
+                DispatchQueue.main.async {
+                    self.artwork = artwork
+                    self.updateTint(from: artwork)
+                }
+            }
             return
         }
 
@@ -370,7 +379,7 @@ final class NowPlayingModel: ObservableObject {
             self.configureMarquee()
         }
 
-        if snapshot.provider == .music, !snapshot.title.isEmpty {
+        if snapshot.provider != .none, !snapshot.title.isEmpty {
             if trackChanged {
                 startLyricsFetch(for: snapshot, forceRefresh: false, resetState: true)
             }

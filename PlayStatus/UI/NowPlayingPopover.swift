@@ -925,6 +925,8 @@ private struct MiniExpandedLyricsPane: View {
                             .foregroundStyle(isActive ? .white.opacity(0.98) : .white.opacity(0.72))
                             .lineLimit(2)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .scaleEffect(isActive ? 1.03 : 1.0, anchor: .leading)
+                            .animation(.easeInOut(duration: 0.24), value: isActive)
                             .id(line.id)
                     }
                 }
@@ -1064,7 +1066,9 @@ private final class LyricsScrollCoordinator {
         onActiveLineChanged?(newID)
         // Scroll the proxy without triggering a new render pass
         if let proxy = scrollProxy, let id = newID {
-            proxy.scrollTo(id, anchor: .center)
+            withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.86, blendDuration: 0.12)) {
+                proxy.scrollTo(id, anchor: .center)
+            }
         }
     }
 
@@ -1339,10 +1343,12 @@ private struct RegularLyricsScrollContent: View {
 
     private func lyricLineView(line: LyricsLine, isActive: Bool) -> some View {
         Text(line.text)
-            .font(.system(size: isActive ? 18 : 13, weight: isActive ? .bold : .regular, design: .rounded))
+            .font(.system(size: isActive ? 17 : 13, weight: isActive ? .semibold : .regular, design: .rounded))
             .foregroundStyle(isActive ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary.opacity(0.72)))
             .lineLimit(3)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, isActive ? 7 : 4)
+            .padding(.vertical, 5)
+            .scaleEffect(isActive ? 1.03 : 1.0, anchor: .leading)
+            .animation(.easeInOut(duration: 0.34), value: isActive)
     }
 }

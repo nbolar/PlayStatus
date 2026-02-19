@@ -2,6 +2,9 @@ import Foundation
 import AppKit
 
 enum MusicProvider {
+    private static var cachedArtworkTrackKey: String?
+    private static var cachedArtworkImage: NSImage?
+
     static func fetch() -> NowPlayingSnapshot? {
         let metaScript = """
         tell application "Music"
@@ -34,25 +37,33 @@ enum MusicProvider {
         let duration = Double(parts.count > 4 ? parts[4] : "") ?? 0
         let elapsed = Double(parts.count > 5 ? parts[5] : "") ?? 0
 
+        let trackKey = "\(title)|\(artist)|\(album)"
         var artwork: NSImage? = nil
         if !title.isEmpty {
-            let artScript = """
-            tell application "Music"
-                if it is running then
-                    try
-                        set artData to data of artwork 1 of current track
-                        return artData
-                    on error
+            if cachedArtworkTrackKey == trackKey, let cachedArtworkImage {
+                artwork = cachedArtworkImage
+            } else if isPlaying {
+                let artScript = """
+                tell application "Music"
+                    if it is running then
+                        try
+                            set artData to data of artwork 1 of current track
+                            return artData
+                        on error
+                            return ""
+                        end try
+                    else
                         return ""
-                    end try
-                else
-                    return ""
-                end if
-            end tell
-            """
-            if let desc = runAppleScriptDescriptor(artScript),
-               let data = desc.rawData, !data.isEmpty {
-                artwork = NSImage(data: data)
+                    end if
+                end tell
+                """
+                if let desc = runAppleScriptDescriptor(artScript),
+                   let data = desc.rawData, !data.isEmpty,
+                   let image = NSImage(data: data) {
+                    artwork = image
+                    cachedArtworkTrackKey = trackKey
+                    cachedArtworkImage = image
+                }
             }
         }
 

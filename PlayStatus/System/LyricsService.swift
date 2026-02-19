@@ -30,7 +30,7 @@ actor LyricsService {
     private var inflight: [String: Task<LyricsFetchOutcome, Never>] = [:]
 
     func fetchLyrics(for descriptor: LyricsTrackDescriptor, forceRefresh: Bool = false) async -> LyricsFetchOutcome {
-        guard descriptor.provider == .music, !descriptor.title.isEmpty else {
+        guard descriptor.provider != .none, !descriptor.title.isEmpty else {
             return .unavailable
         }
 
@@ -57,7 +57,8 @@ actor LyricsService {
                 return lrclibOutcome
             }
 
-            if let appPayload = await MusicLyricsProvider.fetchCurrentTrackLyrics() {
+            if descriptor.provider == .music,
+               let appPayload = await MusicLyricsProvider.fetchCurrentTrackLyrics() {
                 return .available(appPayload)
             }
 
