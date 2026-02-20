@@ -121,7 +121,7 @@ struct LyricsLine: Equatable, Identifiable {
     let text: String
     let startTime: Double?
 
-    init(id: UUID = UUID(), text: String, startTime: Double?) {
+    nonisolated init(id: UUID = UUID(), text: String, startTime: Double?) {
         self.id = id
         self.text = text
         self.startTime = startTime

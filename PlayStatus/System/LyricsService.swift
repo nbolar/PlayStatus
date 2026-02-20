@@ -7,7 +7,7 @@ struct LyricsTrackDescriptor: Equatable {
     let album: String
     let duration: Double
 
-    var cacheKey: String {
+    nonisolated var cacheKey: String {
         "\(provider.rawValue)|\(artist)|\(album)|\(title)|\(Int(duration.rounded()))"
     }
 }
@@ -45,11 +45,22 @@ actor LyricsService {
             return .unavailable
         }
 
-        let key = await descriptor.cacheKey
+        let key = descriptor.cacheKey
         if !forceRefresh, let cached = cache[key] {
             switch cached {
             case .available(let payload): return .available(payload)
             case .unavailable: return .unavailable
+            }
+        }
+
+        if !forceRefresh, let diskCached = await PersistentMediaCache.shared.fetchLyrics(forKey: key) {
+            switch diskCached {
+            case .available(let payload):
+                cache[key] = .available(payload)
+                return .available(payload)
+            case .unavailable:
+                cache[key] = .unavailable
+                return .unavailable
             }
         }
 
@@ -85,8 +96,10 @@ actor LyricsService {
         switch outcome {
         case .available(let payload):
             cache[key] = .available(payload)
+            await PersistentMediaCache.shared.storeLyricsAvailable(payload, forKey: key)
         case .unavailable:
             cache[key] = .unavailable
+            await PersistentMediaCache.shared.storeLyricsUnavailable(forKey: key)
         case .failed:
             break
         }

@@ -94,6 +94,8 @@ final class NowPlayingModel: ObservableObject {
     @Published var selectedOutputDeviceID: AudioDeviceID = 0
     @Published var outputVolume: Double = 1.0
     @Published var outputMuted: Bool = false
+    @Published var persistentCacheUsageText: String = "0 MB"
+    @Published var isClearingPersistentCache: Bool = false
     @Published var popoverModeTransitionToken: Int = 0
     @Published var lyricsPayload: LyricsPayload? {
         didSet {
@@ -239,6 +241,7 @@ final class NowPlayingModel: ObservableObject {
         startTimer(interval: 0.5)
         launchAtLoginSupported = launchAtLoginStatus() != nil
         refresh()
+        refreshPersistentCacheStats()
     }
 
     var menuBarTitle: String {
@@ -481,9 +484,6 @@ final class NowPlayingModel: ObservableObject {
                 self.lyricsPayload = nil
                 self.lyricsState = .loading
                 self.lyricsLoadingProgress = nil
-                if self.showLyricsPanel {
-                    self.lyricsPanelExpanded = self.expandLyricsByDefault
-                }
             }
         }
 
@@ -721,6 +721,31 @@ final class NowPlayingModel: ObservableObject {
         let newMuted = !outputMuted
         outputMuted = newMuted
         AudioOutputController.setMuted(newMuted, for: selectedOutputDeviceID == 0 ? nil : selectedOutputDeviceID)
+    }
+
+    func refreshPersistentCacheStats() {
+        Task { [weak self] in
+            guard let self else { return }
+            let usage = await PersistentMediaCache.shared.usageText()
+            await MainActor.run {
+                self.persistentCacheUsageText = usage
+            }
+        }
+    }
+
+    func clearPersistentCache() {
+        guard !isClearingPersistentCache else { return }
+        isClearingPersistentCache = true
+
+        Task { [weak self] in
+            guard let self else { return }
+            await PersistentMediaCache.shared.clearAll()
+            let usage = await PersistentMediaCache.shared.usageText()
+            await MainActor.run {
+                self.persistentCacheUsageText = usage
+                self.isClearingPersistentCache = false
+            }
+        }
     }
 
     func openProviderApp() {

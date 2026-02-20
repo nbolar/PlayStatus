@@ -631,10 +631,10 @@ struct PlayStatusSettingsView: View {
             displayContent
         case .playback:
             playbackContent
-        case .system:
-            systemContent
         case .hotkeys:
             hotkeysContent
+        case .system:
+            systemContent
         }
     }
 
@@ -821,6 +821,34 @@ struct PlayStatusSettingsView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
             }
+
+            Divider().padding(.vertical, 2)
+
+            SettingsControlRow(
+                title: "Media Cache",
+                caption: "Stores lyrics and artwork locally (max 50 MB)."
+            ) {
+                HStack(spacing: 10) {
+                    Text(model.persistentCacheUsageText)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    Button("Clear Cache") {
+                        model.clearPersistentCache()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(model.isClearingPersistentCache)
+
+                    if model.isClearingPersistentCache {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+            }
+        }
+        .onAppear {
+            model.refreshPersistentCacheStats()
         }
     }
 
@@ -836,8 +864,8 @@ struct PlayStatusSettingsView: View {
 private enum SettingsTab: String, CaseIterable {
     case display
     case playback
-    case system
     case hotkeys
+    case system
 
     var title: String {
         switch self {
@@ -870,8 +898,8 @@ private enum SettingsTab: String, CaseIterable {
         switch self {
         case .display: return 0
         case .playback: return 1
-        case .system: return 2
-        case .hotkeys: return 3
+        case .hotkeys: return 2
+        case .system: return 3
         }
     }
 
@@ -881,10 +909,10 @@ private enum SettingsTab: String, CaseIterable {
             return CGSize(width: 780, height: 640)
         case .playback:
             return CGSize(width: 780, height: 560)
-        case .system:
-            return CGSize(width: 780, height: 430)
         case .hotkeys:
             return CGSize(width: 780, height: 520)
+        case .system:
+            return CGSize(width: 780, height: 430)
         }
     }
 }

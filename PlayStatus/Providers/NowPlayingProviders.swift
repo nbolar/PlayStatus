@@ -209,14 +209,25 @@ final class ArtworkCache {
         if inflight.contains(url) { return nil }
         inflight.insert(url)
 
-        let req = URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 4)
-        URLSession.shared.dataTask(with: req) { [weak self] data, _, _ in
+        Task { [weak self] in
             guard let self else { return }
             defer { self.inflight.remove(url) }
-            if let data, let img = NSImage(data: data) {
-                DispatchQueue.main.async { self.cache[url] = img }
+
+            if let cachedData = await PersistentMediaCache.shared.fetchArtworkData(forKey: url.absoluteString),
+               let cachedImage = NSImage(data: cachedData) {
+                DispatchQueue.main.async { self.cache[url] = cachedImage }
+                return
             }
-        }.resume()
+
+            let req = URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 4)
+            guard let (data, _) = try? await URLSession.shared.data(for: req),
+                  let image = NSImage(data: data) else {
+                return
+            }
+
+            DispatchQueue.main.async { self.cache[url] = image }
+            await PersistentMediaCache.shared.storeArtworkImage(image, forKey: url.absoluteString)
+        }
 
         return nil
     }
@@ -240,46 +251,45 @@ final class ITunesArtworkLookup {
         }
         inflight.insert(key)
 
-        let query = [artist, album, title]
-            .joined(separator: " ")
-            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        guard let url = URL(string: "https://itunes.apple.com/search?term=\(query)&country=us&limit=1") else {
-            inflight.remove(key)
-            completion(nil)
-            return
-        }
-
-        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+        Task { [weak self] in
             guard let self else { return }
             defer { self.inflight.remove(key) }
-            guard let data else {
+
+            if let cachedData = await PersistentMediaCache.shared.fetchArtworkData(forKey: key),
+               let cachedImage = NSImage(data: cachedData) {
+                DispatchQueue.main.async { self.imageCache[key] = cachedImage }
+                completion(cachedImage)
+                return
+            }
+
+            let query = [artist, album, title]
+                .joined(separator: " ")
+                .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            guard let searchURL = URL(string: "https://itunes.apple.com/search?term=\(query)&country=us&limit=1") else {
                 completion(nil)
                 return
             }
-            do {
-                let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-                let results = json?["results"] as? [[String: Any]]
-                let artwork100 = results?.first?["artworkUrl100"] as? String ?? ""
-                if artwork100.isEmpty {
-                    completion(nil)
-                    return
-                }
-                let highRes = artwork100.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg")
-                guard let imageURL = URL(string: highRes) else {
-                    completion(nil)
-                    return
-                }
-                URLSession.shared.dataTask(with: imageURL) { data2, _, _ in
-                    guard let data2, let image = NSImage(data: data2) else {
-                        completion(nil)
-                        return
-                    }
-                    DispatchQueue.main.async { self.imageCache[key] = image }
-                    completion(image)
-                }.resume()
-            } catch {
+
+            guard let (searchData, _) = try? await URLSession.shared.data(from: searchURL),
+                  let json = try? JSONSerialization.jsonObject(with: searchData) as? [String: Any],
+                  let results = json["results"] as? [[String: Any]],
+                  let artwork100 = results.first?["artworkUrl100"] as? String,
+                  !artwork100.isEmpty else {
                 completion(nil)
+                return
             }
-        }.resume()
+
+            let highRes = artwork100.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg")
+            guard let imageURL = URL(string: highRes),
+                  let (imageData, _) = try? await URLSession.shared.data(from: imageURL),
+                  let image = NSImage(data: imageData) else {
+                completion(nil)
+                return
+            }
+
+            DispatchQueue.main.async { self.imageCache[key] = image }
+            await PersistentMediaCache.shared.storeArtworkImage(image, forKey: key)
+            completion(image)
+        }
     }
 }

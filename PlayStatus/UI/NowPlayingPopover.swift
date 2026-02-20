@@ -1010,7 +1010,7 @@ private struct MiniExpandedLyricsPane: View {
             VStack(alignment: .leading, spacing: 8) {
                 switch model.lyricsState {
                 case .idle:
-                    stateRow("Start playback to load lyrics.")
+                    stateRow("Start playback to load lyrics.", icon: "play.square")
                 case .loading:
                     let progress = model.lyricsLoadingProgress
                     LyricsLoadingPulseBlock(
@@ -1020,9 +1020,9 @@ private struct MiniExpandedLyricsPane: View {
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
                 case .unavailable:
-                    stateRow("Lyrics unavailable for this track.")
+                    stateRow("Lyrics unavailable for this track.", icon: "text.bubble")
                 case .failed:
-                    stateRow("Couldn't fetch lyrics right now.")
+                    stateRow("Couldn't fetch lyrics right now.", icon: "exclamationmark.octagon")
                 case .available:
                     lyricsScroll
                 }
@@ -1045,11 +1045,17 @@ private struct MiniExpandedLyricsPane: View {
         }
     }
 
-    private func stateRow(_ message: String) -> some View {
-        Text(message)
-            .font(.system(size: 12, weight: .medium, design: .rounded))
-            .foregroundStyle(.white.opacity(0.86))
-            .frame(maxWidth: .infinity, alignment: .leading)
+    private func stateRow(_ message: String, icon: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 22, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text(message)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.86))
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
     private func miniLoadingMessage(progress: LyricsLoadingProgress?) -> String {
