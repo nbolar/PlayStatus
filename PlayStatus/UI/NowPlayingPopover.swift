@@ -994,6 +994,7 @@ private struct MiniExpandedLyricsPane: View {
                             .foregroundStyle(isActive ? .white.opacity(0.98) : .white.opacity(0.72))
                             .lineLimit(2)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, isActive ? 5 : 1)
                             .scaleEffect(isActive ? 1.03 : 1.0, anchor: .leading)
                             .animation(.easeInOut(duration: 0.24), value: isActive)
                             .id(line.id)
