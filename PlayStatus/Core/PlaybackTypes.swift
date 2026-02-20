@@ -1,5 +1,7 @@
 import AppKit
 
+let modeTransitionDuration: Double = 0.95
+
 enum NowPlayingProvider: String {
     case music
     case spotify

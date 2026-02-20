@@ -1,10 +1,9 @@
 import SwiftUI
 import AppKit
 
-private let modeMorphDuration: Double = 0.84
-private let modeMorphAnimation = Animation.timingCurve(0.20, 0.68, 0.60, 1.0, duration: modeMorphDuration)
-private let modeCrossfadeOutDuration: Double = 0.22
-private let modeCrossfadeInDuration: Double = 0.44
+private let modeMorphAnimation = Animation.linear(duration: modeTransitionDuration / 3.0)
+private let modeCrossfadeOutDuration: Double = modeTransitionDuration * 0.25
+private let modeCrossfadeInDuration: Double = modeTransitionDuration * 0.65
 
 struct NowPlayingPopover: View {
     @ObservedObject var model: NowPlayingModel
@@ -67,14 +66,14 @@ struct NowPlayingPopover: View {
             } else {
                 artworkMorphEnabled = false
                 regularArtworkOpacity = 0
-                withAnimation(.easeInOut(duration: 0.80)) {
+                withAnimation(.easeInOut(duration: modeTransitionDuration)) {
                     regularArtworkOpacity = 1
                 }
             }
             guard miniMode else { return }
             searchText = ""
             isSearchFocused = false
-            withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.90, blendDuration: 0.10)) {
+            withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.90, blendDuration: 0.90)) {
                 isSearchExpanded = false
             }
         }
@@ -396,7 +395,7 @@ struct NowPlayingPopover: View {
             modeTransitionActive = false
         }
         modeTransitionResetWorkItem = reset
-        DispatchQueue.main.asyncAfter(deadline: .now() + modeMorphDuration + 0.06, execute: reset)
+        DispatchQueue.main.asyncAfter(deadline: .now() + modeTransitionDuration + 0.06, execute: reset)
     }
 
 }

@@ -573,7 +573,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             if pendingModeResizeAnimation {
                 pendingModeResizeAnimation = false
                 NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.94
+                    context.duration = modeTransitionDuration
                     context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                     context.allowsImplicitAnimation = true
                     window.animator().setFrame(targetFrame, display: true)
