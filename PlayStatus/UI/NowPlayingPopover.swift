@@ -20,12 +20,13 @@ struct NowPlayingPopover: View {
     @State private var pendingMiniInitialExpand = false
     @State private var displayedMiniMode = false
     @State private var modeCrossfadeOpacity: Double = 1
+    @State private var modeCrossfadeSequence: Int = 0
     private var resolvedPopoverHeight: CGFloat {
         model.miniMode ? model.miniPopoverHeight : model.regularPopoverHeight
     }
 
     var body: some View {
-        modeContent(miniMode: model.miniMode)
+        modeContent(miniMode: displayedMiniMode)
             .opacity(modeCrossfadeOpacity)
         .frame(
             width: model.popoverWidth,
@@ -48,28 +49,34 @@ struct NowPlayingPopover: View {
         .onChange(of: model.miniMode) { miniMode in
             beginModeTransition()
             modeCrossfadeSwapWorkItem?.cancel()
-                        withAnimation(.easeOut(duration: modeCrossfadeOutDuration)) {
-                            modeCrossfadeOpacity = 0
-                        }
-
-                        let swap = DispatchWorkItem {
-                            displayedMiniMode = miniMode
-                            withAnimation(.easeInOut(duration: modeCrossfadeInDuration)) {
-                                modeCrossfadeOpacity = 1
-                            }
-                        }
-                        modeCrossfadeSwapWorkItem = swap
-                        DispatchQueue.main.asyncAfter(deadline: .now() + modeCrossfadeOutDuration, execute: swap)
-
-            if miniMode {
-                artworkMorphEnabled = true
-            } else {
-                artworkMorphEnabled = false
-                regularArtworkOpacity = 0
-                withAnimation(.easeInOut(duration: modeTransitionDuration)) {
-                    regularArtworkOpacity = 1
-                }
+            modeCrossfadeSequence += 1
+            let sequence = modeCrossfadeSequence
+            withAnimation(.easeOut(duration: modeCrossfadeOutDuration)) {
+                modeCrossfadeOpacity = 0
             }
+
+            let swap = DispatchWorkItem {
+                guard sequence == modeCrossfadeSequence else { return }
+                displayedMiniMode = miniMode
+
+                if miniMode {
+                    artworkMorphEnabled = true
+                } else {
+                    artworkMorphEnabled = false
+                    regularArtworkOpacity = 0
+                    withAnimation(.easeInOut(duration: modeTransitionDuration)) {
+                        regularArtworkOpacity = 1
+                    }
+                }
+
+                withAnimation(.easeInOut(duration: modeCrossfadeInDuration)) {
+                    modeCrossfadeOpacity = 1
+                }
+                modeCrossfadeSwapWorkItem = nil
+            }
+            modeCrossfadeSwapWorkItem = swap
+            DispatchQueue.main.asyncAfter(deadline: .now() + modeCrossfadeOutDuration, execute: swap)
+
             guard miniMode else { return }
             searchText = ""
             isSearchFocused = false
@@ -83,6 +90,7 @@ struct NowPlayingPopover: View {
         }
         .onDisappear {
             modeCrossfadeSwapWorkItem?.cancel()
+            modeCrossfadeSwapWorkItem = nil
         }
         .simultaneousGesture(
             SpatialTapGesture().onEnded { value in
