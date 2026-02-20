@@ -16,7 +16,7 @@ This repository now contains the rewritten SwiftUI codebase that replaces the le
 ##
 ![preview](https://user-images.githubusercontent.com/45484873/75731499-d3310180-5cbd-11ea-8546-7c34bacd1b6f.gif)<br>
 
-#### The above clip represents the settings pane for versions pre v2.0. The new settings options have been been completely revamped and allows the user to choose different menu bar options.
+#### The above clip represents the settings pane for versions pre v2.0. The new settings options have been completely revamped and allows the user to choose different menu bar options.
 
 <img width="388" alt="image" src="https://user-images.githubusercontent.com/45484873/103488050-bb437600-4dd7-11eb-9f4d-f6ff4371b15b.png"> 
 
