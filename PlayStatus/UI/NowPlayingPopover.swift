@@ -4,6 +4,8 @@ import AppKit
 private let modeMorphAnimation = Animation.linear(duration: modeTransitionDuration / 3.0)
 private let modeCrossfadeOutDuration: Double = modeTransitionDuration * 0.25
 private let modeCrossfadeInDuration: Double = modeTransitionDuration * 0.65
+private let miniSeamBlendHeight: CGFloat = 1
+private let miniSeamBlurRadius: CGFloat = 100
 
 struct NowPlayingPopover: View {
     @ObservedObject var model: NowPlayingModel
@@ -731,6 +733,46 @@ private struct MiniNowPlayingCard: View {
             }
             // Re-clip after all overlays so bottom-band content cannot spill into the lyrics pane.
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(alignment: .bottom) {
+                if model.miniLyricsEnabled {
+                    ZStack(alignment: .bottom) {
+                        if let artwork = model.artwork {
+                            Image(nsImage: artwork)
+                                .resizable()
+                                .interpolation(.high)
+                                .scaledToFill()
+                                .blur(radius: miniSeamBlurRadius)
+                                .opacity(0.28)
+                                .frame(height: miniSeamBlendHeight * 2.2)
+                                .offset(y: 2)
+                                .clipped()
+                        }
+
+                        LinearGradient(
+                            colors: [
+                                .black.opacity(0.20),
+                                .black.opacity(0.08),
+                                .clear
+                            ],
+                            startPoint: .bottom,
+                            endPoint: .top
+                        )
+
+                        LinearGradient(
+                            colors: [
+                                model.glassTint.opacity(0.14),
+                                model.glassTint.opacity(0.07),
+                                .clear
+                            ],
+                            startPoint: .bottomLeading,
+                            endPoint: .topTrailing
+                        )
+                        .blendMode(.screen)
+                    }
+                    .frame(height: miniSeamBlendHeight)
+                    .allowsHitTesting(false)
+                }
+            }
             .overlay {
                 MiniCardPointerTrackingOverlay(enabled: !transitionActive) { hovering in
                     withAnimation(.easeInOut(duration: 0.18)) {
@@ -757,9 +799,6 @@ private struct MiniNowPlayingCard: View {
             }
 
             if model.miniLyricsEnabled {
-                Divider()
-                    .overlay(.white.opacity(0.12))
-
                 MiniExpandedLyricsPane(model: model)
             }
         }
@@ -923,6 +962,43 @@ private struct MiniExpandedLyricsPane: View {
                     endPoint: .bottom
                 )
             )
+            .overlay(alignment: .top) {
+                ZStack(alignment: .top) {
+                    LinearGradient(
+                        colors: [
+                            model.glassTint.opacity(0.18),
+                            model.glassTint.opacity(0.08),
+                            .clear
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .blendMode(.screen)
+
+                    LinearGradient(
+                        colors: [
+                            .white.opacity(0.07),
+                            .white.opacity(0.025),
+                            .clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+
+                    LinearGradient(
+                        colors: [
+                            .black.opacity(0.14),
+                            .black.opacity(0.05),
+                            .clear
+                        ],
+                        startPoint: .bottom,
+                        endPoint: .top
+                    )
+                }
+                .frame(height: miniSeamBlendHeight)
+                .blur(radius: miniSeamBlurRadius * 0.35)
+                .allowsHitTesting(false)
+            }
             .overlay(
                 LinearGradient(
                     colors: [.clear, .black.opacity(0.16), .black.opacity(0.28)],
