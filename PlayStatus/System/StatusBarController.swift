@@ -305,6 +305,8 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private var pendingModeResizeAnimation = false
     private var pendingLyricsResizeAnimation = false
     private var lastMiniModeValue: Bool = false
+    private var lastMiniLyricsEnabledValue: Bool = false
+    private var miniLyricsResizeAnimationEndTime: CFAbsoluteTime = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -339,6 +341,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         }
         popover.contentViewController = popoverHost
         lastMiniModeValue = model.miniMode
+        lastMiniLyricsEnabledValue = model.miniLyricsEnabled
         updatePopoverLayout()
         _ = SparkleUpdater.shared
 
@@ -366,21 +369,19 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             .sink { [weak self] _ in self?.updateStatusButton() }
             .store(in: &cancellables)
 
-        model.$miniLyricsTransitionToken
-            .dropFirst()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                if self.model.miniMode {
-                    self.pendingLyricsResizeAnimation = true
-                }
-            }
-            .store(in: &cancellables)
-
         model.$statusBarConfigRevision
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
+                let currentMiniMode = self.model.miniMode
+                if currentMiniMode == self.lastMiniModeValue && currentMiniMode {
+                    let currentMiniLyricsEnabled = self.model.miniLyricsEnabled
+                    if currentMiniLyricsEnabled != self.lastMiniLyricsEnabledValue {
+                        self.pendingLyricsResizeAnimation = true
+                        self.miniLyricsResizeAnimationEndTime = CFAbsoluteTimeGetCurrent() + miniLyricsTransitionDuration
+                        self.lastMiniLyricsEnabledValue = currentMiniLyricsEnabled
+                    }
+                }
                 self.updateStatusButton()
                 self.updatePopoverLayout()
             }
@@ -393,7 +394,10 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
                 let currentMiniMode = self.model.miniMode
                 if currentMiniMode != self.lastMiniModeValue {
                     self.pendingModeResizeAnimation = true
+                    self.pendingLyricsResizeAnimation = false
+                    self.miniLyricsResizeAnimationEndTime = 0
                     self.lastMiniModeValue = currentMiniMode
+                    self.lastMiniLyricsEnabledValue = self.model.miniLyricsEnabled
                 }
             }
             .store(in: &cancellables)
@@ -522,8 +526,8 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         // Both modes have statically-known heights:
         //   • Regular: artworkDisplaySize + fixed padding + optional lyrics pane height
         //   • Mini:    miniBaseHeight (380 pt) + optional miniLyricsPaneHeight (180 pt)
-        // MiniNowPlayingCard already uses .frame(height: model.miniPopoverHeight), so the
-        // view's intrinsic size matches these values exactly.
+        // Mini mode still resolves to fixed target heights; SwiftUI uses live host height
+        // while shown so pane reveal tracks the window animation without a second timeline.
         let resolvedContentHeight: CGFloat = model.miniMode
             ? model.miniPopoverHeight
             : model.regularPopoverHeight
@@ -582,18 +586,27 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
                 )
             }
 
+            let remainingMiniLyricsAnimation = max(0, miniLyricsResizeAnimationEndTime - CFAbsoluteTimeGetCurrent())
             if pendingModeResizeAnimation {
                 pendingModeResizeAnimation = false
+                pendingLyricsResizeAnimation = false
+                miniLyricsResizeAnimationEndTime = 0
                 NSAnimationContext.runAnimationGroup { context in
                     context.duration = modeTransitionDuration
                     context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                     context.allowsImplicitAnimation = true
                     window.animator().setFrame(targetFrame, display: true)
                 }
-            } else if pendingLyricsResizeAnimation {
+            } else if pendingLyricsResizeAnimation || remainingMiniLyricsAnimation > 0.001 {
                 pendingLyricsResizeAnimation = false
+                if remainingMiniLyricsAnimation <= 0.001 {
+                    miniLyricsResizeAnimationEndTime = 0
+                }
                 NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.42
+                    context.duration = min(
+                        miniLyricsTransitionDuration,
+                        max(0.08, remainingMiniLyricsAnimation)
+                    )
                     context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                     context.allowsImplicitAnimation = true
                     window.animator().setFrame(targetFrame, display: true)

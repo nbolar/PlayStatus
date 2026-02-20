@@ -5,7 +5,7 @@ private let modeMorphAnimation = Animation.linear(duration: modeTransitionDurati
 private let modeCrossfadeOutDuration: Double = modeTransitionDuration * 0.25
 private let modeCrossfadeInDuration: Double = modeTransitionDuration * 0.65
 private let miniSeamBlendHeight: CGFloat = 1
-private let miniSeamBlurRadius: CGFloat = 100
+private let miniSeamBlurRadius: CGFloat = 10
 
 struct NowPlayingPopover: View {
     @ObservedObject var model: NowPlayingModel
@@ -28,12 +28,21 @@ struct NowPlayingPopover: View {
     }
 
     var body: some View {
-        modeContent(miniMode: displayedMiniMode)
+        GeometryReader { geometry in
+            modeContent(
+                miniMode: displayedMiniMode,
+                availableHeight: max(0, geometry.size.height)
+            )
             .opacity(modeCrossfadeOpacity)
+            .frame(
+                width: model.popoverWidth,
+                height: max(0, geometry.size.height),
+                alignment: .topLeading
+            )
+        }
         .frame(
-            minWidth: model.popoverWidth,
-            maxWidth: model.popoverWidth,
-            maxHeight: .infinity,
+            width: model.popoverWidth,
+            height: model.isPopoverVisible ? nil : resolvedPopoverHeight,
             alignment: .topLeading
         )
         .clipped()
@@ -108,12 +117,13 @@ struct NowPlayingPopover: View {
     }
 
     @ViewBuilder
-    private func modeContent(miniMode: Bool) -> some View {
+    private func modeContent(miniMode: Bool, availableHeight: CGFloat) -> some View {
         if miniMode {
             MiniNowPlayingCard(
                 model: model,
                 artworkMorphNamespace: artworkMorphNamespace,
                 transitionActive: modeTransitionActive,
+                availableHeight: availableHeight,
                 startExpandedOnAppear: pendingMiniInitialExpand,
                 onInitialExpandConsumed: {
                     pendingMiniInitialExpand = false
@@ -121,6 +131,9 @@ struct NowPlayingPopover: View {
                 onToggleMode: {
                     withAnimation(modeMorphAnimation) {
                         artworkMorphEnabled = false
+                        if model.miniLyricsEnabled {
+                            model.miniLyricsEnabled = false
+                        }
                         model.miniMode = false
                     }
                 }
@@ -455,11 +468,14 @@ private struct MiniNowPlayingCard: View {
     @ObservedObject var model: NowPlayingModel
     let artworkMorphNamespace: Namespace.ID
     let transitionActive: Bool
+    let availableHeight: CGFloat
     let startExpandedOnAppear: Bool
     let onInitialExpandConsumed: () -> Void
     let onToggleMode: () -> Void
     @State private var pointerHovering = false
     @State private var forceExpandedUntilPointerExit = false
+    @State private var showMiniLyricsPane = false
+    @State private var miniLyricsHideWorkItem: DispatchWorkItem?
 
     var body: some View {
         let luminance = artworkLuminance
@@ -479,6 +495,15 @@ private struct MiniNowPlayingCard: View {
         let secondaryShadowOpacity = min(0.84, 0.46 + (lightArtworkBoost * 0.18) + (darkArtworkBoost * 0.10))
         let infoBandHeight: CGFloat = infoExpanded ? 196 : 126
         let blurFadeHeight: CGFloat = min(44, infoBandHeight * 0.34)
+        let resolvedCardHeight = model.isPopoverVisible
+            ? max(model.miniBaseHeight, availableHeight)
+            : model.miniPopoverHeight
+        let visibleLyricsHeight = min(
+            model.miniLyricsPaneHeight,
+            max(0, resolvedCardHeight - model.miniBaseHeight)
+        )
+        let shouldRenderMiniLyricsPane = showMiniLyricsPane || visibleLyricsHeight > 0.5
+        let seamOpacity = min(1, max(0, visibleLyricsHeight / max(1, model.miniLyricsPaneHeight)))
 
         return VStack(spacing: 0) {
             ZStack {
@@ -563,14 +588,15 @@ private struct MiniNowPlayingCard: View {
                         isOn: model.miniLyricsEnabled,
                         transitionActive: transitionActive
                     ) {
+                        let targetEnabled = !model.miniLyricsEnabled
+                        syncRenderedMiniLyricsPane(for: targetEnabled)
                         if model.miniLyricsEnabled {
                             // Closing lyrics shrinks the card immediately; keep controls visible
                             // until we receive a definitive pointer-exit event.
                             pointerHovering = true
                             forceExpandedUntilPointerExit = true
                         }
-                        // Avoid compounding internal SwiftUI animation with popover resize animation.
-                        model.miniLyricsEnabled.toggle()
+                        model.miniLyricsEnabled = targetEnabled
                     }
 
                     SettingsOpenControl {
@@ -735,44 +761,43 @@ private struct MiniNowPlayingCard: View {
             // Re-clip after all overlays so bottom-band content cannot spill into the lyrics pane.
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(alignment: .bottom) {
-                if model.miniLyricsEnabled {
-                    ZStack(alignment: .bottom) {
-                        if let artwork = model.artwork {
-                            Image(nsImage: artwork)
-                                .resizable()
-                                .interpolation(.high)
-                                .scaledToFill()
-                                .blur(radius: miniSeamBlurRadius)
-                                .opacity(0.28)
-                                .frame(height: miniSeamBlendHeight * 2.2)
-                                .offset(y: 2)
-                                .clipped()
-                        }
-
-                        LinearGradient(
-                            colors: [
-                                .black.opacity(0.20),
-                                .black.opacity(0.08),
-                                .clear
-                            ],
-                            startPoint: .bottom,
-                            endPoint: .top
-                        )
-
-                        LinearGradient(
-                            colors: [
-                                model.glassTint.opacity(0.14),
-                                model.glassTint.opacity(0.07),
-                                .clear
-                            ],
-                            startPoint: .bottomLeading,
-                            endPoint: .topTrailing
-                        )
-                        .blendMode(.screen)
+                ZStack(alignment: .bottom) {
+                    if let artwork = model.artwork {
+                        Image(nsImage: artwork)
+                            .resizable()
+                            .interpolation(.high)
+                            .scaledToFill()
+                            .blur(radius: miniSeamBlurRadius)
+                            .opacity(0.28)
+                            .frame(height: miniSeamBlendHeight * 2.2)
+                            .offset(y: 2)
+                            .clipped()
                     }
-                    .frame(height: miniSeamBlendHeight)
-                    .allowsHitTesting(false)
+
+                    LinearGradient(
+                        colors: [
+                            .black.opacity(0.20),
+                            .black.opacity(0.08),
+                            .clear
+                        ],
+                        startPoint: .bottom,
+                        endPoint: .top
+                    )
+
+                    LinearGradient(
+                        colors: [
+                            model.glassTint.opacity(0.14),
+                            model.glassTint.opacity(0.07),
+                            .clear
+                        ],
+                        startPoint: .bottomLeading,
+                        endPoint: .topTrailing
+                    )
+                    .blendMode(.screen)
                 }
+                .frame(height: miniSeamBlendHeight)
+                .opacity(seamOpacity)
+                .allowsHitTesting(false)
             }
             .overlay {
                 MiniCardPointerTrackingOverlay(enabled: !transitionActive) { hovering in
@@ -786,10 +811,15 @@ private struct MiniNowPlayingCard: View {
                 .allowsHitTesting(false)
             }
             .onAppear {
+                syncRenderedMiniLyricsPaneImmediately()
                 if startExpandedOnAppear {
                     forceExpandedUntilPointerExit = true
                     onInitialExpandConsumed()
                 }
+            }
+            .onDisappear {
+                miniLyricsHideWorkItem?.cancel()
+                miniLyricsHideWorkItem = nil
             }
             .onChange(of: transitionActive) { active in
                 if active {
@@ -798,18 +828,49 @@ private struct MiniNowPlayingCard: View {
                     }
                 }
             }
+            .onChange(of: model.miniLyricsEnabled) { enabled in
+                syncRenderedMiniLyricsPane(for: enabled)
+            }
 
-            if model.miniLyricsEnabled {
-                MiniExpandedLyricsPane(model: model)
+            if shouldRenderMiniLyricsPane {
+                MiniExpandedLyricsPane(
+                    model: model,
+                    visibleHeight: visibleLyricsHeight
+                )
+                .allowsHitTesting(model.miniLyricsEnabled && visibleLyricsHeight > 0.5)
             }
         }
-        .frame(minWidth: model.miniPopoverWidth, maxWidth: model.miniPopoverWidth, maxHeight: .infinity, alignment: .top)
+        .frame(width: model.miniPopoverWidth, height: resolvedCardHeight, alignment: .top)
         .background(.clear)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(.white.opacity(0.14), lineWidth: 1)
         )
+    }
+
+    private func syncRenderedMiniLyricsPaneImmediately() {
+        miniLyricsHideWorkItem?.cancel()
+        miniLyricsHideWorkItem = nil
+        showMiniLyricsPane = model.miniLyricsEnabled
+    }
+
+    private func syncRenderedMiniLyricsPane(for enabled: Bool) {
+        miniLyricsHideWorkItem?.cancel()
+        miniLyricsHideWorkItem = nil
+
+        if enabled {
+            showMiniLyricsPane = true
+            return
+        }
+
+        let work = DispatchWorkItem {
+            guard !model.miniLyricsEnabled else { return }
+            showMiniLyricsPane = false
+            miniLyricsHideWorkItem = nil
+        }
+        miniLyricsHideWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + miniLyricsTransitionDuration, execute: work)
     }
 
     private var artworkLuminance: CGFloat {
@@ -926,8 +987,11 @@ private func lyricsBleedOpacities(for artworkColorIntensity: Double) -> (top: Do
 
 private struct MiniExpandedLyricsPane: View {
     @ObservedObject var model: NowPlayingModel
+    let visibleHeight: CGFloat
     @State private var activeLineID: UUID?
     @State private var coordinator = LyricsScrollCoordinator()
+    @State private var enableLyricLineAnimations = false
+    @State private var settleWorkItem: DispatchWorkItem?
 
     var body: some View {
         let bleed = lyricsBleedOpacities(for: model.artworkColorIntensity)
@@ -1032,7 +1096,28 @@ private struct MiniExpandedLyricsPane: View {
             .padding(.top, 12)
             .padding(.bottom, 10)
         }
-        .frame(height: max(0, model.miniLyricsPaneHeight))
+        .frame(height: max(0, visibleHeight), alignment: .top)
+        .onAppear {
+            // When lyrics are available, immediate active-line scroll + per-line animations
+            // can fight the pane expand transition and look jittery.
+            settleWorkItem?.cancel()
+            enableLyricLineAnimations = false
+            coordinator.allowsAnimatedScroll = false
+
+            let work = DispatchWorkItem {
+                enableLyricLineAnimations = true
+                coordinator.allowsAnimatedScroll = true
+                settleWorkItem = nil
+            }
+            settleWorkItem = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + miniLyricsTransitionDuration, execute: work)
+        }
+        .onDisappear {
+            settleWorkItem?.cancel()
+            settleWorkItem = nil
+            enableLyricLineAnimations = false
+            coordinator.allowsAnimatedScroll = false
+        }
         .onChange(of: model.lyricsPayload?.lines.first?.id) { _ in
             // Track changed — restart the coordinator with fresh lines.
             let lines = model.lyricsPayload?.lines ?? []
@@ -1042,7 +1127,9 @@ private struct MiniExpandedLyricsPane: View {
             coordinator.onActiveLineChanged = { id in
                 activeLineID = id
             }
-            coordinator.start()
+            if coordinator.scrollProxy != nil {
+                coordinator.start()
+            }
         }
     }
 
@@ -1079,7 +1166,7 @@ private struct MiniExpandedLyricsPane: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, isActive ? 5 : 1)
                             .scaleEffect(isActive ? 1.03 : 1.0, anchor: .leading)
-                            .animation(.easeInOut(duration: 0.24), value: isActive)
+                            .animation(enableLyricLineAnimations ? .easeInOut(duration: 0.24) : nil, value: isActive)
                             .id(line.id)
                     }
                 }
@@ -1189,6 +1276,7 @@ private struct MiniLyricsToggleControl: View {
 private final class LyricsScrollCoordinator {
     var lines: [LyricsLine] = []
     var isTimed: Bool = false
+    var allowsAnimatedScroll: Bool = true
     var onActiveLineChanged: ((UUID?) -> Void)?
     var scrollProxy: ScrollViewProxy?
 
@@ -1219,7 +1307,11 @@ private final class LyricsScrollCoordinator {
         onActiveLineChanged?(newID)
         // Scroll the proxy without triggering a new render pass
         if let proxy = scrollProxy, let id = newID {
-            withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.86, blendDuration: 0.12)) {
+            if allowsAnimatedScroll {
+                withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.86, blendDuration: 0.12)) {
+                    proxy.scrollTo(id, anchor: .center)
+                }
+            } else {
                 proxy.scrollTo(id, anchor: .center)
             }
         }
