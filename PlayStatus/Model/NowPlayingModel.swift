@@ -62,6 +62,7 @@ final class NowPlayingModel: ObservableObject {
     @AppStorage("miniMode") var miniMode: Bool = false {
         didSet {
             bumpStatusBarConfigRevision()
+            notifyPopoverModeTransition()
         }
     }
     @AppStorage("miniLyricsEnabled") var miniLyricsEnabled: Bool = false {
@@ -69,7 +70,6 @@ final class NowPlayingModel: ObservableObject {
             requestPopoverLayoutRefresh()
         }
     }
-
     // UI state
     @Published var provider: NowPlayingProvider = .none
     @Published var title: String = ""
@@ -94,6 +94,7 @@ final class NowPlayingModel: ObservableObject {
     @Published var selectedOutputDeviceID: AudioDeviceID = 0
     @Published var outputVolume: Double = 1.0
     @Published var outputMuted: Bool = false
+    @Published var popoverModeTransitionToken: Int = 0
     @Published var lyricsPayload: LyricsPayload? {
         didSet {
             guard lyricsPayload != oldValue else { return }
@@ -590,6 +591,10 @@ final class NowPlayingModel: ObservableObject {
 
     private func bumpStatusBarConfigRevision() {
         statusBarConfigRevision &+= 1
+    }
+
+    func notifyPopoverModeTransition() {
+        popoverModeTransitionToken &+= 1
     }
 
     func requestPopoverLayoutRefresh() {

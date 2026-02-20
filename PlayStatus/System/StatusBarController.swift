@@ -302,6 +302,8 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private var lastStatusLength: CGFloat = -1
     private var lastStatusIconName: String = ""
     private var lastAppliedPopoverSize: NSSize = .zero
+    private var pendingModeResizeAnimation = false
+    private var lastMiniModeValue: Bool = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -335,6 +337,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             popoverHost.sizingOptions = []
         }
         popover.contentViewController = popoverHost
+        lastMiniModeValue = model.miniMode
         updatePopoverLayout()
         _ = SparkleUpdater.shared
 
@@ -368,6 +371,18 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
                 guard let self else { return }
                 self.updateStatusButton()
                 self.updatePopoverLayout()
+            }
+            .store(in: &cancellables)
+
+        model.$popoverModeTransitionToken
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                let currentMiniMode = self.model.miniMode
+                if currentMiniMode != self.lastMiniModeValue {
+                    self.pendingModeResizeAnimation = true
+                    self.lastMiniModeValue = currentMiniMode
+                }
             }
             .store(in: &cancellables)
 
@@ -550,12 +565,22 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             )
             if let screenFrame = window.screen?.visibleFrame {
                 targetFrame.origin.x = min(
-                    max(targetFrame.origin.x, screenFrame.minX + 6),
-                    max(screenFrame.minX + 6, screenFrame.maxX - targetFrame.width - 6)
+                    max(targetFrame.origin.x, screenFrame.minX + 12),
+                    max(screenFrame.minX + 12, screenFrame.maxX - targetFrame.width - 12)
                 )
             }
 
-            window.setFrame(targetFrame, display: true)
+            if pendingModeResizeAnimation {
+                pendingModeResizeAnimation = false
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.94
+                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                    context.allowsImplicitAnimation = true
+                    window.animator().setFrame(targetFrame, display: true)
+                }
+            } else {
+                window.setFrame(targetFrame, display: true)
+            }
             lastAppliedPopoverSize = targetSize
         } else {
             // Fallback path if window is temporarily unavailable.

@@ -3,6 +3,8 @@ import AppKit
 
 private let modeMorphDuration: Double = 0.64
 private let modeMorphAnimation = Animation.timingCurve(0.20, 0.94, 0.28, 1.0, duration: modeMorphDuration)
+private let modeCrossfadeOutDuration: Double = 0.22
+private let modeCrossfadeInDuration: Double = 0.44
 
 struct NowPlayingPopover: View {
     @ObservedObject var model: NowPlayingModel
@@ -13,15 +15,19 @@ struct NowPlayingPopover: View {
     @State private var searchSectionFrame: CGRect = .zero
     @State private var modeTransitionActive = false
     @State private var modeTransitionResetWorkItem: DispatchWorkItem?
+    @State private var modeCrossfadeSwapWorkItem: DispatchWorkItem?
     @State private var artworkMorphEnabled = false
     @State private var regularArtworkOpacity: Double = 1
     @State private var pendingMiniInitialExpand = false
+    @State private var displayedMiniMode = false
+    @State private var modeCrossfadeOpacity: Double = 1
     private var resolvedPopoverHeight: CGFloat {
         model.miniMode ? model.miniPopoverHeight : model.regularPopoverHeight
     }
 
     var body: some View {
         modeContent(miniMode: model.miniMode)
+            .opacity(modeCrossfadeOpacity)
         .frame(
             width: model.popoverWidth,
             height: resolvedPopoverHeight,
@@ -42,6 +48,20 @@ struct NowPlayingPopover: View {
         }
         .onChange(of: model.miniMode) { miniMode in
             beginModeTransition()
+            modeCrossfadeSwapWorkItem?.cancel()
+                        withAnimation(.easeOut(duration: modeCrossfadeOutDuration)) {
+                            modeCrossfadeOpacity = 0
+                        }
+
+                        let swap = DispatchWorkItem {
+                            displayedMiniMode = miniMode
+                            withAnimation(.easeInOut(duration: modeCrossfadeInDuration)) {
+                                modeCrossfadeOpacity = 1
+                            }
+                        }
+                        modeCrossfadeSwapWorkItem = swap
+                        DispatchQueue.main.asyncAfter(deadline: .now() + modeCrossfadeOutDuration, execute: swap)
+
             if miniMode {
                 artworkMorphEnabled = true
             } else {
@@ -57,6 +77,13 @@ struct NowPlayingPopover: View {
             withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.90, blendDuration: 0.10)) {
                 isSearchExpanded = false
             }
+        }
+        .onAppear {
+            displayedMiniMode = model.miniMode
+            modeCrossfadeOpacity = 1
+        }
+        .onDisappear {
+            modeCrossfadeSwapWorkItem?.cancel()
         }
         .simultaneousGesture(
             SpatialTapGesture().onEnded { value in
