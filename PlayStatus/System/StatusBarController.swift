@@ -565,8 +565,8 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             )
             if let screenFrame = window.screen?.visibleFrame {
                 targetFrame.origin.x = min(
-                    max(targetFrame.origin.x, screenFrame.minX + 12),
-                    max(screenFrame.minX + 12, screenFrame.maxX - targetFrame.width - 12)
+                    max(targetFrame.origin.x, screenFrame.minX + 6),
+                    max(screenFrame.minX + 6, screenFrame.maxX - targetFrame.width - 6)
                 )
             }
 

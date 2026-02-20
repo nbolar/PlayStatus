@@ -1,8 +1,8 @@
 import SwiftUI
 import AppKit
 
-private let modeMorphDuration: Double = 0.64
-private let modeMorphAnimation = Animation.timingCurve(0.20, 0.94, 0.28, 1.0, duration: modeMorphDuration)
+private let modeMorphDuration: Double = 0.84
+private let modeMorphAnimation = Animation.timingCurve(0.20, 0.68, 0.60, 1.0, duration: modeMorphDuration)
 private let modeCrossfadeOutDuration: Double = 0.22
 private let modeCrossfadeInDuration: Double = 0.44
 
