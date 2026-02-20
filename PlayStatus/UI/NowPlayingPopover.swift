@@ -38,12 +38,12 @@ struct NowPlayingPopover: View {
         .onPreferenceChange(SearchSectionFramePreferenceKey.self) { frame in
             searchSectionFrame = frame
         }
-        .onChange(of: model.provider) { provider in
-            guard provider != .music else { return }
-            searchText = ""
-            isSearchFocused = false
-            withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.86, blendDuration: 0.12)) {
-                isSearchExpanded = false
+        .onChange(of: model.provider) { _ in
+            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                isSearchFocused = false
+                withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.86, blendDuration: 0.12)) {
+                    isSearchExpanded = false
+                }
             }
         }
         .onChange(of: model.miniMode) { miniMode in
@@ -95,7 +95,6 @@ struct NowPlayingPopover: View {
         .simultaneousGesture(
             SpatialTapGesture().onEnded { value in
                 guard isSearchExpanded else { return }
-                guard model.provider == .music else { return }
                 guard !searchSectionFrame.contains(value.location) else { return }
                 withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.90, blendDuration: 0.10)) {
                     isSearchExpanded = false
@@ -206,12 +205,12 @@ struct NowPlayingPopover: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                if model.provider == .music {
+                if model.resolvedSearchProvider != .none {
                     HStack {
                         Spacer(minLength: 0)
                         searchSection(maxWidth: min(280, max(170, model.popoverWidth * 0.50)))
                     }
-                    .padding(.top, -28)
+                    .padding(.top, -24)
                     .padding(.bottom, -12)
                 }
 
@@ -259,6 +258,7 @@ struct NowPlayingPopover: View {
                     model: model,
                     lyricsState: model.lyricsState,
                     lyricsPayload: model.lyricsPayload,
+                    lyricsLoadingProgress: model.lyricsLoadingProgress,
                     glassTint: model.glassTint,
                     artwork: model.artwork
                 )
@@ -296,6 +296,9 @@ struct NowPlayingPopover: View {
 //    }
 
     private func searchSection(maxWidth: CGFloat) -> some View {
+        let searchProvider = model.resolvedSearchProvider
+        let searchPlaceholder = searchProvider == .spotify ? "Search Spotify" : "Search Music library"
+        let actionLabel = searchProvider == .spotify ? "Open" : "Play"
         let spacing: CGFloat = 4
         let collapsedWidth: CGFloat = 30
         let playWidth: CGFloat = 64
@@ -330,11 +333,11 @@ struct NowPlayingPopover: View {
                 }
                 .buttonStyle(.plain)
 
-                TextField("Search Music library", text: $searchText)
+                TextField(searchPlaceholder, text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .focused($isSearchFocused)
-                    .onSubmit { runSearchAndPlay() }
+                    .onSubmit { runSearchAction() }
                     .frame(width: isSearchExpanded ? textFieldWidth : 0, alignment: .leading)
                     .opacity(isSearchExpanded ? 1 : 0)
                     .allowsHitTesting(isSearchExpanded)
@@ -357,8 +360,8 @@ struct NowPlayingPopover: View {
                 }
             }
 
-            Button("Play") {
-                runSearchAndPlay()
+            Button(actionLabel) {
+                runSearchAction()
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
@@ -370,7 +373,7 @@ struct NowPlayingPopover: View {
             .disabled(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
         }
-        .frame(height: 34)
+        .frame(height: 44)
         .animation(spring, value: isSearchExpanded)
         .background(
             GeometryReader { proxy in
@@ -389,10 +392,10 @@ struct NowPlayingPopover: View {
         }
     }
 
-    private func runSearchAndPlay() {
+    private func runSearchAction() {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
-        model.searchAndPlayInMusicLibrary(query: query)
+        model.runSearchAction(query: query)
         searchText = ""
     }
 
@@ -933,12 +936,12 @@ private struct MiniExpandedLyricsPane: View {
                 case .idle:
                     stateRow("Start playback to load lyrics.")
                 case .loading:
-                    HStack(spacing: 8) {
-                        ProgressView().controlSize(.small)
-                        Text("Fetching lyrics…")
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.88))
-                    }
+                    let progress = model.lyricsLoadingProgress
+                    LyricsLoadingPulseBlock(
+                        primaryFontSize: 12,
+                        secondaryText: miniLoadingMessage(progress: progress),
+                        secondaryFontSize: 11
+                    )
                     .frame(maxWidth: .infinity, alignment: .leading)
                 case .unavailable:
                     stateRow("Lyrics unavailable for this track.")
@@ -971,6 +974,11 @@ private struct MiniExpandedLyricsPane: View {
             .font(.system(size: 12, weight: .medium, design: .rounded))
             .foregroundStyle(.white.opacity(0.86))
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func miniLoadingMessage(progress: LyricsLoadingProgress?) -> String {
+        guard let progress else { return "Preparing lyric request" }
+        return "\(progress.stage.displayTitle) · Attempt \(progress.attempt) of \(progress.maxAttempts)"
     }
 
     private var lyricsScroll: some View {
@@ -1166,12 +1174,12 @@ private struct RegularLyricsToggleControl: View {
                     .foregroundStyle(.primary.opacity(isOn ? 0.98 : 0.88))
 
                 // Subtle loading indicator dot
-                if lyricsState == .loading && !isOn {
-                    Circle()
-                        .fill(Color.accentColor.opacity(0.72))
-                        .frame(width: 5, height: 5)
-                        .offset(x: 7, y: -7)
-                }
+//                if lyricsState == .loading && !isOn {
+//                    Circle()
+//                        .fill(Color.accentColor.opacity(0.72))
+//                        .frame(width: 5, height: 5)
+//                        .offset(x: 7, y: -7)
+//                }
             }
             .frame(width: 24, height: 24)
             .background(Circle().fill(Color.primary.opacity(0.08)))
@@ -1200,6 +1208,7 @@ private struct RegularLyricsPane: View {
     let model: NowPlayingModel
     let lyricsState: LyricsState
     let lyricsPayload: LyricsPayload?
+    let lyricsLoadingProgress: LyricsLoadingProgress?
     let glassTint: Color
     let artwork: NSImage?
 
@@ -1271,13 +1280,27 @@ private struct RegularLyricsPane: View {
 
                     // Source badge — plain color fill, no system material
                     if let source = lyricsPayload?.source, source != .none {
-                        Text(source == .musicApp ? "Apple Music" : "LRCLib")
-                            .font(.system(size: 9, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.46))
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(Capsule().fill(Color.white.opacity(0.08)))
-                            .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
+                        if source == .lrclib {
+                            Button(action: openLRCLibWebsite) {
+                                Text("LRCLib")
+                                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                                    .foregroundStyle(.white.opacity(0.58))
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(Capsule().fill(Color.white.opacity(0.10)))
+                                    .overlay(Capsule().stroke(.white.opacity(0.14), lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Open LRCLIB website")
+                        } else {
+                            Text("Apple Music")
+                                .font(.system(size: 9, weight: .medium, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.46))
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(Capsule().fill(Color.white.opacity(0.08)))
+                                .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
+                        }
                     }
                 }
                 .padding(.horizontal, 14)
@@ -1289,15 +1312,7 @@ private struct RegularLyricsPane: View {
                     case .idle:
                         stateView("Start playback to load lyrics.", icon: "music.note")
                     case .loading:
-                        HStack(spacing: 10) {
-                            ProgressView()
-                                .controlSize(.small)
-                                .scaleEffect(0.9)
-                            Text("Fetching lyrics…")
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
-                                .foregroundStyle(.white.opacity(0.88))
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        loadingProgressView(progress: lyricsLoadingProgress)
                     case .unavailable:
                         stateView("Lyrics unavailable for this track.", icon: "text.bubble")
                     case .failed:
@@ -1336,6 +1351,54 @@ private struct RegularLyricsPane: View {
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
+    @ViewBuilder
+    private func loadingProgressView(progress: LyricsLoadingProgress?) -> some View {
+        let attempt = progress?.attempt ?? 1
+        let maxAttempts = progress?.maxAttempts ?? 1
+
+        LyricsLoadingPulseBlock(
+            primaryFontSize: 13,
+            secondaryText: progress.map { "\($0.stage.displayTitle) · Attempt \(attempt) of \(maxAttempts)" },
+            secondaryFontSize: 12
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .padding(.horizontal, 2)
+    }
+
+    private func openLRCLibWebsite() {
+        guard let url = URL(string: "https://lrclib.net") else { return }
+        NSWorkspace.shared.open(url)
+    }
+}
+
+private struct LyricsLoadingPulseBlock: View {
+    let primaryFontSize: CGFloat
+    let secondaryText: String?
+    let secondaryFontSize: CGFloat
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            let wave = (sin((2.0 * .pi / 1.7) * t) + 1.0) * 0.5 // 0...1
+            let primaryOpacity = 0.62 + (0.32 * wave)
+            let secondaryOpacity = 0.56 + (0.22 * wave)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Loading lyrics…")
+                    .font(.system(size: primaryFontSize, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(primaryOpacity))
+
+                if let secondaryText, !secondaryText.isEmpty {
+                    Text(secondaryText)
+                        .font(.system(size: secondaryFontSize, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(secondaryOpacity))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
+        }
     }
 }
 

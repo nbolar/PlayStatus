@@ -29,7 +29,18 @@ actor LyricsService {
     private var cache: [String: CacheEntry] = [:]
     private var inflight: [String: Task<LyricsFetchOutcome, Never>] = [:]
 
-    func fetchLyrics(for descriptor: LyricsTrackDescriptor, forceRefresh: Bool = false) async -> LyricsFetchOutcome {
+    func cancelAllInflightLyricsFetches() {
+        for task in inflight.values {
+            task.cancel()
+        }
+        inflight.removeAll()
+    }
+
+    func fetchLyrics(
+        for descriptor: LyricsTrackDescriptor,
+        forceRefresh: Bool = false,
+        onProgress: (@Sendable (LyricsLoadingStage) -> Void)? = nil
+    ) async -> LyricsFetchOutcome {
         guard descriptor.provider != .none, !descriptor.title.isEmpty else {
             return .unavailable
         }
@@ -47,18 +58,20 @@ actor LyricsService {
         }
 
         let task = Task<LyricsFetchOutcome, Never> {
+            onProgress?(.starting)
             let lrclibOutcome = await LRCLIBLyricsProvider.fetch(
                 artist: descriptor.artist,
                 title: descriptor.title,
                 album: descriptor.album,
-                duration: descriptor.duration
+                duration: descriptor.duration,
+                onProgress: onProgress
             )
             if case .available = lrclibOutcome {
                 return lrclibOutcome
             }
 
-            if descriptor.provider == .music,
-               let appPayload = await MusicLyricsProvider.fetchCurrentTrackLyrics() {
+            onProgress?(.musicFallback)
+            if let appPayload = await MusicLyricsProvider.fetchCurrentTrackLyrics() {
                 return .available(appPayload)
             }
 
@@ -122,8 +135,8 @@ enum MusicLyricsProvider {
 enum LRCLIBLyricsProvider {
     private static let durationScoreWindowSeconds: Double = 10
     private static let requiredLooseSearchScore: Double = 0.9
-    private static let requestTimeoutSeconds: TimeInterval = 4
-    private static let maxSearchRequestsPerAttempt: Int = 3
+    private static let requestTimeoutSeconds: TimeInterval = 8
+    private static let maxSearchRequestsPerAttempt: Int = 2
 
     private struct Response: Decodable {
         let syncedLyrics: String?
@@ -161,10 +174,17 @@ enum LRCLIBLyricsProvider {
         let durationDelta: Double
     }
 
-    static func fetch(artist: String, title: String, album: String, duration: Double) async -> LyricsFetchOutcome {
+    static func fetch(
+        artist: String,
+        title: String,
+        album: String,
+        duration: Double,
+        onProgress: (@Sendable (LyricsLoadingStage) -> Void)? = nil
+    ) async -> LyricsFetchOutcome {
         let artistCandidates = artistQueryCandidates(from: artist)
         var sawFailure = false
 
+        onProgress?(.lrclibExact)
         for artistCandidate in artistCandidates {
             var components = URLComponents(string: "https://lrclib.net/api/get")
             components?.queryItems = [
@@ -197,7 +217,11 @@ enum LRCLIBLyricsProvider {
                 let decoded = try JSONDecoder().decode(Response.self, from: data)
                 if let payload = payloadFrom(syncedLyrics: decoded.syncedLyrics, plainLyrics: decoded.plainLyrics) {
                     #if DEBUG
-                    NSLog("PlayStatus lyrics: lrclib_get_hit artist=%@", artistCandidate)
+                    NSLog(
+                        "PlayStatus lyrics: lrclib_get_hit artist=%@ url=%@",
+                        artistCandidate,
+                        url.absoluteString
+                    )
                     #endif
                     return .available(payload)
                 }
@@ -206,13 +230,23 @@ enum LRCLIBLyricsProvider {
             }
         }
 
-        let searchOutcome = await search(artist: artist, title: title, duration: duration)
+        let searchOutcome = await search(
+            artist: artist,
+            title: title,
+            duration: duration,
+            onProgress: onProgress
+        )
         if case .available = searchOutcome { return searchOutcome }
         if sawFailure && searchOutcome == .unavailable { return .failed }
         return searchOutcome
     }
 
-    static func search(artist: String, title: String, duration: Double) async -> LyricsFetchOutcome {
+    static func search(
+        artist: String,
+        title: String,
+        duration: Double,
+        onProgress: (@Sendable (LyricsLoadingStage) -> Void)? = nil
+    ) async -> LyricsFetchOutcome {
         let artistCandidates = artistQueryCandidates(from: artist)
         var queryPlan: [(queryItems: [URLQueryItem], queryArtist: String)] = []
         queryPlan.reserveCapacity(maxSearchRequestsPerAttempt)
@@ -260,6 +294,7 @@ enum LRCLIBLyricsProvider {
             queryPlan = Array(queryPlan.prefix(maxSearchRequestsPerAttempt))
         }
 
+        onProgress?(.lrclibSearch)
         var sawFailure = false
         for plan in queryPlan {
             var components = URLComponents(string: "https://lrclib.net/api/search")
@@ -303,9 +338,10 @@ enum LRCLIBLyricsProvider {
 
                 #if DEBUG
                 NSLog(
-                    "PlayStatus lyrics: lrclib_search_hit score=%.3f delta=%.1f",
+                    "PlayStatus lyrics: lrclib_search_hit score=%.3f delta=%.1f url=%@",
                     best.score,
-                    best.durationDelta
+                    best.durationDelta,
+                    url.absoluteString
                 )
                 #endif
                 return .available(payload)

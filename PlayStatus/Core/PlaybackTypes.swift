@@ -92,6 +92,30 @@ enum LyricsState: Equatable {
     case failed
 }
 
+enum LyricsLoadingStage: Int, CaseIterable, Equatable {
+    case starting = 1
+    case lrclibExact
+    case lrclibSearch
+    case musicFallback
+
+    var displayTitle: String {
+        switch self {
+        case .starting: return "Preparing lyric request"
+        case .lrclibExact: return "Checking LRCLIB exact match"
+        case .lrclibSearch: return "Searching LRCLIB alternatives"
+        case .musicFallback: return "Checking Music app lyrics"
+        }
+    }
+}
+
+struct LyricsLoadingProgress: Equatable {
+    let attempt: Int
+    let maxAttempts: Int
+    let stage: LyricsLoadingStage
+    let stageIndex: Int
+    let stageCount: Int
+}
+
 struct LyricsLine: Equatable, Identifiable {
     let id: UUID
     let text: String

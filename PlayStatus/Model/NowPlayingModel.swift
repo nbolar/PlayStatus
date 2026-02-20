@@ -107,6 +107,7 @@ final class NowPlayingModel: ObservableObject {
             requestPopoverLayoutRefresh()
         }
     }
+    @Published var lyricsLoadingProgress: LyricsLoadingProgress?
     @Published var lyricsPanelExpanded: Bool = false
     private var marqueeTimer: AnyCancellable?
     private var marqueeSignature: String = ""
@@ -285,6 +286,21 @@ final class NowPlayingModel: ObservableObject {
         return isPlaying ? "Playing" : "Paused"
     }
     var launchAtLoginEnabled: Bool { launchAtLoginStatus() == .enabled }
+    var resolvedSearchProvider: NowPlayingProvider {
+        switch provider {
+        case .music, .spotify:
+            return provider
+        case .none:
+            switch preferredProvider {
+            case .music:
+                return .music
+            case .spotify:
+                return .spotify
+            case .automatic:
+                return providerPriority == .spotifyFirst ? .spotify : .music
+            }
+        }
+    }
 
     private func startTimer(interval: Double) {
         timer?.cancel()
@@ -398,10 +414,14 @@ final class NowPlayingModel: ObservableObject {
             }
         } else {
             lyricsFetchTask?.cancel()
+            Task {
+                await LyricsService.shared.cancelAllInflightLyricsFetches()
+            }
             currentLyricsTrackKey = ""
             DispatchQueue.main.async {
                 self.lyricsPayload = nil
                 self.lyricsState = .idle
+                self.lyricsLoadingProgress = nil
             }
         }
 
@@ -452,11 +472,15 @@ final class NowPlayingModel: ObservableObject {
         let trackKey = descriptor.cacheKey
         currentLyricsTrackKey = trackKey
         lyricsFetchTask?.cancel()
+        Task {
+            await LyricsService.shared.cancelAllInflightLyricsFetches()
+        }
 
         if resetState {
             DispatchQueue.main.async {
                 self.lyricsPayload = nil
                 self.lyricsState = .loading
+                self.lyricsLoadingProgress = nil
                 if self.showLyricsPanel {
                     self.lyricsPanelExpanded = self.expandLyricsByDefault
                 }
@@ -479,6 +503,7 @@ final class NowPlayingModel: ObservableObject {
                 case .available(let payload):
                     self.lyricsPayload = payload
                     self.lyricsState = .available
+                    self.lyricsLoadingProgress = nil
                     #if DEBUG
                     if payload.source == .musicApp {
                         self.lyricsMetricMusicAppHits += 1
@@ -492,6 +517,7 @@ final class NowPlayingModel: ObservableObject {
                 case .unavailable:
                     self.lyricsPayload = nil
                     self.lyricsState = .unavailable
+                    self.lyricsLoadingProgress = nil
                     #if DEBUG
                     self.lyricsMetricUnavailable += 1
                     NSLog(
@@ -501,6 +527,7 @@ final class NowPlayingModel: ObservableObject {
                 case .failed:
                     self.lyricsPayload = nil
                     self.lyricsState = .failed
+                    self.lyricsLoadingProgress = nil
                     #if DEBUG
                     self.lyricsMetricFailures += 1
                     NSLog(
@@ -513,15 +540,38 @@ final class NowPlayingModel: ObservableObject {
     }
 
     private func fetchLyricsWithRetry(for descriptor: LyricsTrackDescriptor, forceRefresh: Bool) async -> LyricsFetchOutcome {
-        let maxAttempts = forceRefresh ? 5 : 4
+        let maxAttempts = 3
         var attempt = 0
         var lastOutcome: LyricsFetchOutcome = .unavailable
+        let trackKey = descriptor.cacheKey
 
         while attempt < maxAttempts {
             if Task.isCancelled { return .failed }
 
             let shouldForceRefresh = forceRefresh || attempt > 0
-            let outcome = await LyricsService.shared.fetchLyrics(for: descriptor, forceRefresh: shouldForceRefresh)
+            let attemptNumber = attempt + 1
+            let outcome = await LyricsService.shared.fetchLyrics(
+                for: descriptor,
+                forceRefresh: shouldForceRefresh
+            ) { [weak self] stage in
+                guard let self else { return }
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    guard self.currentLyricsTrackKey == trackKey else { return }
+                    guard self.provider == descriptor.provider,
+                          self.title == descriptor.title,
+                          self.artist == descriptor.artist,
+                          self.album == descriptor.album else { return }
+
+                    self.lyricsLoadingProgress = LyricsLoadingProgress(
+                        attempt: attemptNumber,
+                        maxAttempts: maxAttempts,
+                        stage: stage,
+                        stageIndex: stage.rawValue,
+                        stageCount: LyricsLoadingStage.allCases.count
+                    )
+                }
+            }
             lastOutcome = outcome
 
             switch outcome {
@@ -705,6 +755,37 @@ final class NowPlayingModel: ObservableObject {
         }
     }
 
+    func runSearchAction(query: String) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        switch resolvedSearchProvider {
+        case .music, .none:
+            searchAndPlayInMusicLibrary(query: trimmed)
+        case .spotify:
+            openSpotifySearch(query: trimmed)
+        }
+    }
+
+    func openSpotifySearch(query: String) {
+        let encodedQuery = encodedSearchTerm(query)
+        guard !encodedQuery.isEmpty else { return }
+
+        let appSearchURL = URL(string: "spotify:search:\(encodedQuery)")
+        if let appSearchURL, NSWorkspace.shared.open(appSearchURL) {
+            return
+        }
+
+        guard let webSearchURL = URL(string: "https://open.spotify.com/search/\(encodedQuery)") else {
+            NSLog("PlayStatusSwiftUI Spotify search failed: unable to build web URL for query")
+            return
+        }
+
+        if !NSWorkspace.shared.open(webSearchURL) {
+            NSLog("PlayStatusSwiftUI Spotify search failed: unable to open app or web search URL")
+        }
+    }
+
     func retryLyricsFetch() {
         guard let snapshot = lastSnapshot,
               snapshot.provider == .music,
@@ -743,6 +824,10 @@ final class NowPlayingModel: ObservableObject {
             with: "",
             options: .regularExpression
         ).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func encodedSearchTerm(_ raw: String) -> String {
+        raw.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ""
     }
 
     private func fetchFallbackArtwork(for snapshot: NowPlayingSnapshot) {
