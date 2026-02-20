@@ -48,6 +48,8 @@ final class NowPlayingModel: ObservableObject {
     @AppStorage("statusTextWidth") private var statusTextWidthStorage: Double = 140
     @AppStorage("artworkColorIntensity") private var artworkColorIntensityStorage: Double = 1.0
     @AppStorage("artworkDisplaySize") private var artworkDisplaySizeStorage: Double = 200
+    @AppStorage("animatedArtworkEnabled") var animatedArtworkEnabled: Bool = true
+    @AppStorage("artworkMotionStyle") private var artworkMotionStyleRaw: String = ArtworkMotionStyle.parallaxByPointer.rawValue
     @AppStorage("showLyricsPanel") var showLyricsPanel: Bool = true { didSet { requestPopoverLayoutRefresh() } }
     @AppStorage("expandLyricsByDefault") var expandLyricsByDefault: Bool = false {
         didSet {
@@ -144,6 +146,16 @@ final class NowPlayingModel: ObservableObject {
     var preferredProvider: PreferredProvider {
         get { PreferredProvider(rawValue: preferredProviderRaw) ?? .automatic }
         set { preferredProviderRaw = newValue.rawValue }
+    }
+
+    var artworkMotionStyle: ArtworkMotionStyle {
+        get {
+            if artworkMotionStyleRaw == "editorialLoops" || artworkMotionStyleRaw == "glassSheen" {
+                return .parallaxByPointer
+            }
+            return ArtworkMotionStyle(rawValue: artworkMotionStyleRaw) ?? .parallaxByPointer
+        }
+        set { artworkMotionStyleRaw = newValue.rawValue }
     }
 
     var statusTextWidth: CGFloat {

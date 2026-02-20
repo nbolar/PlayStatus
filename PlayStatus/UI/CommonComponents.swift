@@ -239,6 +239,144 @@ struct ProgressBlock: View {
 
 // MARK: - Artwork
 
+private struct ArtworkMotionModifier: ViewModifier {
+    let isEnabled: Bool
+    let seed: String
+    let style: ArtworkMotionStyle
+    @State private var pulsePhase = false
+    @State private var hovering = false
+    @State private var pointerLocation: CGPoint = .zero
+    @State private var viewSize: CGSize = .zero
+
+    private var centeredPointerX: CGFloat {
+        guard viewSize.width > 0 else { return 0 }
+        return (pointerLocation.x / viewSize.width) - 0.5
+    }
+
+    private var centeredPointerY: CGFloat {
+        guard viewSize.height > 0 else { return 0 }
+        return (pointerLocation.y / viewSize.height) - 0.5
+    }
+
+    private var parallaxScale: CGFloat {
+        guard isEnabled, style == .parallaxByPointer, hovering else { return 1.0 }
+        return 1.018
+    }
+
+    private var parallaxOffset: CGSize {
+        guard isEnabled, style == .parallaxByPointer else { return .zero }
+        let x = centeredPointerX * 14
+        let y = centeredPointerY * 12
+        return CGSize(width: x, height: y)
+    }
+
+    private var parallaxTiltX: Double {
+        guard isEnabled, style == .parallaxByPointer else { return 0 }
+        return Double(-centeredPointerY * 9)
+    }
+
+    private var parallaxTiltY: Double {
+        guard isEnabled, style == .parallaxByPointer else { return 0 }
+        return Double(centeredPointerX * 11)
+    }
+
+    private var pulseScale: CGFloat {
+        guard isEnabled, style == .depthPulse else { return 1.0 }
+        return pulsePhase ? 1.026 : 1.0
+    }
+
+    private var pulseOpacity: Double {
+        guard isEnabled, style == .depthPulse else { return 0 }
+        return pulsePhase ? 0.22 : 0.0
+    }
+
+    private var pulseAnimation: Animation {
+        .easeInOut(duration: 1.8).repeatForever(autoreverses: true)
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear { viewSize = geo.size }
+                        .onChange(of: geo.size) { newSize in
+                            viewSize = newSize
+                        }
+                }
+            )
+            .scaleEffect(parallaxScale * pulseScale)
+            .offset(
+                x: parallaxOffset.width,
+                y: parallaxOffset.height
+            )
+            .rotation3DEffect(.degrees(parallaxTiltX), axis: (x: 1, y: 0, z: 0))
+            .rotation3DEffect(.degrees(parallaxTiltY), axis: (x: 0, y: 1, z: 0))
+            .overlay {
+                if style == .depthPulse && isEnabled {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(Color.white.opacity(pulseOpacity), lineWidth: 1.2)
+                        .blendMode(.screen)
+                        .allowsHitTesting(false)
+                }
+            }
+            .animation(
+                .interactiveSpring(response: 0.28, dampingFraction: 0.84, blendDuration: 0.1),
+                value: pointerLocation
+            )
+            .animation(
+                .spring(response: 0.26, dampingFraction: 0.80, blendDuration: 0.1),
+                value: hovering
+            )
+            .animation(pulseAnimation, value: pulsePhase)
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let location):
+                    pointerLocation = location
+                    hovering = true
+                case .ended:
+                    hovering = false
+                    pointerLocation = CGPoint(x: viewSize.width / 2, y: viewSize.height / 2)
+                }
+            }
+            .onAppear {
+                if isEnabled && style == .depthPulse {
+                    pulsePhase = true
+                }
+                if pointerLocation == .zero {
+                    pointerLocation = CGPoint(x: viewSize.width / 2, y: viewSize.height / 2)
+                }
+            }
+            .onChange(of: style) { newStyle in
+                pulsePhase = isEnabled && newStyle == .depthPulse
+            }
+            .onChange(of: isEnabled) { enabled in
+                pulsePhase = enabled && style == .depthPulse
+                if !enabled {
+                    hovering = false
+                }
+            }
+    }
+}
+
+extension View {
+    func animatedArtworkMotion(isEnabled: Bool, seed: String, style: ArtworkMotionStyle) -> some View {
+        modifier(ArtworkMotionModifier(isEnabled: isEnabled, seed: seed, style: style))
+    }
+}
+
+struct AnimatedArtworkView: View {
+    let image: NSImage?
+    let tint: Color
+    let isEnabled: Bool
+    let seed: String
+    let style: ArtworkMotionStyle
+    var body: some View {
+        ArtworkView(image: image, tint: tint)
+            .animatedArtworkMotion(isEnabled: isEnabled, seed: seed, style: style)
+    }
+}
+
 struct ArtworkView: View {
     let image: NSImage?
     let tint: Color

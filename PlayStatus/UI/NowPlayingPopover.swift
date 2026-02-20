@@ -101,12 +101,34 @@ struct NowPlayingPopover: View {
                 HStack(alignment: .center, spacing: 16) {
                     Group {
                         if artworkMorphEnabled {
-                            ArtworkView(image: model.artwork, tint: model.glassTint)
+                            AnimatedArtworkView(
+                                image: model.artwork,
+                                tint: model.glassTint,
+                                isEnabled: false,
+                                seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
+                                style: model.artworkMotionStyle
+                            )
                                 .frame(width: model.artworkDisplaySize, height: model.artworkDisplaySize)
+                                .animatedArtworkMotion(
+                                    isEnabled: model.animatedArtworkEnabled,
+                                    seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
+                                    style: model.artworkMotionStyle
+                                )
                                 .matchedGeometryEffect(id: "heroArtwork", in: artworkMorphNamespace)
                         } else {
-                            ArtworkView(image: model.artwork, tint: model.glassTint)
+                            AnimatedArtworkView(
+                                image: model.artwork,
+                                tint: model.glassTint,
+                                isEnabled: false,
+                                seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
+                                style: model.artworkMotionStyle
+                            )
                                 .frame(width: model.artworkDisplaySize, height: model.artworkDisplaySize)
+                                .animatedArtworkMotion(
+                                    isEnabled: model.animatedArtworkEnabled,
+                                    seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
+                                    style: model.artworkMotionStyle
+                                )
                                 .opacity(regularArtworkOpacity)
                         }
                     }
@@ -479,6 +501,11 @@ private struct MiniNowPlayingCard: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 13, style: .continuous)
                         .stroke(.white.opacity(0.12), lineWidth: 1)
+                )
+                .animatedArtworkMotion(
+                    isEnabled: model.animatedArtworkEnabled,
+                    seed: "mini|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
+                    style: model.artworkMotionStyle
                 )
                 .padding(8)
             }

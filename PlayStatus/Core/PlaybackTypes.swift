@@ -64,6 +64,18 @@ enum PreferredProvider: String, CaseIterable {
     }
 }
 
+enum ArtworkMotionStyle: String, CaseIterable {
+    case parallaxByPointer
+    case depthPulse
+
+    var displayName: String {
+        switch self {
+        case .parallaxByPointer: return "Parallax by Pointer"
+        case .depthPulse: return "Depth Pulse"
+        }
+    }
+}
+
 enum LyricsSource: String, Equatable {
     case musicApp
     case lrclib

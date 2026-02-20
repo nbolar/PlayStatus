@@ -700,6 +700,33 @@ struct PlayStatusSettingsView: View {
                 range: 0.5...1.8,
                 valueText: "\(Int(model.artworkColorIntensity * 100))%"
             )
+
+            Divider().padding(.vertical, 2)
+
+            SettingsToggleRow(
+                title: "Animated Artwork",
+                caption: "Adds subtle motion to album artwork in the popover.",
+                isOn: $model.animatedArtworkEnabled
+            )
+
+            if model.animatedArtworkEnabled {
+                SettingsControlRow(
+                    title: "Motion Style",
+                    caption: "Sets the character of artwork motion."
+                ) {
+                    Picker("Motion Style", selection: Binding(
+                        get: { model.artworkMotionStyle },
+                        set: { model.artworkMotionStyle = $0 }
+                    )) {
+                        ForEach(ArtworkMotionStyle.allCases, id: \.self) { style in
+                            Text(style.displayName).tag(style)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .frame(width: 220, alignment: .trailing)
+                }
+            }
         }
     }
 
