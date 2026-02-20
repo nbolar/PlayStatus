@@ -67,6 +67,7 @@ final class NowPlayingModel: ObservableObject {
     }
     @AppStorage("miniLyricsEnabled") var miniLyricsEnabled: Bool = false {
         didSet {
+            miniLyricsTransitionToken &+= 1
             requestPopoverLayoutRefresh()
         }
     }
@@ -97,6 +98,7 @@ final class NowPlayingModel: ObservableObject {
     @Published var persistentCacheUsageText: String = "0 MB"
     @Published var isClearingPersistentCache: Bool = false
     @Published var popoverModeTransitionToken: Int = 0
+    @Published var miniLyricsTransitionToken: Int = 0
     @Published var lyricsPayload: LyricsPayload? {
         didSet {
             guard lyricsPayload != oldValue else { return }

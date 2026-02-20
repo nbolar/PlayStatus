@@ -303,6 +303,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private var lastStatusIconName: String = ""
     private var lastAppliedPopoverSize: NSSize = .zero
     private var pendingModeResizeAnimation = false
+    private var pendingLyricsResizeAnimation = false
     private var lastMiniModeValue: Bool = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -363,6 +364,17 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateStatusButton() }
+            .store(in: &cancellables)
+
+        model.$miniLyricsTransitionToken
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if self.model.miniMode {
+                    self.pendingLyricsResizeAnimation = true
+                }
+            }
             .store(in: &cancellables)
 
         model.$statusBarConfigRevision
@@ -574,6 +586,14 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
                 pendingModeResizeAnimation = false
                 NSAnimationContext.runAnimationGroup { context in
                     context.duration = modeTransitionDuration
+                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                    context.allowsImplicitAnimation = true
+                    window.animator().setFrame(targetFrame, display: true)
+                }
+            } else if pendingLyricsResizeAnimation {
+                pendingLyricsResizeAnimation = false
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.42
                     context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                     context.allowsImplicitAnimation = true
                     window.animator().setFrame(targetFrame, display: true)

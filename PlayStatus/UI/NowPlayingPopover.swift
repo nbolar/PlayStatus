@@ -31,8 +31,9 @@ struct NowPlayingPopover: View {
         modeContent(miniMode: displayedMiniMode)
             .opacity(modeCrossfadeOpacity)
         .frame(
-            width: model.popoverWidth,
-            height: resolvedPopoverHeight,
+            minWidth: model.popoverWidth,
+            maxWidth: model.popoverWidth,
+            maxHeight: .infinity,
             alignment: .topLeading
         )
         .clipped()
@@ -802,7 +803,7 @@ private struct MiniNowPlayingCard: View {
                 MiniExpandedLyricsPane(model: model)
             }
         }
-        .frame(height: model.miniPopoverHeight)
+        .frame(minWidth: model.miniPopoverWidth, maxWidth: model.miniPopoverWidth, maxHeight: .infinity, alignment: .top)
         .background(.clear)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(

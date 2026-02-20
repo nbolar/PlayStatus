@@ -3,7 +3,14 @@
     "allow": [
       "Bash(xcodebuild:*)",
       "Bash(wc:*)",
-      "Bash(sw_vers:*)"
+      "Bash(sw_vers:*)",
+      "Bash(ffmpeg:*)",
+      "WebFetch(domain:mjtsai.com)",
+      "Bash(git checkout:*)",
+      "WebFetch(domain:en.dev4app.com)",
+      "WebFetch(domain:useyourloaf.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:vbat.dev)"
     ]
   }
 }
