@@ -535,6 +535,11 @@ struct SettingsOpenControl<Label: View>: View {
             SettingsLink {
                 label()
             }
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            )
         } else {
             Button(action: openSettingsWindow) {
                 label()
@@ -596,6 +601,7 @@ struct PlayStatusSettingsView: View {
         .frame(width: settingsWindowSize.width, height: settingsWindowSize.height)
         .background(Color(nsColor: .windowBackgroundColor))
         .background(SettingsWindowChromeConfigurator(targetSize: settingsWindowSize))
+        .environment(\.controlActiveState, .key)
     }
 
     private var tabSelection: Binding<SettingsTab> {

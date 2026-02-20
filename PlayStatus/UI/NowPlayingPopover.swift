@@ -1552,9 +1552,9 @@ private struct RegularLyricsPane: View {
                     case .failed:
                         VStack(spacing: 10) {
                             stateView("Couldn't fetch lyrics right now.", icon: "exclamationmark.bubble")
-                            Button("Retry") { model.retryLyricsFetch() }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
+//                            Button("Retry") { model.retryLyricsFetch() }
+//                                .buttonStyle(.bordered)
+//                                .controlSize(.small)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     case .available:
