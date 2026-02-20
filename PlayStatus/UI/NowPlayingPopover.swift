@@ -23,6 +23,8 @@ struct NowPlayingPopover: View {
     @State private var displayedMiniMode = false
     @State private var modeCrossfadeOpacity: Double = 1
     @State private var modeCrossfadeSequence: Int = 0
+    @State private var showRegularLyricsPane = false
+    @State private var regularLyricsHideWorkItem: DispatchWorkItem?
     private var resolvedPopoverHeight: CGFloat {
         model.miniMode ? model.miniPopoverHeight : model.regularPopoverHeight
     }
@@ -88,6 +90,7 @@ struct NowPlayingPopover: View {
             }
             modeCrossfadeSwapWorkItem = swap
             DispatchQueue.main.asyncAfter(deadline: .now() + modeCrossfadeOutDuration, execute: swap)
+            syncRenderedRegularLyricsPane(for: regularLyricsRequested)
 
             guard miniMode else { return }
             searchText = ""
@@ -96,13 +99,22 @@ struct NowPlayingPopover: View {
                 isSearchExpanded = false
             }
         }
+        .onChange(of: model.lyricsPanelExpanded) { _ in
+            syncRenderedRegularLyricsPane(for: regularLyricsRequested)
+        }
+        .onChange(of: model.showLyricsPanel) { _ in
+            syncRenderedRegularLyricsPane(for: regularLyricsRequested)
+        }
         .onAppear {
             displayedMiniMode = model.miniMode
             modeCrossfadeOpacity = 1
+            syncRenderedRegularLyricsPaneImmediately()
         }
         .onDisappear {
             modeCrossfadeSwapWorkItem?.cancel()
             modeCrossfadeSwapWorkItem = nil
+            regularLyricsHideWorkItem?.cancel()
+            regularLyricsHideWorkItem = nil
         }
         .simultaneousGesture(
             SpatialTapGesture().onEnded { value in
@@ -139,12 +151,22 @@ struct NowPlayingPopover: View {
                 }
             )
         } else {
-            regularContent
+            regularContent(availableHeight: availableHeight)
         }
     }
 
-    private var regularContent: some View {
-        VStack(spacing: 0) {
+    private func regularContent(availableHeight: CGFloat) -> some View {
+        let baseRegularHeight = model.estimatedRegularPopoverHeight
+        let resolvedRegularHeight = model.isPopoverVisible
+            ? max(baseRegularHeight, availableHeight)
+            : model.regularPopoverHeight
+        let visibleRegularLyricsHeight = min(
+            model.regularLyricsPaneHeight,
+            max(0, resolvedRegularHeight - baseRegularHeight)
+        )
+        let shouldRenderRegularLyricsPane = showRegularLyricsPane || visibleRegularLyricsHeight > 0.5
+
+        return VStack(spacing: 0) {
             LiquidGlassCard(tint: model.glassTint, palette: model.cardBackgroundPalette) {
             VStack(spacing: 8) {
                 HStack(alignment: .center, spacing: 16) {
@@ -247,7 +269,11 @@ struct NowPlayingPopover: View {
                             isOn: model.lyricsPanelExpanded,
                             lyricsState: model.lyricsState
                         ) {
-                            model.setLyricsPanelExpanded(!model.lyricsPanelExpanded)
+                            let targetExpanded = !model.lyricsPanelExpanded
+                            syncRenderedRegularLyricsPane(
+                                for: model.showLyricsPanel && targetExpanded && !model.miniMode
+                            )
+                            model.setLyricsPanelExpanded(targetExpanded)
                         }
                     }
 
@@ -269,17 +295,20 @@ struct NowPlayingPopover: View {
                 .padding(.trailing, 8)
             }
 
-            if model.showLyricsPanel && model.lyricsPanelExpanded {
+            if shouldRenderRegularLyricsPane {
                 RegularLyricsPane(
                     model: model,
                     lyricsState: model.lyricsState,
                     lyricsPayload: model.lyricsPayload,
                     lyricsLoadingProgress: model.lyricsLoadingProgress,
                     glassTint: model.glassTint,
-                    artwork: model.artwork
+                    artwork: model.artwork,
+                    visibleHeight: visibleRegularLyricsHeight
                 )
+                .allowsHitTesting(regularLyricsRequested && visibleRegularLyricsHeight > 0.5)
             }
         }
+        .frame(width: model.popoverWidth, height: resolvedRegularHeight, alignment: .topLeading)
         .background(
             ZStack {
                 LiquidGlassBackground(tint: model.glassTint)
@@ -423,6 +452,34 @@ struct NowPlayingPopover: View {
         }
         modeTransitionResetWorkItem = reset
         DispatchQueue.main.asyncAfter(deadline: .now() + modeTransitionDuration + 0.06, execute: reset)
+    }
+
+    private var regularLyricsRequested: Bool {
+        !model.miniMode && model.showLyricsPanel && model.lyricsPanelExpanded
+    }
+
+    private func syncRenderedRegularLyricsPaneImmediately() {
+        regularLyricsHideWorkItem?.cancel()
+        regularLyricsHideWorkItem = nil
+        showRegularLyricsPane = regularLyricsRequested
+    }
+
+    private func syncRenderedRegularLyricsPane(for enabled: Bool) {
+        regularLyricsHideWorkItem?.cancel()
+        regularLyricsHideWorkItem = nil
+
+        if enabled {
+            showRegularLyricsPane = true
+            return
+        }
+
+        let work = DispatchWorkItem {
+            guard !regularLyricsRequested else { return }
+            showRegularLyricsPane = false
+            regularLyricsHideWorkItem = nil
+        }
+        regularLyricsHideWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + miniLyricsTransitionDuration, execute: work)
     }
 
 }
@@ -1387,6 +1444,7 @@ private struct RegularLyricsPane: View {
     let lyricsLoadingProgress: LyricsLoadingProgress?
     let glassTint: Color
     let artwork: NSImage?
+    let visibleHeight: CGFloat
 
     private let paneHeight: CGFloat = 240
 
@@ -1514,6 +1572,8 @@ private struct RegularLyricsPane: View {
             }
             .frame(height: paneHeight)
         }
+        .frame(height: max(0, visibleHeight), alignment: .top)
+        .clipped()
     }
 
     private func stateView(_ message: String, icon: String) -> some View {

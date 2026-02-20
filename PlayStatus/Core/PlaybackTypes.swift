@@ -1,7 +1,7 @@
 import AppKit
 
 let modeTransitionDuration: Double = 0.95
-let miniLyricsTransitionDuration: Double = 0.62
+let miniLyricsTransitionDuration: Double = 0.32
 
 enum NowPlayingProvider: String {
     case music
