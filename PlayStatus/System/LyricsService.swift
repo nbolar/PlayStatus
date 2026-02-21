@@ -172,6 +172,28 @@ enum LRCLIBLyricsProvider {
     private static let requestTimeoutSeconds: TimeInterval = 8
     private static let maxSearchRequestsPerAttempt: Int = 2
 
+    private enum ExactAttemptResult {
+        case available(payload: LyricsPayload, artistCandidate: String, url: URL)
+        case unavailable
+        case failed
+    }
+
+    private enum SearchAttemptResult {
+        case available(payload: LyricsPayload, score: Double, durationDelta: Double, url: URL)
+        case unavailable
+        case failed
+    }
+
+    private enum SearchRequestKind {
+        case trackArtist(String)
+        case broad(String)
+    }
+
+    private struct SearchPlan {
+        let queryArtist: String
+        let requestKind: SearchRequestKind
+    }
+
     private struct Response: Decodable {
         let syncedLyrics: String?
         let plainLyrics: String?
@@ -216,52 +238,16 @@ enum LRCLIBLyricsProvider {
         onProgress: (@Sendable (LyricsLoadingStage) -> Void)? = nil
     ) async -> LyricsFetchOutcome {
         let artistCandidates = artistQueryCandidates(from: artist)
-        var sawFailure = false
 
         onProgress?(.lrclibExact)
-        for artistCandidate in artistCandidates {
-            var components = URLComponents(string: "https://lrclib.net/api/get")
-            components?.queryItems = [
-                URLQueryItem(name: "track_name", value: title),
-                URLQueryItem(name: "artist_name", value: artistCandidate),
-                URLQueryItem(name: "album_name", value: album),
-                URLQueryItem(name: "duration", value: String(Int(duration.rounded())))
-            ]
-
-            guard let url = components?.url else {
-                sawFailure = true
-                continue
-            }
-
-            var request = URLRequest(url: url)
-            request.timeoutInterval = requestTimeoutSeconds
-
-            do {
-                let (data, response) = try await URLSession.shared.data(for: request)
-                guard let http = response as? HTTPURLResponse else {
-                    sawFailure = true
-                    continue
-                }
-                if http.statusCode == 404 { continue }
-                guard (200...299).contains(http.statusCode) else {
-                    sawFailure = true
-                    continue
-                }
-
-                let decoded = try JSONDecoder().decode(Response.self, from: data)
-                if let payload = payloadFrom(syncedLyrics: decoded.syncedLyrics, plainLyrics: decoded.plainLyrics) {
-                    #if DEBUG
-                    NSLog(
-                        "PlayStatus lyrics: lrclib_get_hit artist=%@ url=%@",
-                        artistCandidate,
-                        url.absoluteString
-                    )
-                    #endif
-                    return .available(payload)
-                }
-            } catch {
-                sawFailure = true
-            }
+        let exactStage = await fetchExactParallel(
+            artistCandidates: artistCandidates,
+            title: title,
+            album: album,
+            duration: duration
+        )
+        if case .available = exactStage.outcome {
+            return exactStage.outcome
         }
 
         let searchOutcome = await search(
@@ -270,9 +256,14 @@ enum LRCLIBLyricsProvider {
             duration: duration,
             onProgress: onProgress
         )
-        if case .available = searchOutcome { return searchOutcome }
-        if sawFailure && searchOutcome == .unavailable { return .failed }
-        return searchOutcome
+        switch searchOutcome {
+        case .available:
+            return searchOutcome
+        case .failed:
+            return .failed
+        case .unavailable:
+            return exactStage.sawFailure ? .failed : .unavailable
+        }
     }
 
     static func search(
@@ -282,7 +273,7 @@ enum LRCLIBLyricsProvider {
         onProgress: (@Sendable (LyricsLoadingStage) -> Void)? = nil
     ) async -> LyricsFetchOutcome {
         let artistCandidates = artistQueryCandidates(from: artist)
-        var queryPlan: [(queryItems: [URLQueryItem], queryArtist: String)] = []
+        var queryPlan: [SearchPlan] = []
         queryPlan.reserveCapacity(maxSearchRequestsPerAttempt)
 
         let fullArtist = artistCandidates.first
@@ -290,36 +281,19 @@ enum LRCLIBLyricsProvider {
 
         // 1) track_name + artist_name (primary artist, if different)
         if let primaryArtist {
-            queryPlan.append((
-                queryItems: [
-                    URLQueryItem(name: "track_name", value: title),
-                    URLQueryItem(name: "artist_name", value: primaryArtist)
-                ],
-                queryArtist: primaryArtist
-            ))
+            queryPlan.append(SearchPlan(queryArtist: primaryArtist, requestKind: .trackArtist(primaryArtist)))
         }
 
         // 2) track_name + artist_name (full artist)
         if queryPlan.count < maxSearchRequestsPerAttempt, let fullArtist {
-            queryPlan.append((
-                queryItems: [
-                    URLQueryItem(name: "track_name", value: title),
-                    URLQueryItem(name: "artist_name", value: fullArtist)
-                ],
-                queryArtist: fullArtist
-            ))
+            queryPlan.append(SearchPlan(queryArtist: fullArtist, requestKind: .trackArtist(fullArtist)))
         }
 
         // 3) one broad q= fallback (primary/full artist)
         if queryPlan.count < maxSearchRequestsPerAttempt {
             let broadArtist = primaryArtist ?? fullArtist
             if let broadArtist {
-                queryPlan.append((
-                    queryItems: [
-                        URLQueryItem(name: "q", value: "\(broadArtist) \(title)")
-                    ],
-                    queryArtist: broadArtist
-                ))
+                queryPlan.append(SearchPlan(queryArtist: broadArtist, requestKind: .broad("\(broadArtist) \(title)")))
             }
         }
 
@@ -330,61 +304,188 @@ enum LRCLIBLyricsProvider {
 
         onProgress?(.lrclibSearch)
         var sawFailure = false
-        for plan in queryPlan {
-            var components = URLComponents(string: "https://lrclib.net/api/search")
-            components?.queryItems = plan.queryItems
-            guard let url = components?.url else {
-                sawFailure = true
-                continue
+        return await withTaskGroup(of: SearchAttemptResult.self, returning: LyricsFetchOutcome.self) { group in
+            for plan in queryPlan {
+                group.addTask {
+                    await runSearchAttempt(plan: plan, title: title, duration: duration)
+                }
             }
 
-            var request = URLRequest(url: url)
-            request.timeoutInterval = requestTimeoutSeconds
-
-            do {
-                let (data, response) = try await URLSession.shared.data(for: request)
-                guard let http = response as? HTTPURLResponse else {
+            for await result in group {
+                switch result {
+                case .available(let payload, let score, let durationDelta, let url):
+                    #if DEBUG
+                    NSLog(
+                        "PlayStatus lyrics: lrclib_search_hit score=%.3f delta=%.1f url=%@",
+                        score,
+                        durationDelta,
+                        url.absoluteString
+                    )
+                    #endif
+                    group.cancelAll()
+                    return .available(payload)
+                case .failed:
                     sawFailure = true
-                    continue
+                case .unavailable:
+                    break
                 }
-                if http.statusCode == 404 { continue }
-                guard (200...299).contains(http.statusCode) else {
-                    sawFailure = true
-                    continue
-                }
-
-                let decoded = try JSONDecoder().decode([SearchItem].self, from: data)
-                guard let best = selectBestCandidate(
-                    from: decoded,
-                    queryArtist: plan.queryArtist,
-                    queryTitle: title,
-                    queryDuration: duration
-                ) else {
-                    continue
-                }
-
-                guard let payload = payloadFrom(
-                    syncedLyrics: best.item.syncedLyrics,
-                    plainLyrics: best.item.plainLyrics
-                ) else {
-                    continue
-                }
-
-                #if DEBUG
-                NSLog(
-                    "PlayStatus lyrics: lrclib_search_hit score=%.3f delta=%.1f url=%@",
-                    best.score,
-                    best.durationDelta,
-                    url.absoluteString
-                )
-                #endif
-                return .available(payload)
-            } catch {
-                sawFailure = true
             }
+
+            return sawFailure ? .failed : .unavailable
+        }
+    }
+
+    private static func fetchExactParallel(
+        artistCandidates: [String],
+        title: String,
+        album: String,
+        duration: Double
+    ) async -> (outcome: LyricsFetchOutcome, sawFailure: Bool) {
+        guard !artistCandidates.isEmpty else {
+            return (.unavailable, false)
         }
 
-        return sawFailure ? .failed : .unavailable
+        var sawFailure = false
+        return await withTaskGroup(of: ExactAttemptResult.self, returning: (LyricsFetchOutcome, Bool).self) { group in
+            for artistCandidate in artistCandidates {
+                group.addTask {
+                    await runExactAttempt(
+                        artistCandidate: artistCandidate,
+                        title: title,
+                        album: album,
+                        duration: duration
+                    )
+                }
+            }
+
+            for await result in group {
+                switch result {
+                case .available(let payload, let artistCandidate, let url):
+                    #if DEBUG
+                    NSLog(
+                        "PlayStatus lyrics: lrclib_get_hit artist=%@ url=%@",
+                        artistCandidate,
+                        url.absoluteString
+                    )
+                    #endif
+                    group.cancelAll()
+                    return (.available(payload), sawFailure)
+                case .failed:
+                    sawFailure = true
+                case .unavailable:
+                    break
+                }
+            }
+            return (.unavailable, sawFailure)
+        }
+    }
+
+    private static func runExactAttempt(
+        artistCandidate: String,
+        title: String,
+        album: String,
+        duration: Double
+    ) async -> ExactAttemptResult {
+        var components = URLComponents(string: "https://lrclib.net/api/get")
+        components?.queryItems = [
+            URLQueryItem(name: "track_name", value: title),
+            URLQueryItem(name: "artist_name", value: artistCandidate),
+            URLQueryItem(name: "album_name", value: album),
+            URLQueryItem(name: "duration", value: String(Int(duration.rounded())))
+        ]
+
+        guard let url = components?.url else {
+            return .failed
+        }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = requestTimeoutSeconds
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                return .failed
+            }
+            if http.statusCode == 404 { return .unavailable }
+            guard (200...299).contains(http.statusCode) else {
+                return .failed
+            }
+
+            let decoded = try JSONDecoder().decode(Response.self, from: data)
+            guard let payload = payloadFrom(syncedLyrics: decoded.syncedLyrics, plainLyrics: decoded.plainLyrics) else {
+                return .unavailable
+            }
+            return .available(payload: payload, artistCandidate: artistCandidate, url: url)
+        } catch is CancellationError {
+            return .unavailable
+        } catch {
+            return .failed
+        }
+    }
+
+    private static func runSearchAttempt(
+        plan: SearchPlan,
+        title: String,
+        duration: Double
+    ) async -> SearchAttemptResult {
+        var components = URLComponents(string: "https://lrclib.net/api/search")
+        switch plan.requestKind {
+        case .trackArtist(let artistName):
+            components?.queryItems = [
+                URLQueryItem(name: "track_name", value: title),
+                URLQueryItem(name: "artist_name", value: artistName)
+            ]
+        case .broad(let query):
+            components?.queryItems = [
+                URLQueryItem(name: "q", value: query)
+            ]
+        }
+
+        guard let url = components?.url else {
+            return .failed
+        }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = requestTimeoutSeconds
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                return .failed
+            }
+            if http.statusCode == 404 { return .unavailable }
+            guard (200...299).contains(http.statusCode) else {
+                return .failed
+            }
+
+            let decoded = try JSONDecoder().decode([SearchItem].self, from: data)
+            guard let best = selectBestCandidate(
+                from: decoded,
+                queryArtist: plan.queryArtist,
+                queryTitle: title,
+                queryDuration: duration
+            ) else {
+                return .unavailable
+            }
+
+            guard let payload = payloadFrom(
+                syncedLyrics: best.item.syncedLyrics,
+                plainLyrics: best.item.plainLyrics
+            ) else {
+                return .unavailable
+            }
+
+            return .available(
+                payload: payload,
+                score: best.score,
+                durationDelta: best.durationDelta,
+                url: url
+            )
+        } catch is CancellationError {
+            return .unavailable
+        } catch {
+            return .failed
+        }
     }
 
     private static func artistQueryCandidates(from artist: String) -> [String] {
