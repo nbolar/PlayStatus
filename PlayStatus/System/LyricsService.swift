@@ -21,6 +21,12 @@ enum LyricsFetchOutcome: Equatable {
 actor LyricsService {
     static let shared = LyricsService()
 
+    enum FetchMode: String {
+        case fullPipeline
+        case lrclibOnly
+        case musicOnly
+    }
+
     private enum CacheEntry {
         case available(LyricsPayload)
         case unavailable
@@ -39,6 +45,8 @@ actor LyricsService {
     func fetchLyrics(
         for descriptor: LyricsTrackDescriptor,
         forceRefresh: Bool = false,
+        mode: FetchMode = .fullPipeline,
+        cacheUnavailableResult: Bool = true,
         onProgress: (@Sendable (LyricsLoadingStage) -> Void)? = nil
     ) async -> LyricsFetchOutcome {
         guard descriptor.provider != .none, !descriptor.title.isEmpty else {
@@ -64,21 +72,29 @@ actor LyricsService {
             }
         }
 
-        if !forceRefresh, let task = inflight[key] {
+        let inflightKey = "\(key)|mode:\(mode.rawValue)"
+        if !forceRefresh, let task = inflight[inflightKey] {
             return await task.value
         }
 
         let task = Task<LyricsFetchOutcome, Never> {
-            onProgress?(.starting)
-            let lrclibOutcome = await LRCLIBLyricsProvider.fetch(
-                artist: descriptor.artist,
-                title: descriptor.title,
-                album: descriptor.album,
-                duration: descriptor.duration,
-                onProgress: onProgress
-            )
-            if case .available = lrclibOutcome {
-                return lrclibOutcome
+            var lrclibOutcome: LyricsFetchOutcome = .unavailable
+
+            if mode != .musicOnly {
+                onProgress?(.starting)
+                lrclibOutcome = await LRCLIBLyricsProvider.fetch(
+                    artist: descriptor.artist,
+                    title: descriptor.title,
+                    album: descriptor.album,
+                    duration: descriptor.duration,
+                    onProgress: onProgress
+                )
+                if case .available = lrclibOutcome {
+                    return lrclibOutcome
+                }
+                if mode == .lrclibOnly {
+                    return lrclibOutcome
+                }
             }
 
             onProgress?(.musicFallback)
@@ -86,20 +102,25 @@ actor LyricsService {
                 return .available(appPayload)
             }
 
-            return lrclibOutcome
+            if mode == .fullPipeline {
+                return lrclibOutcome
+            }
+            return .unavailable
         }
 
-        inflight[key] = task
+        inflight[inflightKey] = task
         let outcome = await task.value
-        inflight[key] = nil
+        inflight[inflightKey] = nil
 
         switch outcome {
         case .available(let payload):
             cache[key] = .available(payload)
             await PersistentMediaCache.shared.storeLyricsAvailable(payload, forKey: key)
         case .unavailable:
-            cache[key] = .unavailable
-            await PersistentMediaCache.shared.storeLyricsUnavailable(forKey: key)
+            if cacheUnavailableResult {
+                cache[key] = .unavailable
+                await PersistentMediaCache.shared.storeLyricsUnavailable(forKey: key)
+            }
         case .failed:
             break
         }

@@ -34,12 +34,13 @@ struct ControlsRow: View {
     let onPrev: () -> Void
     let onPlayPause: () -> Void
     let onNext: () -> Void
+    var contrastBoost: Double = 0
 
     var body: some View {
         HStack(spacing: 10) {
-            GlassButton(systemName: "backward.fill", action: onPrev)
-            GlassButton(systemName: isPlaying ? "pause.fill" : "play.fill", isPrimary: true, action: onPlayPause)
-            GlassButton(systemName: "forward.fill", action: onNext)
+            GlassButton(systemName: "backward.fill", contrastBoost: contrastBoost, action: onPrev)
+            GlassButton(systemName: isPlaying ? "pause.fill" : "play.fill", isPrimary: true, contrastBoost: contrastBoost, action: onPlayPause)
+            GlassButton(systemName: "forward.fill", contrastBoost: contrastBoost, action: onNext)
         }
     }
 }
@@ -47,9 +48,31 @@ struct ControlsRow: View {
 struct OutputControlsRow: View {
     @ObservedObject var model: NowPlayingModel
     let showDeviceName: Bool
+    var contrastBoost: Double = 0
+    var showFavorite: Bool = false
+    var favoriteIsActive: Bool = false
+    var favoritePulseToken: Int = 0
+    var onFavorite: (() -> Void)? = nil
+    @State private var favoritePulseActive = false
 
     private var selectedDeviceName: String {
         model.availableOutputDevices.first(where: { $0.id == model.selectedOutputDeviceID })?.name ?? "Output"
+    }
+
+    private var clampedContrastBoost: Double {
+        min(max(contrastBoost, 0), 1)
+    }
+
+    private var controlForeground: Color {
+        Color.white
+    }
+
+    private var controlFillOpacity: Double {
+        min(0.34, 0.08 + (0.18 * clampedContrastBoost))
+    }
+
+    private var controlStrokeOpacity: Double {
+        min(0.26, 0.10 + (0.08 * clampedContrastBoost))
     }
 
     var body: some View {
@@ -81,12 +104,12 @@ struct OutputControlsRow: View {
 //                    }
                 }
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(controlForeground.opacity(0.90))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
                 .frame(maxWidth: showDeviceName ? 168 : nil, alignment: .leading)
-                .background(Capsule().fill(Color.primary.opacity(0.08)))
-                .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
+                .background(Capsule().fill(Color.primary.opacity(controlFillOpacity)))
+                .overlay(Capsule().stroke(.white.opacity(controlStrokeOpacity), lineWidth: 1))
             }
             .menuStyle(.borderlessButton)
             .buttonStyle(.plain)
@@ -97,9 +120,9 @@ struct OutputControlsRow: View {
                 Image(systemName: model.outputMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                     .font(.system(size: 10, weight: .semibold))
                     .frame(width: 22, height: 22)
-                    .background(Circle().fill(Color.primary.opacity(0.08)))
-                    .overlay(Circle().stroke(.white.opacity(0.10), lineWidth: 1))
-                    .foregroundStyle(model.outputMuted ? Color.secondary : Color.primary.opacity(0.9))
+                    .background(Circle().fill(Color.primary.opacity(controlFillOpacity)))
+                    .overlay(Circle().stroke(.white.opacity(controlStrokeOpacity), lineWidth: 1))
+                    .foregroundStyle(model.outputMuted ? controlForeground.opacity(0.65) : controlForeground.opacity(0.94))
             }
             .buttonStyle(.plain)
 
@@ -111,8 +134,22 @@ struct OutputControlsRow: View {
                 in: 0...1
             )
             .frame(minWidth: 84, maxWidth: .infinity)
-            .tint(.white.opacity(0.86))
+            .tint(controlForeground.opacity(0.88))
             .opacity(model.outputMuted ? 0.55 : 1.0)
+
+            if showFavorite, let onFavorite {
+                GlassButton(systemName: favoriteIsActive ? "heart.fill" : "heart", compact: true, contrastBoost: contrastBoost, action: onFavorite)
+                    .foregroundStyle(favoriteIsActive ? Color.red.opacity(0.9) : controlForeground.opacity(0.94))
+                    .scaleEffect(favoritePulseActive ? 1.16 : 1.0)
+                    .animation(.spring(response: 0.22, dampingFraction: 0.70), value: favoritePulseActive)
+                    .onChange(of: favoritePulseToken) { _ in
+                        favoritePulseActive = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                            favoritePulseActive = false
+                        }
+                    }
+                    .help(favoriteIsActive ? "Remove from Favorites (Apple Music)" : "Add to Favorites (Apple Music)")
+            }
         }
         .onAppear {
             model.refreshAudioState()
@@ -123,40 +160,68 @@ struct OutputControlsRow: View {
 struct GlassButton: View {
     let systemName: String
     var isPrimary: Bool = false
+    var compact: Bool = false
+    var contrastBoost: Double = 0
     let action: () -> Void
 
     @State private var isHovering = false
     @State private var isPressed = false
 
+    private var clampedContrastBoost: Double {
+        min(max(contrastBoost, 0), 1)
+    }
+
+    private var iconColor: Color {
+        Color.white
+    }
+
+    private var fillOpacity: Double {
+        let base = isPrimary ? 0.13 : 0.08
+        return min(0.38, base + (0.20 * clampedContrastBoost))
+    }
+
+    private var strokeOpacity: Double {
+        let base = isPrimary ? 0.18 : 0.12
+        return min(0.30, base + (0.08 * clampedContrastBoost))
+    }
+
+    private var highlightOpacity: Double {
+        let base = isHovering ? 0.16 : 0.06
+        return max(0.03, base - (0.06 * clampedContrastBoost))
+    }
+
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 13, weight: .semibold))
-                .frame(width: isPrimary ? 40 : 34, height: isPrimary ? 32 : 30)
-                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .font(.system(size: compact ? 12 : 13, weight: .semibold))
+                .frame(width: compact ? 30 : (isPrimary ? 40 : 32), height: compact ? 26 : (isPrimary ? 32 : 28))
+                .contentShape(RoundedRectangle(cornerRadius: compact ? 10 : 12, style: .continuous))
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.primary.opacity(isPrimary ? 1.0 : 0.92))
+        .foregroundStyle(iconColor.opacity(isPrimary ? 0.98 : 0.92))
         .background(
             ZStack {
                 // macOS 26: avoid system materials (.ultraThinMaterial/.thinMaterial) inside
                 // NSHostingController — they trigger DesignLibrary glass compositor on every
                 // SwiftUI re-render, causing recursive stack overflow. Use plain fills instead.
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.primary.opacity(isPrimary ? 0.13 : 0.08))
+                RoundedRectangle(cornerRadius: compact ? 10 : 12, style: .continuous)
+                    .fill(Color.primary.opacity(fillOpacity))
 
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: compact ? 10 : 12, style: .continuous)
+                    .fill(Color.black.opacity(0.18 * clampedContrastBoost))
+
+                RoundedRectangle(cornerRadius: compact ? 10 : 12, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [.white.opacity(isHovering ? 0.16 : 0.06), .clear],
+                            colors: [.white.opacity(highlightOpacity), .clear],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
                     .blendMode(.plusLighter)
 
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(.white.opacity(isPrimary ? 0.18 : 0.12), lineWidth: 1)
+                RoundedRectangle(cornerRadius: compact ? 10 : 12, style: .continuous)
+                    .stroke(.white.opacity(strokeOpacity), lineWidth: 1)
             }
         )
         .scaleEffect(isPressed ? 0.96 : 1.0)
@@ -179,10 +244,27 @@ struct ProgressBlock: View {
     let elapsed: Double
     let duration: Double
     let canSeek: Bool
+    var contrastBoost: Double = 0
     let onSeek: (Double) -> Void
 
     @State private var isDragging = false
     @State private var dragValue: Double = 0
+
+    private var clampedContrastBoost: Double {
+        min(max(contrastBoost, 0), 1)
+    }
+
+    private var railBaseOpacity: Double {
+        min(0.28, 0.10 + (0.12 * clampedContrastBoost))
+    }
+
+    private var railFillOpacity: Double {
+        min(0.50, 0.35 + (0.10 * clampedContrastBoost))
+    }
+
+    private var timeColor: Color {
+        Color.white
+    }
 
     var body: some View {
         VStack(spacing: 6) {
@@ -191,8 +273,8 @@ struct ProgressBlock: View {
                 let p = isDragging ? dragValue : progress
 
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.10))
-                    Capsule().fill(.white.opacity(0.35))
+                    Capsule().fill(.white.opacity(railBaseOpacity))
+                    Capsule().fill(.white.opacity(railFillOpacity))
                         .frame(width: max(6, w * CGFloat(min(max(p, 0), 1))))
                         .blendMode(.screen)
                 }
@@ -226,7 +308,7 @@ struct ProgressBlock: View {
                     .frame(width: 42, alignment: .trailing)
             }
             .font(.system(size: 11, weight: .medium, design: .rounded))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(timeColor.opacity(0.86))
         }
     }
 
@@ -467,6 +549,23 @@ struct ArtworkView: View {
 
 struct LiquidGlassBackground: View {
     let tint: Color
+    var readabilityBoost: Double = 0
+
+    private var clampedReadabilityBoost: Double {
+        min(max(readabilityBoost, 0), 1)
+    }
+
+    private var darkenOpacity: Double {
+        min(0.22, 0.01 + (0.18 * clampedReadabilityBoost))
+    }
+
+    private var sheenOpacity: Double {
+        max(0.14, 0.50 - (0.26 * clampedReadabilityBoost))
+    }
+
+    private var strokeOpacity: Double {
+        min(0.24, 0.10 + (0.10 * clampedReadabilityBoost))
+    }
 
     var body: some View {
         ZStack {
@@ -480,6 +579,9 @@ struct LiquidGlassBackground: View {
                 )
 
             RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.black.opacity(darkenOpacity))
+
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(
                     RadialGradient(
                         colors: [tint.opacity(0.14), .clear],
@@ -489,10 +591,10 @@ struct LiquidGlassBackground: View {
                     )
                 )
                 .blendMode(.screen)
-                .opacity(0.50)
+                .opacity(sheenOpacity)
 
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(.white.opacity(0.10), lineWidth: 1)
+                .stroke(.white.opacity(strokeOpacity), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 8)
     }
@@ -501,11 +603,24 @@ struct LiquidGlassBackground: View {
 struct LiquidGlassCard<Content: View>: View {
     let tint: Color
     let palette: [Color]
+    var readabilityBoost: Double = 0
     @ViewBuilder var content: Content
 
     private var primary: Color { palette.first ?? tint }
     private var secondary: Color { palette.dropFirst().first ?? tint }
     private var tertiary: Color { palette.dropFirst(2).first ?? tint }
+    private var clampedReadabilityBoost: Double {
+        min(max(readabilityBoost, 0), 1)
+    }
+    private var darkenOpacity: Double {
+        min(0.24, 0.02 + (0.20 * clampedReadabilityBoost))
+    }
+    private var sheenOpacity: Double {
+        max(0.10, 0.26 - (0.12 * clampedReadabilityBoost))
+    }
+    private var strokeOpacity: Double {
+        min(0.26, 0.12 + (0.10 * clampedReadabilityBoost))
+    }
 
     var body: some View {
         ZStack {
@@ -524,6 +639,9 @@ struct LiquidGlassCard<Content: View>: View {
                 .opacity(0.90)
 
             RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.black.opacity(darkenOpacity))
+
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [.white.opacity(0.10), .white.opacity(0.03), .clear],
@@ -532,10 +650,10 @@ struct LiquidGlassCard<Content: View>: View {
                     )
                 )
                 .blendMode(.screen)
-                .opacity(0.26)
+                .opacity(sheenOpacity)
 
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(.white.opacity(0.12), lineWidth: 1)
+                .stroke(.white.opacity(strokeOpacity), lineWidth: 1)
 
             content.padding(14)
         }

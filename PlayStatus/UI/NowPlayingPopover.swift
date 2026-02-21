@@ -166,9 +166,15 @@ struct NowPlayingPopover: View {
             max(0, resolvedRegularHeight - baseRegularHeight)
         )
         let shouldRenderRegularLyricsPane = showRegularLyricsPane || visibleRegularLyricsHeight > 0.5
+        let regularControlContrastBoost = model.regularControlsContrastBoost
+        let searchTrailingAlignmentNudge: CGFloat = 4
 
         return VStack(spacing: 0) {
-            LiquidGlassCard(tint: model.glassTint, palette: model.cardBackgroundPalette) {
+            LiquidGlassCard(
+                tint: model.glassTint,
+                palette: model.cardBackgroundPalette,
+                readabilityBoost: regularControlContrastBoost
+            ) {
             VStack(spacing: 8) {
                 HStack(alignment: .center, spacing: 16) {
                     Group {
@@ -225,7 +231,10 @@ struct NowPlayingPopover: View {
                             usesSecondaryStyle: false
                         )
 
-                        PlaybackProgressBlock(onSeek: { model.seek(to: $0) })
+                        PlaybackProgressBlock(
+                            contrastBoost: regularControlContrastBoost,
+                            onSeek: { model.seek(to: $0) }
+                        )
 
                         HStack {
                             Spacer(minLength: 0)
@@ -233,13 +242,22 @@ struct NowPlayingPopover: View {
                                 isPlaying: model.isPlaying,
                                 onPrev: { model.previousTrack() },
                                 onPlayPause: { model.playPause() },
-                                onNext: { model.nextTrack() }
+                                onNext: { model.nextTrack() },
+                                contrastBoost: regularControlContrastBoost
                             )
                             Spacer(minLength: 0)
                         }
                         .padding(.top, 2)
 
-                        OutputControlsRow(model: model, showDeviceName: true)
+                        OutputControlsRow(
+                            model: model,
+                            showDeviceName: true,
+                            contrastBoost: regularControlContrastBoost,
+                            showFavorite: model.canFavoriteCurrentTrack,
+                            favoriteIsActive: model.isCurrentTrackFavorited,
+                            favoritePulseToken: model.favoriteActionPulseToken,
+                            onFavorite: { _ = model.toggleCurrentTrackFavorite() }
+                        )
                             .padding(.top, 2)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -248,8 +266,12 @@ struct NowPlayingPopover: View {
                 if model.resolvedSearchProvider != .none {
                     HStack {
                         Spacer(minLength: 0)
-                        searchSection(maxWidth: min(280, max(170, model.popoverWidth * 0.50)))
+                        searchSection(
+                            maxWidth: min(280, max(170, model.popoverWidth * 0.50)),
+                            contrastBoost: regularControlContrastBoost
+                        )
                     }
+                    .padding(.trailing, -searchTrailingAlignmentNudge)
                     .padding(.top, -24)
                     .padding(.bottom, -12)
                 }
@@ -258,7 +280,7 @@ struct NowPlayingPopover: View {
             }
             .overlay(alignment: .topTrailing) {
                 HStack(spacing: 6) {
-                    ModeToggleControl(isMiniMode: false, transitionActive: modeTransitionActive) {
+                    ModeToggleControl(isMiniMode: false, transitionActive: modeTransitionActive, contrastBoost: regularControlContrastBoost) {
                         withAnimation(modeMorphAnimation) {
                             artworkMorphEnabled = true
                             pendingMiniInitialExpand = true
@@ -269,7 +291,8 @@ struct NowPlayingPopover: View {
                     if model.showLyricsPanel {
                         RegularLyricsToggleControl(
                             isOn: model.lyricsPanelExpanded,
-                            lyricsState: model.lyricsState
+                            lyricsState: model.lyricsState,
+                            contrastBoost: regularControlContrastBoost
                         ) {
                             let targetExpanded = !model.lyricsPanelExpanded
                             syncRenderedRegularLyricsPane(
@@ -282,12 +305,12 @@ struct NowPlayingPopover: View {
                     SettingsOpenControl {
                         Image(systemName: "gearshape.fill")
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.primary.opacity(0.9))
+                            .foregroundStyle(.white.opacity(0.94))
                             .frame(width: 24, height: 24)
-                            .background(Circle().fill(Color.primary.opacity(0.08)))
+                            .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * regularControlContrastBoost)))))
                             .overlay(
                                 Circle()
-                                    .stroke(.white.opacity(0.16), lineWidth: 1)
+                                    .stroke(.white.opacity(min(0.28, 0.16 + (0.08 * regularControlContrastBoost))), lineWidth: 1)
                             )
                     }
                     .buttonStyle(.plain)
@@ -313,7 +336,7 @@ struct NowPlayingPopover: View {
         .frame(width: model.popoverWidth, height: resolvedRegularHeight, alignment: .topLeading)
         .background(
             ZStack {
-                LiquidGlassBackground(tint: model.glassTint)
+                LiquidGlassBackground(tint: model.glassTint, readabilityBoost: regularControlContrastBoost)
             }
         )
     }
@@ -342,10 +365,16 @@ struct NowPlayingPopover: View {
 //        }
 //    }
 
-    private func searchSection(maxWidth: CGFloat) -> some View {
+    private func searchSection(maxWidth: CGFloat, contrastBoost: Double) -> some View {
         let searchProvider = model.resolvedSearchProvider
         let searchPlaceholder = searchProvider == .spotify ? "Search Spotify" : "Search Music library"
         let actionLabel = searchProvider == .spotify ? "Open" : "Play"
+        let clampedContrast = min(max(contrastBoost, 0), 1)
+        let searchForeground = Color.white
+        let searchFillOpacity = min(0.34, 0.08 + (0.18 * clampedContrast))
+        let searchStrokeOpacity = min(0.28, 0.12 + (0.08 * clampedContrast))
+        let searchDarkenOpacity = 0.10 * clampedContrast
+        let actionTint = Color.black.opacity(min(0.88, 0.44 + (0.34 * clampedContrast)))
         let spacing: CGFloat = 4
         let collapsedWidth: CGFloat = 30
         let playWidth: CGFloat = 64
@@ -374,7 +403,7 @@ struct NowPlayingPopover: View {
                 } label: {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(searchForeground.opacity(0.90))
                         .frame(width: 18, height: 18)
                         .frame(maxWidth: isSearchExpanded ? nil : .infinity, maxHeight: .infinity)
                 }
@@ -383,6 +412,7 @@ struct NowPlayingPopover: View {
                 TextField(searchPlaceholder, text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(searchForeground.opacity(0.94))
                     .focused($isSearchFocused)
                     .onSubmit { runSearchAction() }
                     .frame(width: isSearchExpanded ? textFieldWidth : 0, alignment: .leading)
@@ -391,10 +421,17 @@ struct NowPlayingPopover: View {
             }
             .padding(.horizontal, isSearchExpanded ? 8 : 0)
             .frame(width: containerWidth, height: 34, alignment: isSearchExpanded ? .leading : .center)
-            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.primary.opacity(0.08)))
+            .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(Color.primary.opacity(searchFillOpacity))
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(Color.black.opacity(searchDarkenOpacity))
+                }
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .stroke(.white.opacity(0.12), lineWidth: 1)
+                    .stroke(.white.opacity(searchStrokeOpacity), lineWidth: 1)
             )
             .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
             .onTapGesture {
@@ -411,6 +448,8 @@ struct NowPlayingPopover: View {
                 runSearchAction()
             }
             .buttonStyle(.borderedProminent)
+            .tint(actionTint)
+            .foregroundStyle(.white.opacity(0.95))
             .controlSize(.small)
             .frame(width: isSearchExpanded ? playWidth : 0)
             .opacity(isSearchExpanded ? 1 : 0)
@@ -600,6 +639,7 @@ private struct HoverHintModifier: ViewModifier {
 /// from receiving objectWillChange notifications on every 0.5-second elapsed tick.
 private struct PlaybackProgressBlock: View {
     @ObservedObject private var clock = PlaybackClock.shared
+    var contrastBoost: Double = 0
     let onSeek: (Double) -> Void
 
     var body: some View {
@@ -608,6 +648,7 @@ private struct PlaybackProgressBlock: View {
             elapsed: clock.elapsed,
             duration: clock.duration,
             canSeek: clock.canSeek,
+            contrastBoost: contrastBoost,
             onSeek: onSeek
         )
     }
@@ -765,9 +806,31 @@ private struct MiniNowPlayingCard: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 5)
                 .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.black.opacity(0.26))
-                        .overlay(
+                    GeometryReader { geo in
+                        ZStack {
+                            // Faux backdrop blur constrained to the control capsule bounds.
+                            if let artwork = model.artwork {
+                                Image(nsImage: artwork)
+                                    .resizable()
+                                    .interpolation(.high)
+                                    .scaledToFill()
+                                    .frame(width: geo.size.width, height: geo.size.height)
+                                    .blur(radius: 14)
+                                    .scaleEffect(1.01)
+                                    .opacity(0.85)
+                            }
+
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.black.opacity(0.30))
+                                .overlay(
+                                    Color(red: 0.60, green: 0.66, blue: 0.74)
+                                        .opacity(neutralWashOpacity * 0.65)
+                                )
+                                .overlay(
+                                    Color(red: 0.52, green: 0.61, blue: 0.76)
+                                        .opacity(blueFogOpacity * 0.65)
+                                )
+
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .fill(
                                     LinearGradient(
@@ -776,11 +839,13 @@ private struct MiniNowPlayingCard: View {
                                         endPoint: .bottom
                                     )
                                 )
-                        )
-                        .overlay(
+
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .stroke(.white.opacity(0.18), lineWidth: 1)
-                        )
+                        }
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
                 )
                 .shadow(color: .black.opacity(0.30), radius: 6, x: 0, y: 2)
                 .padding(.top, 10)
@@ -902,7 +967,14 @@ private struct MiniNowPlayingCard: View {
                             }
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
 
-                            OutputControlsRow(model: model, showDeviceName: false)
+                            OutputControlsRow(
+                                model: model,
+                                showDeviceName: false,
+                                showFavorite: model.canFavoriteCurrentTrack,
+                                favoriteIsActive: model.isCurrentTrackFavorited,
+                                favoritePulseToken: model.favoriteActionPulseToken,
+                                onFavorite: { _ = model.toggleCurrentTrackFavorite() }
+                            )
                                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                         }
                     }
@@ -1247,6 +1319,11 @@ private struct MiniExpandedLyricsPane: View {
             .padding(.horizontal, 14)
             .padding(.top, 12)
             .padding(.bottom, 10)
+            .overlay(alignment: .topTrailing) {
+                miniLyricsSourceBadge
+                    .padding(.top, 5)
+                    .padding(.trailing, 10)
+            }
         }
         .frame(height: max(0, visibleHeight), alignment: .top)
         .onAppear {
@@ -1303,6 +1380,38 @@ private struct MiniExpandedLyricsPane: View {
         return "\(progress.stage.displayTitle) · Attempt \(progress.attempt) of \(progress.maxAttempts)"
     }
 
+    @ViewBuilder
+    private var miniLyricsSourceBadge: some View {
+        if let source = model.lyricsPayload?.source, source != .none {
+            if source == .lrclib {
+                Button(action: openLRCLibWebsite) {
+                    Text("LRCLib")
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.58))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.white.opacity(0.10)))
+                        .overlay(Capsule().stroke(.white.opacity(0.14), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .help("Open LRCLIB website")
+            } else {
+                Text("Apple Music")
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.46))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.white.opacity(0.08)))
+                    .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
+            }
+        }
+    }
+
+    private func openLRCLibWebsite() {
+        guard let url = URL(string: "https://lrclib.net") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     private var lyricsScroll: some View {
         let lines = model.lyricsPayload?.lines ?? []
 
@@ -1346,19 +1455,21 @@ private struct MiniExpandedLyricsPane: View {
 private struct ModeToggleControl: View {
     let isMiniMode: Bool
     let transitionActive: Bool
+    var contrastBoost: Double = 0
     let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
+        let clampedContrast = min(max(contrastBoost, 0), 1)
         Button(action: action) {
             Image(systemName: isMiniMode ? "rectangle.expand.vertical" : "rectangle.compress.vertical")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.primary.opacity(0.92))
+                .foregroundStyle(.white.opacity(0.94))
                 .frame(width: 24, height: 24)
-                .background(Circle().fill(Color.primary.opacity(0.08)))
+                .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
                 .overlay(
                     Circle()
-                        .stroke(.white.opacity(hovering ? 0.24 : 0.16), lineWidth: 1)
+                        .stroke(.white.opacity(min(0.32, (hovering ? 0.24 : 0.16) + (0.08 * clampedContrast))), lineWidth: 1)
                 )
                 .scaleEffect(hovering ? 1.06 : 1.0)
         }
@@ -1492,15 +1603,17 @@ private final class LyricsScrollCoordinator {
 private struct RegularLyricsToggleControl: View {
     let isOn: Bool
     let lyricsState: LyricsState
+    var contrastBoost: Double = 0
     let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
+        let clampedContrast = min(max(contrastBoost, 0), 1)
         Button(action: action) {
             ZStack {
                 Image(systemName: isOn ? "quote.bubble.fill" : "quote.bubble")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.primary.opacity(isOn ? 0.98 : 0.88))
+                    .foregroundStyle(.white.opacity(isOn ? 0.98 : 0.90))
 
                 // Subtle loading indicator dot
 //                if lyricsState == .loading && !isOn {
@@ -1511,10 +1624,10 @@ private struct RegularLyricsToggleControl: View {
 //                }
             }
             .frame(width: 24, height: 24)
-            .background(Circle().fill(Color.primary.opacity(0.08)))
+            .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
             .overlay(
                 Circle()
-                    .stroke(.white.opacity(hovering ? 0.24 : 0.16), lineWidth: 1)
+                    .stroke(.white.opacity(min(0.32, (hovering ? 0.24 : 0.16) + (0.08 * clampedContrast))), lineWidth: 1)
             )
             .scaleEffect(hovering ? 1.06 : 1.0)
         }

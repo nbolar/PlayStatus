@@ -89,6 +89,7 @@ final class NowPlayingModel: ObservableObject {
         Color.white.opacity(0.10),
         Color.clear
     ]
+    @Published var regularControlsContrastBoost: Double = 0
     @Published var statusBarConfigRevision: Int = 0
     @Published var menuBarDisplayTitle: String = "Not Playing"
     @Published var availableOutputDevices: [AudioOutputDevice] = []
@@ -97,6 +98,8 @@ final class NowPlayingModel: ObservableObject {
     @Published var outputMuted: Bool = false
     @Published var persistentCacheUsageText: String = "0 MB"
     @Published var isClearingPersistentCache: Bool = false
+    @Published var isCurrentTrackFavorited: Bool = false
+    @Published var favoriteActionPulseToken: Int = 0
     @Published var popoverModeTransitionToken: Int = 0
     @Published var miniLyricsTransitionToken: Int = 0
     @Published var lyricsPayload: LyricsPayload? {
@@ -291,6 +294,7 @@ final class NowPlayingModel: ObservableObject {
         return isPlaying ? "Playing" : "Paused"
     }
     var launchAtLoginEnabled: Bool { launchAtLoginStatus() == .enabled }
+    var canFavoriteCurrentTrack: Bool { provider == .music && !title.isEmpty }
     var resolvedSearchProvider: NowPlayingProvider {
         switch provider {
         case .music, .spotify:
@@ -392,7 +396,8 @@ final class NowPlayingModel: ObservableObject {
         a.isPlaying == b.isPlaying &&
         a.title == b.title &&
         a.artist == b.artist &&
-        a.album == b.album
+        a.album == b.album &&
+        a.isFavorited == b.isFavorited
     }
 
     private func apply(snapshot: NowPlayingSnapshot) {
@@ -406,6 +411,7 @@ final class NowPlayingModel: ObservableObject {
             self.title = snapshot.title
             self.artist = snapshot.artist
             self.album = snapshot.album
+            self.isCurrentTrackFavorited = snapshot.provider == .music ? snapshot.isFavorited : false
             PlaybackClock.shared.elapsed = snapshot.elapsed
             PlaybackClock.shared.duration = snapshot.duration
             self.artwork = snapshot.artwork
@@ -544,7 +550,7 @@ final class NowPlayingModel: ObservableObject {
     private func fetchLyricsWithRetry(for descriptor: LyricsTrackDescriptor, forceRefresh: Bool) async -> LyricsFetchOutcome {
         let maxAttempts = 3
         var attempt = 0
-        var lastOutcome: LyricsFetchOutcome = .unavailable
+        var lastLRCLIBOutcome: LyricsFetchOutcome = .unavailable
         let trackKey = descriptor.cacheKey
 
         while attempt < maxAttempts {
@@ -554,7 +560,9 @@ final class NowPlayingModel: ObservableObject {
             let attemptNumber = attempt + 1
             let outcome = await LyricsService.shared.fetchLyrics(
                 for: descriptor,
-                forceRefresh: shouldForceRefresh
+                forceRefresh: shouldForceRefresh,
+                mode: .lrclibOnly,
+                cacheUnavailableResult: false
             ) { [weak self] stage in
                 guard let self else { return }
                 Task { @MainActor [weak self] in
@@ -574,21 +582,56 @@ final class NowPlayingModel: ObservableObject {
                     )
                 }
             }
-            lastOutcome = outcome
+            lastLRCLIBOutcome = outcome
 
             switch outcome {
             case .available:
                 return outcome
             case .unavailable, .failed:
                 attempt += 1
-                guard attempt < maxAttempts else { return outcome }
+                guard attempt < maxAttempts else { break }
                 let delaySeconds = 0.9 + (Double(attempt - 1) * 0.7)
                 let delayNanos = UInt64(delaySeconds * 1_000_000_000)
                 try? await Task.sleep(nanoseconds: delayNanos)
             }
         }
 
-        return lastOutcome
+        if Task.isCancelled { return .failed }
+
+        let musicFallbackOutcome = await LyricsService.shared.fetchLyrics(
+            for: descriptor,
+            forceRefresh: true,
+            mode: .musicOnly,
+            cacheUnavailableResult: true
+        ) { [weak self] stage in
+            guard let self else { return }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard self.currentLyricsTrackKey == trackKey else { return }
+                guard self.provider == descriptor.provider,
+                      self.title == descriptor.title,
+                      self.artist == descriptor.artist,
+                      self.album == descriptor.album else { return }
+
+                self.lyricsLoadingProgress = LyricsLoadingProgress(
+                    attempt: maxAttempts,
+                    maxAttempts: maxAttempts,
+                    stage: stage,
+                    stageIndex: stage.rawValue,
+                    stageCount: LyricsLoadingStage.allCases.count
+                )
+            }
+        }
+
+        switch musicFallbackOutcome {
+        case .available:
+            return musicFallbackOutcome
+        case .failed:
+            return .failed
+        case .unavailable:
+            if case .failed = lastLRCLIBOutcome { return .failed }
+            return .unavailable
+        }
     }
 
     private func updateTint(from image: NSImage?) {
@@ -597,7 +640,9 @@ final class NowPlayingModel: ObservableObject {
         }
 
         guard let image else {
+            let neutral = NSColor.white
             glassTint = .white
+            regularControlsContrastBoost = controlContrastBoost(for: neutral)
             cardBackgroundPalette = [
                 Color.white.opacity(scaleOpacity(0.24)),
                 Color.white.opacity(scaleOpacity(0.20)),
@@ -610,6 +655,7 @@ final class NowPlayingModel: ObservableObject {
 
         let average = image.averageColor() ?? NSColor.white
         glassTint = Color(average)
+        regularControlsContrastBoost = controlContrastBoost(for: average)
 
         if let palette = image.artworkPalette() {
             let opacities: [Double] = [0.62, 0.56, 0.48, 0.40, 0.32, 0.24, 0.18]
@@ -625,6 +671,14 @@ final class NowPlayingModel: ObservableObject {
                 Color.clear
             ]
         }
+    }
+
+    private func controlContrastBoost(for color: NSColor) -> Double {
+        let rgb = color.usingColorSpace(.deviceRGB) ?? color
+        let luminance = (0.2126 * Double(rgb.redComponent))
+            + (0.7152 * Double(rgb.greenComponent))
+            + (0.0722 * Double(rgb.blueComponent))
+        return min(max((luminance - 0.56) / 0.30, 0), 1)
     }
 
     // MARK: - Menu bar marquee (safe for status items)
@@ -764,13 +818,28 @@ final class NowPlayingModel: ObservableObject {
     }
 
     func likeCurrentSong() {
-        switch provider {
-        case .music, .none:
-            MusicProvider.likeCurrentTrack()
-        case .spotify:
-            // Spotify AppleScript does not expose a stable "like current track" command.
-            break
+        _ = toggleCurrentTrackFavorite()
+    }
+
+    @discardableResult
+    func favoriteCurrentTrack() -> Bool {
+        toggleCurrentTrackFavorite()
+    }
+
+    @discardableResult
+    func toggleCurrentTrackFavorite() -> Bool {
+        guard canFavoriteCurrentTrack else {
+            return false
         }
+
+        guard let updatedState = MusicProvider.toggleCurrentTrackFavorite() else {
+            NSLog("PlayStatus favorite toggle failed: Apple Music did not confirm favorite action")
+            return false
+        }
+
+        isCurrentTrackFavorited = updatedState
+        favoriteActionPulseToken &+= 1
+        return true
     }
 
     func searchAndPlayInMusicLibrary(query: String) {

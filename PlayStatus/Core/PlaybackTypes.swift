@@ -153,6 +153,7 @@ struct NowPlayingSnapshot: Equatable {
     var elapsed: Double
     var duration: Double
     var canSeek: Bool
+    var isFavorited: Bool = false
     var lyrics: LyricsPayload? = nil
     var lyricsState: LyricsState = .idle
 }

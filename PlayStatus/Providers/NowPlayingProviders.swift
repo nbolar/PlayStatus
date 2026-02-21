@@ -16,12 +16,20 @@ enum MusicProvider {
                     set tAlbum to album of current track
                     set tDur to duration of current track
                     set pPos to player position
-                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDur as string) & "||" & (pPos as string)
+                    set tLoved to false
+                    try
+                        set tLoved to (favorited of current track as boolean)
+                    on error
+                        try
+                            set tLoved to (loved of current track as boolean)
+                        end try
+                    end try
+                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDur as string) & "||" & (pPos as string) & "||" & (tLoved as string)
                 else
-                    return pState & "||||||"
+                    return pState & "|||||||"
                 end if
             else
-                return "stopped||||||"
+                return "stopped|||||||"
             end if
         end tell
         """
@@ -36,6 +44,7 @@ enum MusicProvider {
         let album = parts.count > 3 ? parts[3] : ""
         let duration = Double(parts.count > 4 ? parts[4] : "") ?? 0
         let elapsed = Double(parts.count > 5 ? parts[5] : "") ?? 0
+        let isFavorited = parseAppleScriptBoolean(parts.count > 6 ? parts[6] : "") ?? false
 
         let trackKey = "\(title)|\(artist)|\(album)"
         var artwork: NSImage? = nil
@@ -79,13 +88,35 @@ enum MusicProvider {
             nativeArtworkState: artwork == nil ? .none : .available,
             elapsed: elapsed,
             duration: duration,
-            canSeek: duration > 0.5
+            canSeek: duration > 0.5,
+            isFavorited: isFavorited
         )
     }
 
     static func playPause() { _ = runAppleScript(#"tell application "Music" to playpause"#) }
     static func next() { _ = runAppleScript(#"tell application "Music" to next track"#) }
-    static func previous() { _ = runAppleScript(#"tell application "Music" to previous track"#) }
+    static func previous() {
+        let script = """
+        tell application "Music"
+            if it is running then
+                try
+                    set previousTrackID to (persistent ID of current track as string)
+                    previous track
+                    delay 0.08
+                    set currentTrackID to (persistent ID of current track as string)
+                    if currentTrackID is previousTrackID then
+                        set player position to 0
+                    end if
+                on error
+                    try
+                        set player position to 0
+                    end try
+                end try
+            end if
+        end tell
+        """
+        _ = runAppleScript(script)
+    }
     static func seek(to seconds: Double) {
         let s = max(0, seconds)
         _ = runAppleScript(#"tell application "Music" to set player position to "# + "\(s)")
@@ -122,17 +153,84 @@ enum MusicProvider {
         _ = runAppleScript(script)
     }
 
-    static func likeCurrentTrack() {
+    @discardableResult
+    static func likeCurrentTrack() -> Bool {
+        setCurrentTrackFavorited(true) != nil
+    }
+
+    @discardableResult
+    static func setCurrentTrackFavorited(_ isFavorited: Bool) -> Bool? {
+        let targetValue = isFavorited ? "true" : "false"
         let script = """
         tell application "Music"
             if it is running then
                 try
-                    set loved of current track to true
+                    set favorited of current track to \(targetValue)
+                    return (favorited of current track as string)
+                on error
+                    try
+                        set loved of current track to \(targetValue)
+                        return (loved of current track as string)
+                    on error
+                        return "__error__"
+                    end try
                 end try
+            else
+                return "__error__"
             end if
         end tell
         """
-        _ = runAppleScript(script)
+        guard let confirmedState = parseAppleScriptBoolean(runAppleScript(script)),
+              confirmedState == isFavorited else {
+            return nil
+        }
+        return confirmedState
+    }
+
+    @discardableResult
+    static func toggleCurrentTrackFavorite() -> Bool? {
+        guard let current = currentTrackFavoritedState() else { return nil }
+        return setCurrentTrackFavorited(!current)
+    }
+
+    static func isCurrentTrackFavorited() -> Bool {
+        currentTrackFavoritedState() ?? false
+    }
+
+    private static func currentTrackFavoritedState() -> Bool? {
+        let script = """
+        tell application "Music"
+            if it is running then
+                try
+                    return (favorited of current track as string)
+                on error
+                    try
+                        return (loved of current track as string)
+                    on error
+                        return "__error__"
+                    end try
+                end try
+            else
+                return "__error__"
+            end if
+        end tell
+        """
+        return parseAppleScriptBoolean(runAppleScript(script))
+    }
+
+    private static func parseAppleScriptBoolean(_ raw: String?) -> Bool? {
+        guard let raw else { return nil }
+        let normalized = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        switch normalized {
+        case "true", "1", "yes":
+            return true
+        case "false", "0", "no":
+            return false
+        default:
+            return nil
+        }
     }
 
 }

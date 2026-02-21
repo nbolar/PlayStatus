@@ -305,7 +305,7 @@ enum AppHotkeyAction: UInt32, CaseIterable {
         case .nextTrack: return "Next Track"
         case .previousTrack: return "Previous Track"
         case .togglePopover: return "Toggle Popover"
-        case .likeSong: return "Like Song"
+        case .likeSong: return "Toggle Favorite"
         }
     }
     
