@@ -111,10 +111,11 @@ struct NowPlayingSecondaryMarquee: View {
     private let gap: CGFloat = 88
     private let speed: CGFloat = 26
     private let leadInDelay: Double = 0.55
+    private var secondaryFontSize: CGFloat { usesSecondaryStyle ? 12 : 14 }
 
     private var resolvedText: String { text.isEmpty ? " " : text }
     private var textWidth: CGFloat {
-        measuredTextWidth(resolvedText, font: .systemFont(ofSize: 12, weight: .medium))
+        measuredTextWidth(resolvedText, font: .systemFont(ofSize: secondaryFontSize, weight: .medium))
     }
     private var shouldScroll: Bool { isVisible && enabled && textWidth > laneWidth + 2 }
     private var travel: CGFloat { textWidth + gap }
@@ -150,13 +151,13 @@ struct NowPlayingSecondaryMarquee: View {
         Group {
             if usesSecondaryStyle {
                 Text(resolvedText)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.system(size: secondaryFontSize, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
             } else {
                 Text(resolvedText)
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .font(.system(size: secondaryFontSize, weight: .medium, design: .rounded))
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -167,13 +168,13 @@ struct NowPlayingSecondaryMarquee: View {
         Group {
             if usesSecondaryStyle {
                 Text(resolvedText)
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .font(.system(size: secondaryFontSize, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             } else {
                 Text(resolvedText)
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .font(.system(size: secondaryFontSize, weight: .medium, design: .rounded))
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }

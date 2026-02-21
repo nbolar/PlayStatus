@@ -160,6 +160,7 @@ struct NowPlayingPopover: View {
         let resolvedRegularHeight = model.isPopoverVisible
             ? max(baseRegularHeight, availableHeight)
             : model.regularPopoverHeight
+        let regularMarqueeLaneWidth = min(272, max(130, model.popoverWidth - model.artworkDisplaySize - 78))
         let visibleRegularLyricsHeight = min(
             model.regularLyricsPaneHeight,
             max(0, resolvedRegularHeight - baseRegularHeight)
@@ -209,7 +210,8 @@ struct NowPlayingPopover: View {
                             NowPlayingTitleMarquee(
                                 text: model.displayTitle,
                                 enabled: true,
-                                isVisible: model.isPopoverVisible
+                                isVisible: model.isPopoverVisible,
+                                laneWidth: regularMarqueeLaneWidth
                             )
                             .contentShape(Rectangle())
                         }
@@ -219,7 +221,7 @@ struct NowPlayingPopover: View {
                             text: model.artistAlbumLine,
                             enabled: true,
                             isVisible: model.isPopoverVisible,
-                            laneWidth: min(320, max(130, model.popoverWidth - model.artworkDisplaySize - 78)),
+                            laneWidth: regularMarqueeLaneWidth,
                             usesSecondaryStyle: false
                         )
 
@@ -289,10 +291,10 @@ struct NowPlayingPopover: View {
                             )
                     }
                     .buttonStyle(.plain)
-                    .stableToolTip("Settings")
+                    .hoverHint("Settings", enabled: !modeTransitionActive)
                 }
                 .padding(.top, 8)
-                .padding(.trailing, 8)
+                .padding(.trailing, 14)
             }
 
             if shouldRenderRegularLyricsPane {
@@ -502,27 +504,95 @@ private extension View {
         }
     }
 
-    func stableToolTip(_ text: String) -> some View {
-        background(StableToolTipView(text: text))
+    func hoverHint(_ text: String, enabled: Bool = true) -> some View {
+        modifier(HoverHintModifier(text: text, enabled: enabled))
     }
 }
 
-private struct StableToolTipView: NSViewRepresentable {
+private struct HoverHintModifier: ViewModifier {
     let text: String
+    let enabled: Bool
+    private let delay: Double = 0.32
 
-    func makeNSView(context: Context) -> TooltipPassthroughView {
-        let view = TooltipPassthroughView()
-        view.toolTip = text
-        return view
+    @State private var hovering = false
+    @State private var showHint = false
+    @State private var workItem: DispatchWorkItem?
+
+    func body(content: Content) -> some View {
+        content
+            .onHover { hovering in
+                guard enabled else {
+                    resetState()
+                    return
+                }
+                self.hovering = hovering
+                if hovering {
+                    scheduleShowHint()
+                } else {
+                    hideHint()
+                }
+            }
+            .onChange(of: enabled) { isEnabled in
+                if !isEnabled {
+                    resetState()
+                }
+            }
+            .onDisappear {
+                resetState()
+            }
+            .overlay(alignment: .bottom) {
+                if showHint {
+                    Text(text)
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.94))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(Color.black.opacity(0.72))
+                                .overlay(
+                                    Capsule()
+                                        .stroke(.white.opacity(0.16), lineWidth: 1)
+                                )
+                        )
+                        .fixedSize()
+                        .offset(y: 28)
+                        .transition(.opacity)
+                        .allowsHitTesting(false)
+                        .zIndex(20)
+                }
+            }
     }
 
-    func updateNSView(_ nsView: TooltipPassthroughView, context: Context) {
-        nsView.toolTip = text
-    }
-}
+    private func scheduleShowHint() {
+        workItem?.cancel()
+        workItem = nil
 
-private final class TooltipPassthroughView: NSView {
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        let item = DispatchWorkItem {
+            guard hovering, enabled else { return }
+            withAnimation(.easeOut(duration: 0.14)) {
+                showHint = true
+            }
+            workItem = nil
+        }
+        workItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+    }
+
+    private func hideHint() {
+        workItem?.cancel()
+        workItem = nil
+        withAnimation(.easeOut(duration: 0.12)) {
+            showHint = false
+        }
+    }
+
+    private func resetState() {
+        workItem?.cancel()
+        workItem = nil
+        hovering = false
+        showHint = false
+    }
 }
 
 /// Thin wrapper around ProgressBlock that observes PlaybackClock instead of
@@ -583,6 +653,7 @@ private struct MiniNowPlayingCard: View {
         )
         let shouldRenderMiniLyricsPane = showMiniLyricsPane || visibleLyricsHeight > 0.5
         let seamOpacity = min(1, max(0, visibleLyricsHeight / max(1, model.miniLyricsPaneHeight)))
+        let miniMarqueeLaneWidth = max(120, model.popoverWidth - 64)
 
         return VStack(spacing: 0) {
             ZStack {
@@ -689,7 +760,7 @@ private struct MiniNowPlayingCard: View {
                             )
                     }
                     .buttonStyle(.plain)
-                    .stableToolTip("Settings")
+                    .hoverHint("Settings", enabled: !transitionActive)
                 }
                 .padding(.horizontal, 6)
                 .padding(.vertical, 5)
@@ -715,6 +786,7 @@ private struct MiniNowPlayingCard: View {
                 .padding(.top, 10)
                 .padding(.trailing, 10)
                 .opacity(controlsVisible ? 1 : 0)
+                .allowsHitTesting(controlsVisible)
             }
             .overlay(alignment: .bottom) {
                 ZStack(alignment: .bottom) {
@@ -795,7 +867,8 @@ private struct MiniNowPlayingCard: View {
                             NowPlayingTitleMarquee(
                                 text: model.displayTitle,
                                 enabled: true,
-                                isVisible: model.isPopoverVisible
+                                isVisible: model.isPopoverVisible,
+                                laneWidth: miniMarqueeLaneWidth
                             )
                             .foregroundStyle(.white.opacity(0.98))
                             .shadow(color: .black.opacity(primaryShadowOpacity), radius: 2.5, x: 0, y: 1.2)
@@ -807,7 +880,7 @@ private struct MiniNowPlayingCard: View {
                             text: model.artistAlbumLine,
                             enabled: true,
                             isVisible: model.isPopoverVisible,
-                            laneWidth: max(120, model.popoverWidth - 64),
+                            laneWidth: miniMarqueeLaneWidth,
                             usesSecondaryStyle: false
                         )
                         .foregroundStyle(.white.opacity(0.90))
@@ -1301,7 +1374,7 @@ private struct ModeToggleControl: View {
                 self.hovering = hovering
             }
         }
-        .stableToolTip(isMiniMode ? "Switch to regular mode" : "Switch to mini mode")
+        .hoverHint(isMiniMode ? "Switch to regular mode" : "Switch to mini mode", enabled: !transitionActive)
     }
 }
 
@@ -1324,6 +1397,7 @@ private struct MiniLyricsToggleControl: View {
                 )
                 .scaleEffect(hovering ? 1.06 : 1.0)
         }
+        .contentShape(Rectangle())
         .buttonStyle(.plain)
         .onHover { hovering in
             guard !transitionActive else {
@@ -1334,7 +1408,7 @@ private struct MiniLyricsToggleControl: View {
                 self.hovering = hovering
             }
         }
-        .stableToolTip(isOn ? "Hide lyrics" : "Show lyrics")
+        .hoverHint(isOn ? "Hide lyrics" : "Show lyrics", enabled: !transitionActive)
     }
 }
 
@@ -1450,7 +1524,7 @@ private struct RegularLyricsToggleControl: View {
                 hovering = h
             }
         }
-        .stableToolTip(isOn ? "Hide lyrics" : "Show lyrics")
+        .hoverHint(isOn ? "Hide lyrics" : "Show lyrics")
         .animation(.easeInOut(duration: 0.18), value: isOn)
     }
 }
