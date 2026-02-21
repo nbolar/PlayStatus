@@ -111,7 +111,7 @@ struct NowPlayingSecondaryMarquee: View {
     private let gap: CGFloat = 88
     private let speed: CGFloat = 26
     private let leadInDelay: Double = 0.55
-    private var secondaryFontSize: CGFloat { usesSecondaryStyle ? 12 : 14 }
+    private var secondaryFontSize: CGFloat { usesSecondaryStyle ? 11 : 13 }
 
     private var resolvedText: String { text.isEmpty ? " " : text }
     private var textWidth: CGFloat {
