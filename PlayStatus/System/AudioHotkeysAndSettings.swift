@@ -649,6 +649,8 @@ struct PlayStatusSettingsView: View {
             hotkeysContent
         case .system:
             systemContent
+        case .license:
+            licenseContent
         }
     }
 
@@ -797,11 +799,11 @@ struct PlayStatusSettingsView: View {
 
             Divider().padding(.vertical, 2)
 
-            SettingsToggleRow(
-                title: "Show Lyrics Panel",
-                caption: "Displays an expandable lyrics section in the popover.",
-                isOn: $model.showLyricsPanel
-            )
+//            SettingsToggleRow(
+//                title: "Show Lyrics Panel",
+//                caption: "Displays an expandable lyrics section in the popover.",
+//                isOn: $model.showLyricsPanel
+//            )
             SettingsToggleRow(
                 title: "Expand Lyrics by Default",
                 caption: "Opens the lyrics section automatically for new tracks.",
@@ -873,6 +875,54 @@ struct PlayStatusSettingsView: View {
             }
         }
     }
+
+    private var licenseContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("PlayStatus is distributed under the MIT License.")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            Text(mitLicenseText)
+                .textSelection(.enabled)
+                .font(.system(size: 12, weight: .regular, design: .monospaced))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(.white.opacity(0.10), lineWidth: 1)
+                        )
+                )
+        }
+    }
+
+    private var mitLicenseText: String {
+        """
+        MIT License
+
+        Copyright (c) 2019-2026 Nikhil Bolar
+
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        """
+    }
 }
 
 private enum SettingsTab: String, CaseIterable {
@@ -880,6 +930,7 @@ private enum SettingsTab: String, CaseIterable {
     case playback
     case hotkeys
     case system
+    case license
 
     var title: String {
         switch self {
@@ -887,6 +938,7 @@ private enum SettingsTab: String, CaseIterable {
         case .playback: return "Playback"
         case .system: return "System"
         case .hotkeys: return "Hotkeys"
+        case .license: return "License"
         }
     }
 
@@ -896,6 +948,7 @@ private enum SettingsTab: String, CaseIterable {
         case .playback: return "Player source and priority"
         case .system: return "Startup and updates"
         case .hotkeys: return "Global keyboard shortcuts"
+        case .license: return "Open-source terms"
         }
     }
 
@@ -905,6 +958,7 @@ private enum SettingsTab: String, CaseIterable {
         case .playback: return "waveform"
         case .system: return "gearshape.2"
         case .hotkeys: return "keyboard"
+        case .license: return "doc.text"
         }
     }
 
@@ -914,6 +968,7 @@ private enum SettingsTab: String, CaseIterable {
         case .playback: return 1
         case .hotkeys: return 2
         case .system: return 3
+        case .license: return 4
         }
     }
 
@@ -927,6 +982,8 @@ private enum SettingsTab: String, CaseIterable {
             return CGSize(width: 780, height: 520)
         case .system:
             return CGSize(width: 780, height: 430)
+        case .license:
+            return CGSize(width: 780, height: 620)
         }
     }
 }
@@ -984,6 +1041,7 @@ private struct SettingsSidebar: View {
             } label: {
                 Label("Quit PlayStatus", systemImage: "power")
                     .foregroundStyle(Color.accentColor.opacity(0.95))
+                    .font(.system(size: 12,weight: .semibold,design: .rounded))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
