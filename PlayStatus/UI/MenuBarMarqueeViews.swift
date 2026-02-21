@@ -156,7 +156,7 @@ struct NowPlayingSecondaryMarquee: View {
                     .truncationMode(.tail)
             } else {
                 Text(resolvedText)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -167,13 +167,13 @@ struct NowPlayingSecondaryMarquee: View {
         Group {
             if usesSecondaryStyle {
                 Text(resolvedText)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             } else {
                 Text(resolvedText)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }

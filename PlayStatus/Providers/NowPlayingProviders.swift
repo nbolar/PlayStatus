@@ -97,18 +97,25 @@ enum MusicProvider {
             .replacingOccurrences(of: "\"", with: "\\\"")
         let script = """
         tell application "Music"
-            if it is running then
-                set search_results to (search library playlist 1 for "\(escaped)")
-                if (count of search_results) > 0 then
-                    play item 1 of search_results
-                end if
-            else
+            if it is not running then
                 activate
                 delay 1
-                set search_results to (search library playlist 1 for "\(escaped)")
-                if (count of search_results) > 0 then
+            end if
+
+            set search_results to (search library playlist 1 for "\(escaped)")
+            if (count of search_results) > 0 then
+                try
+                    play search_results
+                on error
                     play item 1 of search_results
-                end if
+                end try
+
+                try
+                    set song repeat of library playlist 1 to all
+                end try
+                try
+                    set shuffle enabled of library playlist 1 to true
+                end try
             end if
         end tell
         """

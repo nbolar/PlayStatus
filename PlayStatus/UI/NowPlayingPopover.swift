@@ -279,7 +279,7 @@ struct NowPlayingPopover: View {
 
                     SettingsOpenControl {
                         Image(systemName: "gearshape.fill")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(.primary.opacity(0.9))
                             .frame(width: 24, height: 24)
                             .background(Circle().fill(Color.primary.opacity(0.08)))
@@ -289,7 +289,7 @@ struct NowPlayingPopover: View {
                             )
                     }
                     .buttonStyle(.plain)
-                    .help("Settings")
+                    .stableToolTip("Settings")
                 }
                 .padding(.top, 8)
                 .padding(.trailing, 8)
@@ -501,6 +501,28 @@ private extension View {
             self
         }
     }
+
+    func stableToolTip(_ text: String) -> some View {
+        background(StableToolTipView(text: text))
+    }
+}
+
+private struct StableToolTipView: NSViewRepresentable {
+    let text: String
+
+    func makeNSView(context: Context) -> TooltipPassthroughView {
+        let view = TooltipPassthroughView()
+        view.toolTip = text
+        return view
+    }
+
+    func updateNSView(_ nsView: TooltipPassthroughView, context: Context) {
+        nsView.toolTip = text
+    }
+}
+
+private final class TooltipPassthroughView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 /// Thin wrapper around ProgressBlock that observes PlaybackClock instead of
@@ -658,7 +680,7 @@ private struct MiniNowPlayingCard: View {
 
                     SettingsOpenControl {
                         Image(systemName: "gearshape.fill")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.94))
                             .frame(width: 26, height: 26)
                             .background(Circle().fill(Color.white.opacity(0.14)))
@@ -667,7 +689,7 @@ private struct MiniNowPlayingCard: View {
                             )
                     }
                     .buttonStyle(.plain)
-                    .help("Settings")
+                    .stableToolTip("Settings")
                 }
                 .padding(.horizontal, 6)
                 .padding(.vertical, 5)
@@ -1257,7 +1279,7 @@ private struct ModeToggleControl: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: isMiniMode ? "rectangle.expand.vertical" : "rectangle.compress.vertical")
-                .font(.system(size: 11.5, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.primary.opacity(0.92))
                 .frame(width: 24, height: 24)
                 .background(Circle().fill(Color.primary.opacity(0.08)))
@@ -1279,7 +1301,7 @@ private struct ModeToggleControl: View {
                 self.hovering = hovering
             }
         }
-        .help(isMiniMode ? "Switch to regular mode" : "Switch to mini mode")
+        .stableToolTip(isMiniMode ? "Switch to regular mode" : "Switch to mini mode")
     }
 }
 
@@ -1292,7 +1314,7 @@ private struct MiniLyricsToggleControl: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: isOn ? "quote.bubble.fill" : "quote.bubble")
-                .font(.system(size: 11.5, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.primary.opacity(isOn ? 0.98 : 0.90))
                 .frame(width: 24, height: 24)
                 .background(Circle().fill(Color.white.opacity(0.14)))
@@ -1312,7 +1334,7 @@ private struct MiniLyricsToggleControl: View {
                 self.hovering = hovering
             }
         }
-        .help(isOn ? "Hide lyrics" : "Show lyrics")
+        .stableToolTip(isOn ? "Hide lyrics" : "Show lyrics")
     }
 }
 
@@ -1403,7 +1425,7 @@ private struct RegularLyricsToggleControl: View {
         Button(action: action) {
             ZStack {
                 Image(systemName: isOn ? "quote.bubble.fill" : "quote.bubble")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.primary.opacity(isOn ? 0.98 : 0.88))
 
                 // Subtle loading indicator dot
@@ -1428,7 +1450,7 @@ private struct RegularLyricsToggleControl: View {
                 hovering = h
             }
         }
-        .help(isOn ? "Hide lyrics" : "Show lyrics")
+        .stableToolTip(isOn ? "Hide lyrics" : "Show lyrics")
         .animation(.easeInOut(duration: 0.18), value: isOn)
     }
 }
@@ -1503,7 +1525,7 @@ private struct RegularLyricsPane: View {
                 // Header label — plain color fill, no system material
                 HStack {
                     Label("Lyrics", systemImage: "quote.bubble.fill")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.62))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)

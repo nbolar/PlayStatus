@@ -529,21 +529,29 @@ func openSettingsWindow() {
 
 struct SettingsOpenControl<Label: View>: View {
     @ViewBuilder var label: () -> Label
+    @State private var hovering = false
 
     var body: some View {
-        if #available(macOS 14.0, *) {
-            SettingsLink {
-                label()
-            }
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    NSApp.activate(ignoringOtherApps: true)
+        Group {
+            if #available(macOS 14.0, *) {
+                SettingsLink {
+                    label()
                 }
-            )
-        } else {
-            Button(action: openSettingsWindow) {
-                label()
+                .simultaneousGesture(
+                    TapGesture().onEnded {
+                        NSApp.activate(ignoringOtherApps: true)
+                    }
+                )
+            } else {
+                Button(action: openSettingsWindow) {
+                    label()
+                }
             }
+        }
+        .scaleEffect(hovering ? 1.06 : 1.0)
+        .animation(.easeOut(duration: 0.16), value: hovering)
+        .onHover { isHovering in
+            hovering = isHovering
         }
     }
 }
