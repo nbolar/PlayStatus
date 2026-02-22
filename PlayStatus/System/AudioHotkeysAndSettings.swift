@@ -882,6 +882,24 @@ struct PlayStatusSettingsView: View {
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.secondary)
 
+            Text("Lyrics Attribution and Disclaimer")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+
+            Text(lrclibAttributionAndDisclaimerText)
+                .textSelection(.enabled)
+                .font(.system(size: 12, weight: .regular,design: .monospaced))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(.white.opacity(0.10), lineWidth: 1)
+                        )
+                )
+
             Text(mitLicenseText)
                 .textSelection(.enabled)
                 .font(.system(size: 12, weight: .regular, design: .monospaced))
@@ -896,6 +914,16 @@ struct PlayStatusSettingsView: View {
                         )
                 )
         }
+    }
+
+    private var lrclibAttributionAndDisclaimerText: String {
+        """
+        PlayStatus may fetch lyrics from LRCLIB (https://lrclib.net) using LRCLIB's public API.
+
+        Lyrics are provided by third-party sources and may be inaccurate, incomplete, or unavailable. You are solely responsible for ensuring your use of lyrics complies with all applicable laws, licenses, and third-party terms.
+
+        By using PlayStatus lyrics features, you assume all risk. To the fullest extent permitted by law, the PlayStatus author and contributors disclaim liability for any claims, damages, losses, or legal issues arising from the fetching, display, storage, or use of third-party lyrics.
+        """
     }
 
     private var mitLicenseText: String {

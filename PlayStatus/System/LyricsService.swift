@@ -169,8 +169,7 @@ enum MusicLyricsProvider {
 enum LRCLIBLyricsProvider {
     private static let durationScoreWindowSeconds: Double = 10
     private static let requiredLooseSearchScore: Double = 0.9
-    private static let requestTimeoutSeconds: TimeInterval = 8
-    private static let maxSearchRequestsPerAttempt: Int = 2
+    private static let requestTimeoutSeconds: TimeInterval = 12
 
     private enum ExactAttemptResult {
         case available(payload: LyricsPayload, artistCandidate: String, url: URL)
@@ -274,36 +273,21 @@ enum LRCLIBLyricsProvider {
     ) async -> LyricsFetchOutcome {
         let artistCandidates = artistQueryCandidates(from: artist)
         var queryPlan: [SearchPlan] = []
-        queryPlan.reserveCapacity(maxSearchRequestsPerAttempt)
+        queryPlan.reserveCapacity(artistCandidates.count + 1)
 
-        let fullArtist = artistCandidates.first
-        let primaryArtist = artistCandidates.count > 1 ? artistCandidates.last : nil
-
-        // 1) track_name + artist_name (primary artist, if different)
-        if let primaryArtist {
-            queryPlan.append(SearchPlan(queryArtist: primaryArtist, requestKind: .trackArtist(primaryArtist)))
+        // Try track_name + artist_name for every parsed artist candidate.
+        for candidate in artistCandidates {
+            queryPlan.append(SearchPlan(queryArtist: candidate, requestKind: .trackArtist(candidate)))
         }
 
-        // 2) track_name + artist_name (full artist)
-        if queryPlan.count < maxSearchRequestsPerAttempt, let fullArtist {
-            queryPlan.append(SearchPlan(queryArtist: fullArtist, requestKind: .trackArtist(fullArtist)))
-        }
-
-        // 3) one broad q= fallback (primary/full artist)
-        if queryPlan.count < maxSearchRequestsPerAttempt {
-            let broadArtist = primaryArtist ?? fullArtist
-            if let broadArtist {
-                queryPlan.append(SearchPlan(queryArtist: broadArtist, requestKind: .broad("\(broadArtist) \(title)")))
-            }
-        }
-
-        // Defensive cap.
-        if queryPlan.count > maxSearchRequestsPerAttempt {
-            queryPlan = Array(queryPlan.prefix(maxSearchRequestsPerAttempt))
+        // Keep one broad fallback using the full input artist string.
+        if let fullArtist = artistCandidates.first {
+            queryPlan.append(SearchPlan(queryArtist: fullArtist, requestKind: .broad("\(fullArtist) \(title)")))
         }
 
         onProgress?(.lrclibSearch)
         var sawFailure = false
+        var bestResult: (payload: LyricsPayload, score: Double, durationDelta: Double, url: URL)?
         return await withTaskGroup(of: SearchAttemptResult.self, returning: LyricsFetchOutcome.self) { group in
             for plan in queryPlan {
                 group.addTask {
@@ -314,21 +298,31 @@ enum LRCLIBLyricsProvider {
             for await result in group {
                 switch result {
                 case .available(let payload, let score, let durationDelta, let url):
-                    #if DEBUG
-                    NSLog(
-                        "PlayStatus lyrics: lrclib_search_hit score=%.3f delta=%.1f url=%@",
-                        score,
-                        durationDelta,
-                        url.absoluteString
-                    )
-                    #endif
-                    group.cancelAll()
-                    return .available(payload)
+                    if let currentBest = bestResult {
+                        if score > currentBest.score ||
+                            (abs(score - currentBest.score) < 0.001 && durationDelta < currentBest.durationDelta) {
+                            bestResult = (payload, score, durationDelta, url)
+                        }
+                    } else {
+                        bestResult = (payload, score, durationDelta, url)
+                    }
                 case .failed:
                     sawFailure = true
                 case .unavailable:
                     break
                 }
+            }
+
+            if let bestResult {
+                #if DEBUG
+                NSLog(
+                    "PlayStatus lyrics: lrclib_search_hit score=%.3f delta=%.1f url=%@",
+                    bestResult.score,
+                    bestResult.durationDelta,
+                    bestResult.url.absoluteString
+                )
+                #endif
+                return .available(bestResult.payload)
             }
 
             return sawFailure ? .failed : .unavailable
@@ -492,24 +486,15 @@ enum LRCLIBLyricsProvider {
         let trimmed = artist.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
 
-        var candidates: [String] = []
-        candidates.append(trimmed)
+        let delimiterPattern = #"(?i)\s*(?:feat\.?|featuring|ft\.?|,|&|;|/|\bx\b|\band\b)\s*"#
+        let splitArtists = trimmed
+            .replacingOccurrences(of: delimiterPattern, with: "|", options: .regularExpression)
+            .split(separator: "|")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
 
-        let lower = trimmed.lowercased()
-        let delimiters = [" feat. ", " feat ", " featuring ", " ft. ", " ft ", ",", "&", " x ", " and ", ";", "/"]
-        var splitIndex: String.Index?
-        for delimiter in delimiters {
-            if let range = lower.range(of: delimiter), splitIndex == nil || range.lowerBound < splitIndex! {
-                splitIndex = range.lowerBound
-            }
-        }
-
-        if let splitIndex {
-            let firstArtist = String(trimmed[..<splitIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !firstArtist.isEmpty {
-                candidates.append(firstArtist)
-            }
-        }
+        var candidates: [String] = [trimmed]
+        candidates.append(contentsOf: splitArtists)
 
         var deduped: [String] = []
         for candidate in candidates {

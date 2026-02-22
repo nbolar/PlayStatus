@@ -548,16 +548,46 @@ final class NowPlayingModel: ObservableObject {
     }
 
     private func fetchLyricsWithRetry(for descriptor: LyricsTrackDescriptor, forceRefresh: Bool) async -> LyricsFetchOutcome {
-        let maxAttempts = 3
+        let maxAttempts = 2
         var attempt = 0
         var lastLRCLIBOutcome: LyricsFetchOutcome = .unavailable
         let trackKey = descriptor.cacheKey
+        let retryDelayNanos: UInt64 = 350_000_000
 
-        while attempt < maxAttempts {
+        #if DEBUG
+        let totalStartTime = CFAbsoluteTimeGetCurrent()
+        let outcomeDescription: (LyricsFetchOutcome) -> String = { outcome in
+            switch outcome {
+            case .available:
+                return "available"
+            case .unavailable:
+                return "unavailable"
+            case .failed:
+                return "failed"
+            }
+        }
+        let logTotal: (LyricsFetchOutcome, String) -> Void = { outcome, note in
+            let totalDuration = CFAbsoluteTimeGetCurrent() - totalStartTime
+            NSLog(
+                "PlayStatus lyrics timing: provider=%@ total=%.3fs outcome=%@ note=%@",
+                descriptor.provider.rawValue,
+                totalDuration,
+                outcomeDescription(outcome),
+                note
+            )
+        }
+        #endif
+
+        attemptLoop: while attempt < maxAttempts {
             if Task.isCancelled { return .failed }
 
             let shouldForceRefresh = forceRefresh || attempt > 0
             let attemptNumber = attempt + 1
+
+            #if DEBUG
+            let attemptStartTime = CFAbsoluteTimeGetCurrent()
+            #endif
+
             let outcome = await LyricsService.shared.fetchLyrics(
                 for: descriptor,
                 forceRefresh: shouldForceRefresh,
@@ -582,21 +612,48 @@ final class NowPlayingModel: ObservableObject {
                     )
                 }
             }
+
+            #if DEBUG
+            let attemptDuration = CFAbsoluteTimeGetCurrent() - attemptStartTime
+            NSLog(
+                "PlayStatus lyrics timing: provider=%@ phase=lrclib attempt=%d/%d duration=%.3fs outcome=%@",
+                descriptor.provider.rawValue,
+                attemptNumber,
+                maxAttempts,
+                attemptDuration,
+                outcomeDescription(outcome)
+            )
+            #endif
+
             lastLRCLIBOutcome = outcome
 
             switch outcome {
             case .available:
+                #if DEBUG
+                logTotal(outcome, "lrclib_success")
+                #endif
                 return outcome
-            case .unavailable, .failed:
+            case .failed:
                 attempt += 1
                 guard attempt < maxAttempts else { break }
-                let delaySeconds = 0.9 + (Double(attempt - 1) * 0.7)
-                let delayNanos = UInt64(delaySeconds * 1_000_000_000)
-                try? await Task.sleep(nanoseconds: delayNanos)
+                try? await Task.sleep(nanoseconds: retryDelayNanos)
+            case .unavailable:
+                break attemptLoop
             }
         }
 
         if Task.isCancelled { return .failed }
+
+        guard descriptor.provider == .music else {
+            #if DEBUG
+            logTotal(lastLRCLIBOutcome, "skip_music_fallback_non_music_provider")
+            #endif
+            return lastLRCLIBOutcome
+        }
+
+        #if DEBUG
+        let fallbackStartTime = CFAbsoluteTimeGetCurrent()
+        #endif
 
         let musicFallbackOutcome = await LyricsService.shared.fetchLyrics(
             for: descriptor,
@@ -623,13 +680,37 @@ final class NowPlayingModel: ObservableObject {
             }
         }
 
+        #if DEBUG
+        let fallbackDuration = CFAbsoluteTimeGetCurrent() - fallbackStartTime
+        NSLog(
+            "PlayStatus lyrics timing: provider=%@ phase=music_fallback duration=%.3fs outcome=%@",
+            descriptor.provider.rawValue,
+            fallbackDuration,
+            outcomeDescription(musicFallbackOutcome)
+        )
+        #endif
+
         switch musicFallbackOutcome {
         case .available:
+            #if DEBUG
+            logTotal(musicFallbackOutcome, "music_fallback_success")
+            #endif
             return musicFallbackOutcome
         case .failed:
+            #if DEBUG
+            logTotal(.failed, "music_fallback_failed")
+            #endif
             return .failed
         case .unavailable:
-            if case .failed = lastLRCLIBOutcome { return .failed }
+            if case .failed = lastLRCLIBOutcome {
+                #if DEBUG
+                logTotal(.failed, "lrclib_failed_and_music_unavailable")
+                #endif
+                return .failed
+            }
+            #if DEBUG
+            logTotal(.unavailable, "music_fallback_unavailable")
+            #endif
             return .unavailable
         }
     }
