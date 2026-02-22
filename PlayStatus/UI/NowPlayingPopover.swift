@@ -50,7 +50,7 @@ struct NowPlayingPopover: View {
         .clipped()
         .coordinateSpace(name: "popoverRoot")
         .onPreferenceChange(SearchSectionFramePreferenceKey.self) { frame in
-            searchSectionFrame = frame
+            updateSearchSectionFrame(frame)
         }
         .onChange(of: model.provider) { _ in
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -396,13 +396,11 @@ struct NowPlayingPopover: View {
                         withAnimation(spring) {
                             isSearchExpanded = true
                         }
-                        DispatchQueue.main.async {
-                            isSearchFocused = true
-                        }
+                        isSearchFocused = true
                     }
                 } label: {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 12, weight: .semibold))
+                        .imageScale(.small)
                         .foregroundStyle(searchForeground.opacity(0.90))
                         .frame(width: 18, height: 18)
                         .frame(maxWidth: isSearchExpanded ? nil : .infinity, maxHeight: .infinity)
@@ -439,9 +437,7 @@ struct NowPlayingPopover: View {
                 withAnimation(spring) {
                     isSearchExpanded = true
                 }
-                DispatchQueue.main.async {
-                    isSearchFocused = true
-                }
+                isSearchFocused = true
             }
 
             Button(actionLabel) {
@@ -465,7 +461,7 @@ struct NowPlayingPopover: View {
             GeometryReader { proxy in
                 Color.clear.preference(
                     key: SearchSectionFramePreferenceKey.self,
-                    value: proxy.frame(in: .named("popoverRoot"))
+                    value: isSearchExpanded ? proxy.frame(in: .named("popoverRoot")) : .zero
                 )
             }
         )
@@ -476,6 +472,32 @@ struct NowPlayingPopover: View {
                 }
             }
         }
+    }
+
+    private func updateSearchSectionFrame(_ frame: CGRect) {
+        guard isSearchExpanded else {
+            if searchSectionFrame != .zero {
+                searchSectionFrame = .zero
+            }
+            return
+        }
+
+        let snappedFrame = CGRect(
+            x: frame.origin.x.rounded(),
+            y: frame.origin.y.rounded(),
+            width: frame.size.width.rounded(),
+            height: frame.size.height.rounded()
+        )
+
+        guard !rectApproximatelyEqual(searchSectionFrame, snappedFrame, tolerance: 0.5) else { return }
+        searchSectionFrame = snappedFrame
+    }
+
+    private func rectApproximatelyEqual(_ lhs: CGRect, _ rhs: CGRect, tolerance: CGFloat) -> Bool {
+        abs(lhs.origin.x - rhs.origin.x) <= tolerance &&
+        abs(lhs.origin.y - rhs.origin.y) <= tolerance &&
+        abs(lhs.size.width - rhs.size.width) <= tolerance &&
+        abs(lhs.size.height - rhs.size.height) <= tolerance
     }
 
     private func runSearchAction() {

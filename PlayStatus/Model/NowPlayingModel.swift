@@ -32,8 +32,9 @@ final class NowPlayingModel: ObservableObject {
     @AppStorage("providerPriority") private var providerPriorityRaw: String = ProviderPriority.musicFirst.rawValue { didSet { refresh() } }
     @AppStorage("menuBarTextMode") private var menuBarTextModeRaw: String = MenuBarTextMode.artistAndSong.rawValue { didSet { refresh(); configureMarquee(forceRestart: true); bumpStatusBarConfigRevision() } }
     @AppStorage("preferredProvider") private var preferredProviderRaw: String = PreferredProvider.automatic.rawValue { didSet { refresh() } }
-    @AppStorage("ignoreParentheses") var ignoreParentheses: Bool = false {
+    @Published var ignoreParentheses: Bool = UserDefaults.standard.bool(forKey: "ignoreParentheses") {
         didSet {
+            UserDefaults.standard.set(ignoreParentheses, forKey: "ignoreParentheses")
             refresh()
             configureMarquee(forceRestart: true)
             bumpStatusBarConfigRevision()
