@@ -6,8 +6,7 @@ struct MenuBarLabel: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: model.statusIcon)
-                .symbolRenderingMode(.hierarchical)
+            ProviderIconView(icon: model.statusIcon, size: 13, weight: .regular)
                 .frame(width: 13, alignment: .center)
 
             if model.menuBarTextMode != .iconOnly {

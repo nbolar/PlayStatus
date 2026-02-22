@@ -717,6 +717,7 @@ private struct MiniNowPlayingCard: View {
         let shouldRenderMiniLyricsPane = showMiniLyricsPane || visibleLyricsHeight > 0.5
         let seamOpacity = min(1, max(0, visibleLyricsHeight / max(1, model.miniLyricsPaneHeight)))
         let miniMarqueeLaneWidth = max(120, model.popoverWidth - 64)
+        let miniTrackKey = "\(model.provider.rawValue)|\(model.artist)|\(model.album)|\(model.title)"
 
         return VStack(spacing: 0) {
             ZStack {
@@ -760,20 +761,13 @@ private struct MiniNowPlayingCard: View {
                     )
                 )
 
-                Group {
-                    if let artwork = model.artwork {
-                        Image(nsImage: artwork)
-                            .resizable()
-                            .interpolation(.high)
-                            .scaledToFill()
-                    } else {
-                        LinearGradient(
-                            colors: [model.glassTint.opacity(0.45), .black.opacity(0.55)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    }
-                }
+                MiniArtworkTransitionSurface(
+                    artwork: model.artwork,
+                    tint: model.glassTint,
+                    trackKey: miniTrackKey,
+                    animationsEnabled: model.animatedArtworkEnabled,
+                    transitionActive: transitionActive
+                )
                 .matchedGeometryEffect(id: "heroArtwork", in: artworkMorphNamespace)
                 .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                 .overlay(
@@ -1127,6 +1121,98 @@ private struct MiniNowPlayingCard: View {
         let g = average.greenComponent
         let b = average.blueComponent
         return (0.2126 * r) + (0.7152 * g) + (0.0722 * b)
+    }
+}
+
+private struct MiniArtworkTransitionSurface: View {
+    let artwork: NSImage?
+    let tint: Color
+    let trackKey: String
+    let animationsEnabled: Bool
+    let transitionActive: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var lastTrackKey: String = ""
+    @State private var incomingOpacity: Double = 1
+    @State private var incomingScale: CGFloat = 1
+    @State private var incomingBlur: CGFloat = 0
+
+    var body: some View {
+        artworkLayer(for: artwork)
+            .opacity(incomingOpacity)
+            .scaleEffect(incomingScale)
+            .blur(radius: incomingBlur)
+        .clipped()
+        .onAppear {
+            seedPresentationState()
+        }
+        .onChange(of: trackKey) { _ in
+            handleArtworkStateChange()
+        }
+        .onChange(of: animationsEnabled) { enabled in
+            guard !enabled else { return }
+            seedPresentationState()
+        }
+        .onChange(of: transitionActive) { active in
+            guard active else { return }
+            seedPresentationState()
+        }
+    }
+
+    @ViewBuilder
+    private func artworkLayer(for image: NSImage?) -> some View {
+        if let image {
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFill()
+        } else {
+            LinearGradient(
+                colors: [tint.opacity(0.45), .black.opacity(0.55)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+
+    private func seedPresentationState() {
+        incomingOpacity = 1
+        incomingScale = 1
+        incomingBlur = 0
+        lastTrackKey = trackKey
+    }
+
+    private func handleArtworkStateChange() {
+        let trackChanged = trackKey != lastTrackKey
+        guard trackChanged else { return }
+        lastTrackKey = trackKey
+
+        guard animationsEnabled, !transitionActive else {
+            seedPresentationState()
+            return
+        }
+
+        if reduceMotion {
+            runFadeIn(duration: 0.18)
+            return
+        }
+
+        runFadeIn(duration: 0.48, startScale: 1.02, startBlur: 6)
+    }
+
+    private func runFadeIn(duration: Double, startScale: CGFloat = 1, startBlur: CGFloat = 0) {
+        var reset = Transaction(animation: nil)
+        reset.disablesAnimations = true
+        withTransaction(reset) {
+            incomingOpacity = 0
+            incomingScale = startScale
+            incomingBlur = startBlur
+        }
+        withAnimation(.easeInOut(duration: duration)) {
+            incomingOpacity = 1
+            incomingScale = 1
+            incomingBlur = 0
+        }
     }
 }
 
@@ -1775,14 +1861,14 @@ private struct RegularLyricsPane: View {
                 VStack(alignment: .leading, spacing: 0) {
                     switch lyricsState {
                     case .idle:
-                        stateView("Start playback to load lyrics.", icon: "music.note")
+                        stateView("Start playback to load lyrics.", icon: .provider(.appleMusic))
                     case .loading:
                         loadingProgressView(progress: lyricsLoadingProgress)
                     case .unavailable:
-                        stateView("Lyrics unavailable for this track.", icon: "text.bubble")
+                        stateView("Lyrics unavailable for this track.", icon: .sfSymbol("text.bubble"))
                     case .failed:
                         VStack(spacing: 10) {
-                            stateView("Couldn't fetch lyrics right now.", icon: "exclamationmark.bubble")
+                            stateView("Couldn't fetch lyrics right now.", icon: .sfSymbol("exclamationmark.bubble"))
 //                            Button("Retry") { model.retryLyricsFetch() }
 //                                .buttonStyle(.bordered)
 //                                .controlSize(.small)
@@ -1807,11 +1893,24 @@ private struct RegularLyricsPane: View {
         .clipped()
     }
 
-    private func stateView(_ message: String, icon: String) -> some View {
+    private enum LyricsStateIcon {
+        case sfSymbol(String)
+        case provider(ProviderIconKind)
+    }
+
+    private func stateView(_ message: String, icon: LyricsStateIcon) -> some View {
         VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 22, weight: .light))
-                .foregroundStyle(.tertiary)
+            Group {
+                switch icon {
+                case .sfSymbol(let symbolName):
+                    Image(systemName: symbolName)
+                        .font(.system(size: 22, weight: .light))
+                        .symbolRenderingMode(.hierarchical)
+                case .provider(let providerIcon):
+                    ProviderIconView(icon: providerIcon, size: 22, weight: .regular)
+                }
+            }
+            .foregroundStyle(.tertiary)
             Text(message)
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)

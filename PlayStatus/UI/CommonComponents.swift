@@ -1,15 +1,36 @@
 import SwiftUI
 import AppKit
 
+struct ProviderIconView: View {
+    let icon: ProviderIconKind
+    var size: CGFloat
+    var weight: Font.Weight = .semibold
+
+    var body: some View {
+        Group {
+            switch icon {
+            case .sfSymbol(let systemName):
+                Image(systemName: systemName)
+                    .font(.system(size: size, weight: weight))
+                    .symbolRenderingMode(.hierarchical)
+            case .iconifyAsset(let assetName):
+                Image(assetName)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+            }
+        }
+        .frame(width: size, height: size, alignment: .center)
+    }
+}
+
 struct ProviderBadge: View {
     let provider: NowPlayingProvider
     let isPlaying: Bool
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: provider.icon)
-                .font(.system(size: 11, weight: .semibold))
-                .symbolRenderingMode(.hierarchical)
+            ProviderIconView(icon: provider.iconKind, size: 11, weight: .semibold)
 
             Text(provider.displayName)
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
@@ -515,9 +536,7 @@ struct ArtworkView: View {
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
-                            Image(systemName: "music.note")
-                                .font(.system(size: 36, weight: .semibold))
-                                .symbolRenderingMode(.hierarchical)
+                            ProviderIconView(icon: .appleMusic, size: 36, weight: .semibold)
                                 .foregroundStyle(.secondary.opacity(0.95))
                         }
                         .frame(width: side - 12, height: side - 12)

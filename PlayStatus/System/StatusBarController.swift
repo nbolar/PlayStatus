@@ -300,7 +300,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private let marqueeView = StatusBarMarqueeView()
     private let iconSize: CGFloat = 13
     private var lastStatusLength: CGFloat = -1
-    private var lastStatusIconName: String = ""
+    private var lastStatusIcon: ProviderIconKind?
     private var lastAppliedPopoverSize: NSSize = .zero
     private var pendingModeResizeAnimation = false
     private var pendingLyricsResizeAnimation = false
@@ -454,12 +454,10 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private func updateStatusButton() {
         guard let statusItem, let button = statusItem.button else { return }
 
-        let iconName = model.statusIcon
-        if iconName != lastStatusIconName {
-            let icon = NSImage(systemSymbolName: iconName, accessibilityDescription: nil)?
-                .withSymbolConfiguration(.init(pointSize: 13, weight: .regular))
-            iconView.image = icon
-            lastStatusIconName = iconName
+        let icon = model.statusIcon
+        if icon != lastStatusIcon {
+            iconView.image = statusImage(for: icon)
+            lastStatusIcon = icon
         }
 
         let showMenuBarText = model.isPlaying && model.menuBarTextMode != .iconOnly
@@ -506,6 +504,28 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             laneWidth: laneWidth,
             slideOnChange: model.slideTitleOnChange
         )
+    }
+
+    private func statusImage(for icon: ProviderIconKind) -> NSImage? {
+        switch icon {
+        case .sfSymbol(let symbolName):
+            return NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: iconSize, weight: .regular))
+        case .iconifyAsset(let assetName):
+            return statusAssetImage(named: assetName)
+        }
+    }
+
+    private func statusAssetImage(named assetName: String) -> NSImage? {
+        guard let base = NSImage(named: NSImage.Name(assetName)) else { return nil }
+        guard let copy = base.copy() as? NSImage else {
+            base.isTemplate = true
+            base.size = NSSize(width: iconSize, height: iconSize)
+            return base
+        }
+        copy.isTemplate = true
+        copy.size = NSSize(width: iconSize, height: iconSize)
+        return copy
     }
 
     private func updatePopoverLayout() {

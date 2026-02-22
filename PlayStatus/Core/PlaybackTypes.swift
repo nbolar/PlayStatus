@@ -3,6 +3,14 @@ import AppKit
 let modeTransitionDuration: Double = 0.95
 let miniLyricsTransitionDuration: Double = 0.32
 
+enum ProviderIconKind: Equatable {
+    case sfSymbol(String)
+    case iconifyAsset(String)
+
+    static let appleMusic: ProviderIconKind = .iconifyAsset("AppleMusicGlyph")
+    static let spotify: ProviderIconKind = .iconifyAsset("SpotifyGlyph")
+}
+
 enum NowPlayingProvider: String {
     case music
     case spotify
@@ -16,11 +24,11 @@ enum NowPlayingProvider: String {
         }
     }
 
-    var icon: String {
+    var iconKind: ProviderIconKind {
         switch self {
-        case .music: return "music.note"
-        case .spotify: return "dot.radiowaves.left.and.right"
-        case .none: return "music.note"
+        case .music: return .appleMusic
+        case .spotify: return .spotify
+        case .none: return .appleMusic
         }
     }
 }

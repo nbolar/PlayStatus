@@ -289,7 +289,7 @@ final class NowPlayingModel: ObservableObject {
     var elapsed: Double { PlaybackClock.shared.elapsed }
     var duration: Double { PlaybackClock.shared.duration }
     var canSeek: Bool { PlaybackClock.shared.canSeek }
-    var statusIcon: String { provider.icon }
+    var statusIcon: ProviderIconKind { provider.iconKind }
     var statusLine: String {
         if provider == .none { return "Idle" }
         return isPlaying ? "Playing" : "Paused"
