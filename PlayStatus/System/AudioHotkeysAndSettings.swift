@@ -878,10 +878,7 @@ struct PlayStatusSettingsView: View {
 
     private var licenseContent: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("PlayStatus is distributed under the MIT License.")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.secondary)
-
+            
             Text("Lyrics Attribution and Disclaimer")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.primary)
@@ -899,7 +896,13 @@ struct PlayStatusSettingsView: View {
                                 .stroke(.white.opacity(0.10), lineWidth: 1)
                         )
                 )
-
+            
+            Divider()
+                .foregroundStyle(.separator)
+            Text("PlayStatus is distributed under the MIT License.")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.primary)
+            
             Text(mitLicenseText)
                 .textSelection(.enabled)
                 .font(.system(size: 12, weight: .regular, design: .monospaced))
