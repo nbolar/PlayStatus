@@ -653,6 +653,7 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
     private var layerReadinessObservation: NSKeyValueObservation?
     private var onRenderReadinessChanged: ((Bool) -> Void)?
     private var hasReportedReadyForDisplay = false
+    private var lastNotifiedReadiness: Bool?
     private var currentURL: URL?
 
     override init(frame frameRect: NSRect) {
@@ -673,7 +674,7 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
     }
 
     deinit {
-        teardownPlayer()
+        teardownPlayer(shouldNotify: false)
     }
 
     func configure(
@@ -696,11 +697,13 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
     }
 
     func reset() {
-        teardownPlayer()
+        // During NSViewRepresentable dismantle, avoid mutating SwiftUI state.
+        onRenderReadinessChanged = nil
+        teardownPlayer(shouldNotify: false)
     }
 
     private func setupPlayer(streamURL: URL) {
-        teardownPlayer()
+        teardownPlayer(shouldNotify: false)
         hasReportedReadyForDisplay = false
         notifyRenderReadiness(false)
 
@@ -740,7 +743,7 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
         }
     }
 
-    private func teardownPlayer() {
+    private func teardownPlayer(shouldNotify: Bool) {
         itemStatusObservation = nil
         layerReadinessObservation = nil
         if let endObserver {
@@ -748,7 +751,11 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
         }
         endObserver = nil
         hasReportedReadyForDisplay = false
-        notifyRenderReadiness(false)
+        if shouldNotify {
+            notifyRenderReadiness(false)
+        } else {
+            lastNotifiedReadiness = nil
+        }
         player?.pause()
         playerLayer.player = nil
         player = nil
@@ -756,13 +763,12 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
     }
 
     private func notifyRenderReadiness(_ isReady: Bool) {
+        guard lastNotifiedReadiness != isReady else { return }
+        lastNotifiedReadiness = isReady
         let callback = onRenderReadinessChanged
-        if Thread.isMainThread {
-            callback?(isReady)
-        } else {
-            DispatchQueue.main.async {
-                callback?(isReady)
-            }
+        guard let callback else { return }
+        DispatchQueue.main.async {
+            callback(isReady)
         }
     }
 }

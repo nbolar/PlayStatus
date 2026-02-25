@@ -292,6 +292,31 @@ struct NowPlayingPopover: View {
                         }
                     }
 
+                    DetachedSurfaceToggleControl(
+                        isDetachedMode: model.surfaceMode == .detached,
+                        transitionActive: modeTransitionActive,
+                        contrastBoost: regularControlContrastBoost
+                    ) {
+                        model.requestToggleDetachedMode()
+                    }
+
+                    if model.surfaceMode == .detached {
+                        DetachedWindowPinControl(
+                            isPinned: model.detachedWindowAlwaysOnTop,
+                            transitionActive: modeTransitionActive,
+                            contrastBoost: regularControlContrastBoost
+                        ) {
+                            model.detachedWindowAlwaysOnTop.toggle()
+                        }
+
+                        DetachedWindowCloseControl(
+                            transitionActive: modeTransitionActive,
+                            contrastBoost: regularControlContrastBoost
+                        ) {
+                            model.requestCloseDetachedWindow()
+                        }
+                    }
+
                     if model.showLyricsPanel {
                         RegularLyricsToggleControl(
                             isOn: model.lyricsPanelExpanded,
@@ -799,6 +824,26 @@ private struct MiniNowPlayingCard: View {
             .overlay(alignment: .topTrailing) {
                 HStack(spacing: 6) {
                     ModeToggleControl(isMiniMode: true, transitionActive: transitionActive, action: onToggleMode)
+
+                    DetachedSurfaceToggleControl(
+                        isDetachedMode: model.surfaceMode == .detached,
+                        transitionActive: transitionActive
+                    ) {
+                        model.requestToggleDetachedMode()
+                    }
+
+                    if model.surfaceMode == .detached {
+                        DetachedWindowPinControl(
+                            isPinned: model.detachedWindowAlwaysOnTop,
+                            transitionActive: transitionActive
+                        ) {
+                            model.detachedWindowAlwaysOnTop.toggle()
+                        }
+
+                        DetachedWindowCloseControl(transitionActive: transitionActive) {
+                            model.requestCloseDetachedWindow()
+                        }
+                    }
 
                     MiniLyricsToggleControl(
                         isOn: model.miniLyricsEnabled,
@@ -1637,6 +1682,110 @@ private struct ModeToggleControl: View {
             }
         }
         .hoverHint(isMiniMode ? "Switch to regular mode" : "Switch to mini mode", enabled: !transitionActive)
+    }
+}
+
+private struct DetachedSurfaceToggleControl: View {
+    let isDetachedMode: Bool
+    let transitionActive: Bool
+    var contrastBoost: Double = 0
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        let clampedContrast = min(max(contrastBoost, 0), 1)
+        Button(action: action) {
+            Image(systemName: isDetachedMode ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.94))
+                .frame(width: 24, height: 24)
+                .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
+                .overlay(
+                    Circle()
+                        .stroke(.white.opacity(min(0.32, (hovering ? 0.24 : 0.16) + (0.08 * clampedContrast))), lineWidth: 1)
+                )
+                .scaleEffect(hovering ? 1.06 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            guard !transitionActive else {
+                if self.hovering { self.hovering = false }
+                return
+            }
+            withAnimation(.easeOut(duration: 0.16)) {
+                self.hovering = hovering
+            }
+        }
+        .hoverHint(isDetachedMode ? "Attach to popover" : "Detach to window", enabled: !transitionActive)
+    }
+}
+
+private struct DetachedWindowPinControl: View {
+    let isPinned: Bool
+    let transitionActive: Bool
+    var contrastBoost: Double = 0
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        let clampedContrast = min(max(contrastBoost, 0), 1)
+        Button(action: action) {
+            Image(systemName: isPinned ? "pin.fill" : "pin")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white.opacity(isPinned ? 0.98 : 0.90))
+                .frame(width: 24, height: 24)
+                .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
+                .overlay(
+                    Circle()
+                        .stroke(.white.opacity(min(0.32, (hovering ? 0.24 : 0.16) + (0.08 * clampedContrast))), lineWidth: 1)
+                )
+                .scaleEffect(hovering ? 1.06 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            guard !transitionActive else {
+                if self.hovering { self.hovering = false }
+                return
+            }
+            withAnimation(.easeOut(duration: 0.16)) {
+                self.hovering = hovering
+            }
+        }
+        .hoverHint(isPinned ? "Disable always-on-top" : "Enable always-on-top", enabled: !transitionActive)
+    }
+}
+
+private struct DetachedWindowCloseControl: View {
+    let transitionActive: Bool
+    var contrastBoost: Double = 0
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        let clampedContrast = min(max(contrastBoost, 0), 1)
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.white.opacity(0.94))
+                .frame(width: 24, height: 24)
+                .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
+                .overlay(
+                    Circle()
+                        .stroke(.white.opacity(min(0.32, (hovering ? 0.24 : 0.16) + (0.08 * clampedContrast))), lineWidth: 1)
+                )
+                .scaleEffect(hovering ? 1.06 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            guard !transitionActive else {
+                if self.hovering { self.hovering = false }
+                return
+            }
+            withAnimation(.easeOut(duration: 0.16)) {
+                self.hovering = hovering
+            }
+        }
+        .hoverHint("Close detached window", enabled: !transitionActive)
     }
 }
 

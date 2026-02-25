@@ -86,7 +86,13 @@ final class NowPlayingModel: ObservableObject {
             requestPopoverLayoutRefresh()
         }
     }
+    @AppStorage("detachedWindowAlwaysOnTop") var detachedWindowAlwaysOnTop: Bool = true {
+        didSet {
+            detachedWindowLevelRevision &+= 1
+        }
+    }
     // UI state
+    @Published var surfaceMode: NowPlayingSurfaceMode = .popover
     @Published var provider: NowPlayingProvider = .none
     @Published var title: String = ""
     @Published var artist: String = ""
@@ -116,6 +122,9 @@ final class NowPlayingModel: ObservableObject {
     @Published var isCurrentTrackFavorited: Bool = false
     @Published var favoriteActionPulseToken: Int = 0
     @Published var popoverModeTransitionToken: Int = 0
+    @Published var detachedWindowLevelRevision: Int = 0
+    @Published var detachedModeToggleRequestToken: Int = 0
+    @Published var detachedCloseRequestToken: Int = 0
     @Published var miniLyricsTransitionToken: Int = 0
     @Published var lyricsPayload: LyricsPayload? {
         didSet {
@@ -260,6 +269,7 @@ final class NowPlayingModel: ObservableObject {
     }
 
     init() {
+        surfaceMode = .popover
         lyricsPanelExpanded = expandLyricsByDefault
         animatedArtworkStatusMessage = "Ready"
         // Adaptive polling: fast while playing, slower when idle.
@@ -831,6 +841,14 @@ final class NowPlayingModel: ObservableObject {
 
     func requestPopoverLayoutRefresh() {
         bumpStatusBarConfigRevision()
+    }
+
+    func requestToggleDetachedMode() {
+        detachedModeToggleRequestToken &+= 1
+    }
+
+    func requestCloseDetachedWindow() {
+        detachedCloseRequestToken &+= 1
     }
 
     func setLyricsPanelExpanded(_ expanded: Bool) {

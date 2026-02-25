@@ -298,6 +298,7 @@ enum AppHotkeyAction: UInt32, CaseIterable {
     case previousTrack = 3
     case togglePopover = 4
     case likeSong = 5
+    case toggleDetachedMode = 6
 
     var label: String {
         switch self {
@@ -306,6 +307,7 @@ enum AppHotkeyAction: UInt32, CaseIterable {
         case .previousTrack: return "Previous Track"
         case .togglePopover: return "Toggle Popover"
         case .likeSong: return "Toggle Favorite"
+        case .toggleDetachedMode: return "Toggle Detached Mode"
         }
     }
     
@@ -317,6 +319,7 @@ enum AppHotkeyAction: UInt32, CaseIterable {
         case .previousTrack: return HotkeyBinding(keyCode: UInt32(kVK_ANSI_B), modifiers: mods)
         case .togglePopover: return HotkeyBinding(keyCode: UInt32(kVK_ANSI_O), modifiers: mods)
         case .likeSong: return HotkeyBinding(keyCode: UInt32(kVK_ANSI_L), modifiers: mods)
+        case .toggleDetachedMode: return HotkeyBinding(keyCode: UInt32(kVK_ANSI_D), modifiers: mods)
         }
     }
 }
@@ -696,6 +699,11 @@ struct PlayStatusSettingsView: View {
                 title: "Slide title on new song",
                 caption: "Animates title transitions when tracks change.",
                 isOn: $model.slideTitleOnChange
+            )
+            SettingsToggleRow(
+                title: "Detached window stays on top",
+                caption: "Keeps the detached now-playing window floating above normal windows.",
+                isOn: $model.detachedWindowAlwaysOnTop
             )
 
             Divider().padding(.vertical, 2)

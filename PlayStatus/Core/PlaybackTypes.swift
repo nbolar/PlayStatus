@@ -4,6 +4,11 @@ import AppKit
 let modeTransitionDuration: Double = 0.95
 let miniLyricsTransitionDuration: Double = 0.32
 
+enum NowPlayingSurfaceMode: String {
+    case popover
+    case detached
+}
+
 enum ProviderIconKind: Equatable {
     case sfSymbol(String)
     case iconifyAsset(String)
