@@ -307,6 +307,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private var lastMiniModeValue: Bool = false
     private var lastLyricsPaneExpandedValue: Bool = false
     private var lyricsResizeAnimationEndTime: CFAbsoluteTime = 0
+    private var popoverLayoutUpdateScheduled = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -383,7 +384,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
                     }
                 }
                 self.updateStatusButton()
-                self.updatePopoverLayout()
+                self.schedulePopoverLayoutUpdate()
             }
             .store(in: &cancellables)
 
@@ -642,6 +643,16 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
                 popover.contentSize = targetSize
                 lastAppliedPopoverSize = targetSize
             }
+        }
+    }
+
+    private func schedulePopoverLayoutUpdate() {
+        guard !popoverLayoutUpdateScheduled else { return }
+        popoverLayoutUpdateScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.popoverLayoutUpdateScheduled = false
+            self.updatePopoverLayout()
         }
     }
 

@@ -157,13 +157,12 @@ struct NowPlayingPopover: View {
 
     private func regularContent(availableHeight: CGFloat) -> some View {
         let baseRegularHeight = model.estimatedRegularPopoverHeight
-        let resolvedRegularHeight = model.isPopoverVisible
-            ? max(baseRegularHeight, availableHeight)
-            : model.regularPopoverHeight
+        let resolvedRegularHeight = model.regularPopoverHeight
+        let liveRegularHeight = min(resolvedRegularHeight, max(baseRegularHeight, availableHeight))
         let regularMarqueeLaneWidth = min(272, max(130, model.popoverWidth - model.artworkDisplaySize - 78))
         let visibleRegularLyricsHeight = min(
             model.regularLyricsPaneHeight,
-            max(0, resolvedRegularHeight - baseRegularHeight)
+            max(0, liveRegularHeight - baseRegularHeight)
         )
         let shouldRenderRegularLyricsPane = showRegularLyricsPane || visibleRegularLyricsHeight > 0.5
         let regularControlContrastBoost = model.regularControlsContrastBoost
@@ -278,6 +277,7 @@ struct NowPlayingPopover: View {
 
             }
             }
+            .frame(height: baseRegularHeight, alignment: .top)
             .overlay(alignment: .topTrailing) {
                 HStack(spacing: 6) {
                     ModeToggleControl(isMiniMode: false, transitionActive: modeTransitionActive, contrastBoost: regularControlContrastBoost) {
@@ -403,9 +403,14 @@ struct NowPlayingPopover: View {
                         .imageScale(.small)
                         .foregroundStyle(searchForeground.opacity(0.90))
                         .frame(width: 18, height: 18)
-                        .frame(maxWidth: isSearchExpanded ? nil : .infinity, maxHeight: .infinity)
                 }
                 .buttonStyle(.plain)
+                .frame(
+                    width: isSearchExpanded ? 18 : collapsedWidth,
+                    height: 34,
+                    alignment: .center
+                )
+                .contentShape(Rectangle())
 
                 TextField(searchPlaceholder, text: $searchText)
                     .textFieldStyle(.plain)
@@ -456,7 +461,6 @@ struct NowPlayingPopover: View {
 
         }
         .frame(height: 44)
-        .animation(spring, value: isSearchExpanded)
         .background(
             GeometryReader { proxy in
                 Color.clear.preference(
@@ -707,12 +711,11 @@ private struct MiniNowPlayingCard: View {
         let secondaryShadowOpacity = min(0.84, 0.46 + (lightArtworkBoost * 0.18) + (darkArtworkBoost * 0.10))
         let infoBandHeight: CGFloat = infoExpanded ? 196 : 126
         let blurFadeHeight: CGFloat = min(44, infoBandHeight * 0.34)
-        let resolvedCardHeight = model.isPopoverVisible
-            ? max(model.miniBaseHeight, availableHeight)
-            : model.miniPopoverHeight
+        let resolvedCardHeight = model.miniPopoverHeight
+        let liveCardHeight = min(resolvedCardHeight, max(model.miniBaseHeight, availableHeight))
         let visibleLyricsHeight = min(
             model.miniLyricsPaneHeight,
-            max(0, resolvedCardHeight - model.miniBaseHeight)
+            max(0, liveCardHeight - model.miniBaseHeight)
         )
         let shouldRenderMiniLyricsPane = showMiniLyricsPane || visibleLyricsHeight > 0.5
         let seamOpacity = min(1, max(0, visibleLyricsHeight / max(1, model.miniLyricsPaneHeight)))
