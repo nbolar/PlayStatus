@@ -7,6 +7,11 @@ enum PersistentLyricsCacheValue: Equatable {
     case unavailable
 }
 
+struct AnimatedArtworkMetadataRecord: Equatable {
+    let albumURLString: String
+    let hlsURLString: String
+}
+
 actor PersistentMediaCache {
     static let shared = PersistentMediaCache()
 
@@ -68,12 +73,14 @@ actor PersistentMediaCache {
     private enum CacheNamespace: String, Codable, CaseIterable {
         case lyrics
         case artwork
+        case animatedArtwork
     }
 
     private enum CacheEntryKind: String, Codable {
         case lyricsAvailable
         case lyricsUnavailable
         case artworkImage
+        case animatedArtworkMetadata
     }
 
     private struct CacheEntry: Codable {
@@ -95,9 +102,11 @@ actor PersistentMediaCache {
     private let maxEntries = 1500
     private let maxLyricsObjectBytes = 256 * 1024
     private let maxArtworkObjectBytes = 2 * 1024 * 1024
+    private let maxAnimatedArtworkMetadataBytes = 64 * 1024
     private let lyricsAvailableTTL: TimeInterval = 30 * 24 * 60 * 60
     private let lyricsUnavailableTTL: TimeInterval = 24 * 60 * 60
     private let artworkTTL: TimeInterval = 14 * 24 * 60 * 60
+    private let animatedArtworkMetadataTTL: TimeInterval = 7 * 24 * 60 * 60
     private let artworkJPEGCompression: CGFloat = 0.82
 
     private let fileManager = FileManager.default
@@ -219,6 +228,62 @@ actor PersistentMediaCache {
             data: encoded.data,
             fileExtension: encoded.fileExtension,
             expiresAt: Date().addingTimeInterval(artworkTTL)
+        )
+    }
+
+    func fetchAnimatedArtworkMetadata(forKey key: String) -> AnimatedArtworkMetadataRecord? {
+        ensureInitialized()
+        let normalized = normalizeAnimatedArtworkKey(key)
+        let lookupKey = lookupKey(namespace: .animatedArtwork, normalizedKey: normalized)
+        guard var entry = entriesByLookupKey[lookupKey] else { return nil }
+
+        let now = Date()
+        guard !isExpired(entry, at: now) else {
+            removeEntry(lookupKey: lookupKey)
+            persistIndex()
+            return nil
+        }
+
+        let fileURL = fileURL(for: entry)
+        guard let data = try? Data(contentsOf: fileURL),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let albumURLString = json["albumURLString"] as? String,
+              let hlsURLString = json["hlsURLString"] as? String else {
+            removeEntry(lookupKey: lookupKey)
+            persistIndex()
+            return nil
+        }
+        let record = AnimatedArtworkMetadataRecord(
+            albumURLString: albumURLString,
+            hlsURLString: hlsURLString
+        )
+
+        entry.lastAccessAt = now
+        entriesByLookupKey[lookupKey] = entry
+        persistIndex()
+        logCacheEvent("animatedArtwork hit key=\(entry.key) bytes=\(entry.byteSize)")
+        return record
+    }
+
+    func storeAnimatedArtworkMetadata(_ record: AnimatedArtworkMetadataRecord, forKey key: String) {
+        ensureInitialized()
+        let payload: [String: String] = [
+            "albumURLString": record.albumURLString,
+            "hlsURLString": record.hlsURLString
+        ]
+        guard JSONSerialization.isValidJSONObject(payload),
+              let data = try? JSONSerialization.data(withJSONObject: payload),
+              data.count <= maxAnimatedArtworkMetadataBytes else {
+            return
+        }
+
+        upsert(
+            namespace: .animatedArtwork,
+            normalizedKey: normalizeAnimatedArtworkKey(key),
+            kind: .animatedArtworkMetadata,
+            data: data,
+            fileExtension: "json",
+            expiresAt: Date().addingTimeInterval(animatedArtworkMetadataTTL)
         )
     }
 
@@ -398,6 +463,13 @@ actor PersistentMediaCache {
     }
 
     private func normalizeArtworkKey(_ key: String) -> String {
+        key
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    }
+
+    private func normalizeAnimatedArtworkKey(_ key: String) -> String {
         key
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()

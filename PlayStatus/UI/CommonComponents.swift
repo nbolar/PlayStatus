@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import AVFoundation
 
 struct ProviderIconView: View {
     let icon: ProviderIconKind
@@ -474,8 +475,15 @@ struct AnimatedArtworkView: View {
     let isEnabled: Bool
     let seed: String
     let style: ArtworkMotionStyle
+    let animatedArtworkURL: URL?
+    let animatedArtworkIsVisible: Bool
     var body: some View {
-        ArtworkView(image: image, tint: tint)
+        ArtworkView(
+            image: image,
+            tint: tint,
+            animatedArtworkURL: animatedArtworkURL,
+            animatedArtworkIsVisible: animatedArtworkIsVisible
+        )
             .animatedArtworkMotion(isEnabled: isEnabled, seed: seed, style: style)
     }
 }
@@ -483,10 +491,19 @@ struct AnimatedArtworkView: View {
 struct ArtworkView: View {
     let image: NSImage?
     let tint: Color
+    let animatedArtworkURL: URL?
+    let animatedArtworkIsVisible: Bool
+    @State private var streamReadyForDisplay = false
+    private let streamCrossfadeDuration: Double = 1.8
+
+    private var streamCrossfadeAnimation: Animation {
+        .easeInOut(duration: streamCrossfadeDuration)
+    }
 
     var body: some View {
         GeometryReader { geo in
             let side = min(geo.size.width, geo.size.height)
+            let contentSide = side - 12
             let outer = RoundedRectangle(cornerRadius: 22, style: .continuous)
             let inner = RoundedRectangle(cornerRadius: 18, style: .continuous)
 
@@ -522,24 +539,23 @@ struct ArtworkView: View {
                     .overlay(outer.stroke(tint.opacity(0.2), lineWidth: 1))
 
                 Group {
-                    if let image {
-                        Image(nsImage: image)
-                            .resizable()
-                            .interpolation(.high)
-                            .scaledToFill()
-                            .frame(width: side - 12, height: side - 12)
-                            .background(tint.opacity(0.12))
-                    } else {
-                        ZStack {
-                            LinearGradient(
-                                colors: [.white.opacity(0.08), .black.opacity(0.08)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                    ZStack {
+                        staticArtworkContent(side: contentSide)
+
+                        if let animatedArtworkURL {
+                            AnimatedArtworkPlayerView(
+                                streamURL: animatedArtworkURL,
+                                isActive: animatedArtworkIsVisible,
+                                onRenderReadinessChanged: { isReady in
+                                    guard isReady != streamReadyForDisplay else { return }
+                                    withAnimation(streamCrossfadeAnimation) {
+                                        streamReadyForDisplay = isReady
+                                    }
+                                }
                             )
-                            ProviderIconView(icon: .appleMusic, size: 36, weight: .semibold)
-                                .foregroundStyle(.secondary.opacity(0.95))
+                            .frame(width: contentSide, height: contentSide)
+                            .opacity(streamReadyForDisplay ? 1 : 0)
                         }
-                        .frame(width: side - 12, height: side - 12)
                     }
                 }
                 .clipShape(inner, style: FillStyle(eoFill: false, antialiased: true))
@@ -559,8 +575,195 @@ struct ArtworkView: View {
             .frame(width: side, height: side)
             .clipped()
             .compositingGroup()
+            .onChange(of: animatedArtworkURL) { _ in
+                withAnimation(streamCrossfadeAnimation) {
+                    streamReadyForDisplay = false
+                }
+            }
         }
         .shadow(color: .black.opacity(0.28), radius: 16, x: 0, y: 10)
+    }
+
+    @ViewBuilder
+    private func staticArtworkContent(side: CGFloat) -> some View {
+        if let image {
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFill()
+                .frame(width: side, height: side)
+                .background(tint.opacity(0.12))
+        } else {
+            ZStack {
+                LinearGradient(
+                    colors: [.white.opacity(0.08), .black.opacity(0.08)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                ProviderIconView(icon: .appleMusic, size: 36, weight: .semibold)
+                    .foregroundStyle(.secondary.opacity(0.95))
+            }
+            .frame(width: side, height: side)
+        }
+    }
+}
+
+struct AnimatedArtworkPlayerView: View {
+    let streamURL: URL
+    let isActive: Bool
+    var onRenderReadinessChanged: (Bool) -> Void = { _ in }
+
+    var body: some View {
+        AnimatedArtworkPlayerRepresentable(
+            streamURL: streamURL,
+            isActive: isActive,
+            onRenderReadinessChanged: onRenderReadinessChanged
+        )
+            .background(Color.black.opacity(0.08))
+    }
+}
+
+private struct AnimatedArtworkPlayerRepresentable: NSViewRepresentable {
+    let streamURL: URL
+    let isActive: Bool
+    let onRenderReadinessChanged: (Bool) -> Void
+
+    func makeNSView(context: Context) -> AnimatedArtworkPlayerContainerView {
+        AnimatedArtworkPlayerContainerView()
+    }
+
+    func updateNSView(_ nsView: AnimatedArtworkPlayerContainerView, context: Context) {
+        nsView.configure(
+            streamURL: streamURL,
+            isActive: isActive,
+            onRenderReadinessChanged: onRenderReadinessChanged
+        )
+    }
+
+    static func dismantleNSView(_ nsView: AnimatedArtworkPlayerContainerView, coordinator: ()) {
+        nsView.reset()
+    }
+}
+
+private final class AnimatedArtworkPlayerContainerView: NSView {
+    private let playerLayer = AVPlayerLayer()
+    private var player: AVPlayer?
+    private var endObserver: NSObjectProtocol?
+    private var itemStatusObservation: NSKeyValueObservation?
+    private var layerReadinessObservation: NSKeyValueObservation?
+    private var onRenderReadinessChanged: ((Bool) -> Void)?
+    private var hasReportedReadyForDisplay = false
+    private var currentURL: URL?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer = CALayer()
+        playerLayer.videoGravity = .resizeAspectFill
+        layer?.addSublayer(playerLayer)
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    override func layout() {
+        super.layout()
+        playerLayer.frame = bounds
+    }
+
+    deinit {
+        teardownPlayer()
+    }
+
+    func configure(
+        streamURL: URL,
+        isActive: Bool,
+        onRenderReadinessChanged: @escaping (Bool) -> Void
+    ) {
+        self.onRenderReadinessChanged = onRenderReadinessChanged
+        if currentURL != streamURL || player == nil {
+            setupPlayer(streamURL: streamURL)
+        } else {
+            notifyRenderReadiness(hasReportedReadyForDisplay)
+        }
+
+        if isActive {
+            player?.play()
+        } else {
+            player?.pause()
+        }
+    }
+
+    func reset() {
+        teardownPlayer()
+    }
+
+    private func setupPlayer(streamURL: URL) {
+        teardownPlayer()
+        hasReportedReadyForDisplay = false
+        notifyRenderReadiness(false)
+
+        let item = AVPlayerItem(url: streamURL)
+        let player = AVPlayer(playerItem: item)
+        player.isMuted = true
+        player.actionAtItemEnd = .none
+        player.automaticallyWaitsToMinimizeStalling = true
+        playerLayer.player = player
+        currentURL = streamURL
+        self.player = player
+
+        itemStatusObservation = item.observe(\.status, options: [.new, .initial]) { [weak self] observedItem, _ in
+            guard let self else { return }
+            if observedItem.status == .failed {
+                self.hasReportedReadyForDisplay = false
+                self.notifyRenderReadiness(false)
+            }
+        }
+
+        layerReadinessObservation = playerLayer.observe(\.isReadyForDisplay, options: [.new, .initial]) { [weak self] layer, _ in
+            guard let self else { return }
+            guard layer.isReadyForDisplay else { return }
+            guard !self.hasReportedReadyForDisplay else { return }
+            self.hasReportedReadyForDisplay = true
+            self.notifyRenderReadiness(true)
+        }
+
+        endObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: item,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.player?.seek(to: .zero)
+            self.player?.play()
+        }
+    }
+
+    private func teardownPlayer() {
+        itemStatusObservation = nil
+        layerReadinessObservation = nil
+        if let endObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+        }
+        endObserver = nil
+        hasReportedReadyForDisplay = false
+        notifyRenderReadiness(false)
+        player?.pause()
+        playerLayer.player = nil
+        player = nil
+        currentURL = nil
+    }
+
+    private func notifyRenderReadiness(_ isReady: Bool) {
+        let callback = onRenderReadinessChanged
+        if Thread.isMainThread {
+            callback?(isReady)
+        } else {
+            DispatchQueue.main.async {
+                callback?(isReady)
+            }
+        }
     }
 }
 

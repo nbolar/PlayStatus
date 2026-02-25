@@ -183,7 +183,9 @@ struct NowPlayingPopover: View {
                                 tint: model.glassTint,
                                 isEnabled: false,
                                 seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
-                                style: model.artworkMotionStyle
+                                style: model.artworkMotionStyle,
+                                animatedArtworkURL: model.effectiveAnimatedArtworkURL,
+                                animatedArtworkIsVisible: model.isPopoverVisible
                             )
                                 .frame(width: model.artworkDisplaySize, height: model.artworkDisplaySize)
                                 .animatedArtworkMotion(
@@ -198,7 +200,9 @@ struct NowPlayingPopover: View {
                                 tint: model.glassTint,
                                 isEnabled: false,
                                 seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
-                                style: model.artworkMotionStyle
+                                style: model.artworkMotionStyle,
+                                animatedArtworkURL: model.effectiveAnimatedArtworkURL,
+                                animatedArtworkIsVisible: model.isPopoverVisible
                             )
                                 .frame(width: model.artworkDisplaySize, height: model.artworkDisplaySize)
                                 .animatedArtworkMotion(
@@ -769,7 +773,9 @@ private struct MiniNowPlayingCard: View {
                     tint: model.glassTint,
                     trackKey: miniTrackKey,
                     animationsEnabled: model.animatedArtworkEnabled,
-                    transitionActive: transitionActive
+                    transitionActive: transitionActive,
+                    animatedArtworkURL: model.effectiveAnimatedArtworkURL,
+                    isPopoverVisible: model.isPopoverVisible
                 )
                 .matchedGeometryEffect(id: "heroArtwork", in: artworkMorphNamespace)
                 .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
@@ -1133,21 +1139,34 @@ private struct MiniArtworkTransitionSurface: View {
     let trackKey: String
     let animationsEnabled: Bool
     let transitionActive: Bool
+    let animatedArtworkURL: URL?
+    let isPopoverVisible: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var lastTrackKey: String = ""
     @State private var incomingOpacity: Double = 1
     @State private var incomingScale: CGFloat = 1
     @State private var incomingBlur: CGFloat = 0
+    @State private var streamReadyForDisplay: Bool = false
+    private let streamCrossfadeDuration: Double = 1.8
+
+    private var streamCrossfadeAnimation: Animation {
+        .easeInOut(duration: streamCrossfadeDuration)
+    }
 
     var body: some View {
-        artworkLayer(for: artwork)
+        artworkLayer(for: artwork, animatedURL: animatedArtworkURL)
             .opacity(incomingOpacity)
             .scaleEffect(incomingScale)
             .blur(radius: incomingBlur)
         .clipped()
         .onAppear {
             seedPresentationState()
+        }
+        .onChange(of: animatedArtworkURL) { _ in
+            withAnimation(streamCrossfadeAnimation) {
+                streamReadyForDisplay = false
+            }
         }
         .onChange(of: trackKey) { _ in
             handleArtworkStateChange()
@@ -1163,7 +1182,28 @@ private struct MiniArtworkTransitionSurface: View {
     }
 
     @ViewBuilder
-    private func artworkLayer(for image: NSImage?) -> some View {
+    private func artworkLayer(for image: NSImage?, animatedURL: URL?) -> some View {
+        ZStack {
+            staticArtworkLayer(for: image)
+
+            if let animatedURL {
+                AnimatedArtworkPlayerView(
+                    streamURL: animatedURL,
+                    isActive: isPopoverVisible,
+                    onRenderReadinessChanged: { isReady in
+                        guard isReady != streamReadyForDisplay else { return }
+                        withAnimation(streamCrossfadeAnimation) {
+                            streamReadyForDisplay = isReady
+                        }
+                    }
+                )
+                .opacity(streamReadyForDisplay ? 1 : 0)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func staticArtworkLayer(for image: NSImage?) -> some View {
         if let image {
             Image(nsImage: image)
                 .resizable()

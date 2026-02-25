@@ -89,7 +89,10 @@ enum MusicProvider {
             elapsed: elapsed,
             duration: duration,
             canSeek: duration > 0.5,
-            isFavorited: isFavorited
+            isFavorited: isFavorited,
+            appleMusicAlbumURL: nil,
+            animatedArtworkState: .none,
+            animatedArtworkHLSURL: nil
         )
     }
 
@@ -289,7 +292,10 @@ enum SpotifyProvider {
             nativeArtworkState: artwork != nil ? .available : (artURLString.isEmpty ? .none : .pending),
             elapsed: elapsed,
             duration: duration,
-            canSeek: duration > 0.5
+            canSeek: duration > 0.5,
+            appleMusicAlbumURL: nil,
+            animatedArtworkState: .none,
+            animatedArtworkHLSURL: nil
         )
     }
 

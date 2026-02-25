@@ -1,3 +1,4 @@
+import Foundation
 import AppKit
 
 let modeTransitionDuration: Double = 0.95
@@ -87,6 +88,28 @@ enum ArtworkMotionStyle: String, CaseIterable {
     }
 }
 
+enum AnimatedArtworkQualityPolicy: String, CaseIterable {
+    case adaptive1080
+    case maxQuality
+    case dataSaver
+
+    var displayName: String {
+        switch self {
+        case .adaptive1080: return "Adaptive 1080"
+        case .maxQuality: return "Max Quality"
+        case .dataSaver: return "Data Saver"
+        }
+    }
+}
+
+enum AnimatedArtworkState: String, Equatable {
+    case none
+    case loading
+    case available
+    case unavailable
+    case failed
+}
+
 enum LyricsSource: String, Equatable {
     case musicApp
     case lrclib
@@ -164,4 +187,7 @@ struct NowPlayingSnapshot: Equatable {
     var isFavorited: Bool = false
     var lyrics: LyricsPayload? = nil
     var lyricsState: LyricsState = .idle
+    var appleMusicAlbumURL: URL? = nil
+    var animatedArtworkState: AnimatedArtworkState = .none
+    var animatedArtworkHLSURL: URL? = nil
 }

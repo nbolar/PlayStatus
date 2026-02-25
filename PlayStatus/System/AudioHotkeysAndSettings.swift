@@ -560,6 +560,7 @@ struct PlayStatusSettingsView: View {
     @ObservedObject var model: NowPlayingModel
     @State private var selectedTab: SettingsTab = .display
     @State private var tabDirection: SettingsTabDirection = .forward
+    @State private var showAnimatedStreamPreview = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -609,6 +610,12 @@ struct PlayStatusSettingsView: View {
         .frame(width: settingsWindowSize.width, height: settingsWindowSize.height)
         .background(Color(nsColor: .windowBackgroundColor))
         .background(SettingsWindowChromeConfigurator(targetSize: settingsWindowSize))
+        .sheet(isPresented: $showAnimatedStreamPreview) {
+            AnimatedArtworkStreamPreviewSheet(
+                model: model,
+                demoStreamURL: defaultAnimatedArtworkDemoStreamURL
+            )
+        }
         .environment(\.controlActiveState, .key)
     }
 
@@ -726,9 +733,81 @@ struct PlayStatusSettingsView: View {
             )
 
             if model.animatedArtworkEnabled {
+                SettingsToggleRow(
+                    title: "Animated Artwork Streams",
+                    caption: "Uses Apple Music editorial video streams when available. This can increase media cache usage.",
+                    isOn: $model.animatedArtworkStreamsEnabled
+                )
+
+                if model.animatedArtworkStreamsEnabled {
+                    Divider().padding(.vertical, 2)
+
+                    SettingsControlRow(
+                        title: "Stream Quality",
+                        caption: "Sets default playback quality for animated artwork streams."
+                    ) {
+                        Picker("Stream Quality", selection: Binding(
+                            get: { model.animatedArtworkQualityPolicy },
+                            set: { model.animatedArtworkQualityPolicy = $0 }
+                        )) {
+                            ForEach(AnimatedArtworkQualityPolicy.allCases, id: \.self) { policy in
+                                Text(policy.displayName).tag(policy)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .frame(width: 220, alignment: .trailing)
+                    }
+
+                    SettingsControlRow(
+                        title: "Animated Stream Status",
+                        caption: "Current lookup status from public Apple Music album pages."
+                    ) {
+                        VStack(alignment: .trailing, spacing: 3) {
+                            Text(model.animatedArtworkStatusMessage)
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.secondary)
+
+                            if !model.animatedArtworkLastError.isEmpty {
+                                Text(model.animatedArtworkLastError)
+                                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.trailing)
+                                    .frame(width: 260, alignment: .trailing)
+                            }
+                        }
+                    }
+
+                    SettingsControlRow(
+                        title: "Stream Preview",
+                        caption: "Opens a help preview using the current stream, or a built-in demo stream when unavailable."
+                    ) {
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Button {
+                                showAnimatedStreamPreview = true
+                            } label: {
+                                Label("Open Preview", systemImage: "play.rectangle")
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+
+                            if model.effectiveAnimatedArtworkURL == nil {
+                                Text("Current track has no animated stream. Preview will show a built-in demo.")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.trailing)
+                                    .frame(width: 260, alignment: .trailing)
+                            }
+                        }
+                    }
+                }
+
+                Divider().padding(.vertical, 2)
+
                 SettingsControlRow(
-                    title: "Motion Style",
-                    caption: "Sets the character of artwork motion."
+                    title: "Hover Motion Style",
+                    caption: "Sets the character of artwork motion on cursor hover."
                 ) {
                     Picker("Motion Style", selection: Binding(
                         get: { model.artworkMotionStyle },
@@ -842,7 +921,7 @@ struct PlayStatusSettingsView: View {
 
             SettingsControlRow(
                 title: "Media Cache",
-                caption: "Stores lyrics and artwork locally (max 50 MB)."
+                caption: "Stores lyrics and artwork locally (max 50 MB). Animated artwork streams can increase usage."
             ) {
                 HStack(spacing: 10) {
                     Text(model.persistentCacheUsageText)
@@ -953,6 +1032,65 @@ struct PlayStatusSettingsView: View {
         OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
         SOFTWARE.
         """
+    }
+}
+
+private let defaultAnimatedArtworkDemoStreamURL = URL(string: "https://mvod.itunes.apple.com/itunes-assets/HLSVideo221/v4/47/66/7b/47667b69-3c94-1c08-4682-8ee19a77c3fd/P1218990906_Anull_video_gr290_sdr_1080x1080.m3u8")!
+
+private struct AnimatedArtworkStreamPreviewSheet: View {
+    @ObservedObject var model: NowPlayingModel
+    let demoStreamURL: URL
+    @Environment(\.dismiss) private var dismiss
+
+    private var previewStreamURL: URL {
+        model.effectiveAnimatedArtworkURL ?? demoStreamURL
+    }
+
+    private var isUsingDemoStream: Bool {
+        model.effectiveAnimatedArtworkURL == nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Animated Stream Preview")
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+
+            Text("Shows how the currently resolved animated stream renders in the artwork tile.")
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+
+            ArtworkView(
+                image: model.artwork,
+                tint: model.glassTint,
+                animatedArtworkURL: previewStreamURL,
+                animatedArtworkIsVisible: true
+            )
+            .frame(width: 256, height: 256)
+            .frame(maxWidth: .infinity, alignment: .center)
+
+            if isUsingDemoStream {
+                Text("No animated stream is available for the current track. Showing built-in demo stream.")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(previewStreamURL.absoluteString)
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+
+            HStack {
+                Spacer()
+                Button("Done") {
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(18)
+        .frame(width: 390)
     }
 }
 
