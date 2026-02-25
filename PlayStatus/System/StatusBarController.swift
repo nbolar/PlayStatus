@@ -318,7 +318,9 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         if let button = statusItem.button {
             button.target = self
             button.action = #selector(togglePopover(_:))
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            // Trigger on mouseDown so toggle logic runs before NSPopover's transient
+            // mouseUp close handling; this avoids close-then-immediate-reopen races.
+            button.sendAction(on: [.leftMouseDown, .rightMouseDown])
             button.imagePosition = .noImage
             button.image = nil
             button.attributedTitle = NSAttributedString(string: "")
