@@ -425,10 +425,15 @@ actor ITunesMetadataLookup {
         }
     }
 
-    private var cache: [String: URL?] = [:]
+    private let maxInMemoryAlbumURLCacheEntries = 512
+    private var cache: [String: URL] = [:]
+    private var cacheRecencyOrder: [String] = []
     private var inflight: [String: Task<URL?, Never>] = [:]
     private var persistentAlbumURLCacheLoaded = false
     private var persistentAlbumURLCache: [String: String] = [:]
+    #if DEBUG
+    private var debugInMemoryEvictionCount: Int = 0
+    #endif
 
     func lookupAlbumURL(
         artist: String,
@@ -446,12 +451,17 @@ actor ITunesMetadataLookup {
             normalizedAlbum: normalizedAlbum
         )
 
-        if let cached = cache[exactKey] ?? cache[albumKey] {
+        if let cached = cache[exactKey] {
+            touchInMemoryCacheKey(exactKey)
+            return cached
+        }
+        if let cached = cache[albumKey] {
+            touchInMemoryCacheKey(albumKey)
             return cached
         }
         if let persisted = persistedAlbumURL(for: persistentKeys) {
-            cache[exactKey] = persisted
-            cache[albumKey] = persisted
+            setInMemoryCachedAlbumURL(persisted, for: exactKey)
+            setInMemoryCachedAlbumURL(persisted, for: albumKey)
             Self.logLookupEvent(
                 "persistent albumURL cache hit url=\(persisted.absoluteString) artist=\(artist) album=\(album)"
             )
@@ -475,8 +485,8 @@ actor ITunesMetadataLookup {
         let resolved = await task.value
         inflight[exactKey] = nil
         if let resolved {
-            cache[exactKey] = resolved
-            cache[albumKey] = resolved
+            setInMemoryCachedAlbumURL(resolved, for: exactKey)
+            setInMemoryCachedAlbumURL(resolved, for: albumKey)
             persistAlbumURL(resolved, for: persistentKeys)
         }
         return resolved
@@ -1116,6 +1126,47 @@ actor ITunesMetadataLookup {
             return url
         }
         return nil
+    }
+
+    private func setInMemoryCachedAlbumURL(_ url: URL, for key: String) {
+        cache[key] = url
+        touchInMemoryCacheKey(key)
+        pruneInMemoryAlbumURLCacheIfNeeded()
+        #if DEBUG
+        if cache.count % 64 == 0 {
+            Self.logLookupEvent(
+                "memory cache entries=\(cache.count) evictions=\(debugInMemoryEvictionCount)"
+            )
+        }
+        #endif
+    }
+
+    private func touchInMemoryCacheKey(_ key: String) {
+        if let existingIndex = cacheRecencyOrder.firstIndex(of: key) {
+            cacheRecencyOrder.remove(at: existingIndex)
+        }
+        cacheRecencyOrder.append(key)
+    }
+
+    private func pruneInMemoryAlbumURLCacheIfNeeded() {
+        var didEvict = false
+        while cache.count > maxInMemoryAlbumURLCacheEntries {
+            guard !cacheRecencyOrder.isEmpty else { break }
+            let staleKey = cacheRecencyOrder.removeFirst()
+            if cache.removeValue(forKey: staleKey) != nil {
+                didEvict = true
+                #if DEBUG
+                debugInMemoryEvictionCount += 1
+                #endif
+            }
+        }
+        #if DEBUG
+        if didEvict {
+            Self.logLookupEvent(
+                "memory cache entries=\(cache.count) evictions=\(debugInMemoryEvictionCount)"
+            )
+        }
+        #endif
     }
 
     private func persistAlbumURL(_ url: URL, for keys: [String]) {

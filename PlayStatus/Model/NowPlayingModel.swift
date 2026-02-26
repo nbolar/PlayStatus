@@ -26,6 +26,34 @@ final class PlaybackClock: ObservableObject {
 final class NowPlayingModel: ObservableObject {
     static let shared = NowPlayingModel()
 
+    private enum MetadataPollingMode {
+        case playing
+        case pausedTrack
+        case idle
+
+        var interval: TimeInterval {
+            switch self {
+            case .playing:
+                return 0.5
+            case .pausedTrack:
+                return 1.0
+            case .idle:
+                return 5.0
+            }
+        }
+
+        var debugLabel: String {
+            switch self {
+            case .playing:
+                return "playing"
+            case .pausedTrack:
+                return "paused"
+            case .idle:
+                return "idle"
+            }
+        }
+    }
+
     // User toggles (didSet is the AppStore-safe way to auto-refresh; avoids CombineLatest Binding errors)
     @AppStorage("enableMusic") var enableMusic: Bool = true { didSet { refresh() } }
     @AppStorage("enableSpotify") var enableSpotify: Bool = true { didSet { refresh() } }
@@ -162,7 +190,10 @@ final class NowPlayingModel: ObservableObject {
 
     // Internals
     private var cancellables = Set<AnyCancellable>()
-    private var timer: AnyCancellable?
+    private var metadataRefreshTimer: AnyCancellable?
+    private var audioRefreshTimer: AnyCancellable?
+    private var currentMetadataPollInterval: TimeInterval = 0
+    private var currentAudioPollInterval: TimeInterval = 0
     private var lastSnapshot: NowPlayingSnapshot?
     private var launchAtLoginSupported: Bool = true
     private var fallbackArtworkTaskKey: String?
@@ -181,9 +212,14 @@ final class NowPlayingModel: ObservableObject {
     private var lyricsMetricUnavailable: Int = 0
     private var lyricsMetricFailures: Int = 0
     #endif
-    private let refreshQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.refresh", qos: .userInitiated)
+    private let refreshQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.refresh", qos: .utility)
     private var refreshInFlight = false
     private var refreshPending = false
+    #if DEBUG
+    private var debugMetadataPollCount: Int = 0
+    private var debugAudioPollCount: Int = 0
+    private var debugPollMetricsWindowStart: Date = Date()
+    #endif
 
     var providerPriority: ProviderPriority {
         get { ProviderPriority(rawValue: providerPriorityRaw) ?? .musicFirst }
@@ -327,17 +363,18 @@ final class NowPlayingModel: ObservableObject {
         surfaceMode = .popover
         lyricsPanelExpanded = expandLyricsByDefault
         animatedArtworkStatusMessage = "Ready"
-        // Adaptive polling: fast while playing, slower when idle.
-        $isPlaying
+        $isPopoverVisible
             .removeDuplicates()
-            .sink { [weak self] playing in
-                self?.startTimer(interval: playing ? 0.5 : 1.0)
+            .sink { [weak self] _ in
+                self?.updateAudioPollingTimerIfNeeded()
             }
             .store(in: &cancellables)
 
-        startTimer(interval: 0.5)
+        updateMetadataPollingTimerIfNeeded()
+        updateAudioPollingTimerIfNeeded()
         launchAtLoginSupported = launchAtLoginStatus() != nil
         refresh()
+        refreshAudioState()
         refreshPersistentCacheStats()
     }
 
@@ -418,11 +455,97 @@ final class NowPlayingModel: ObservableObject {
         }
     }
 
-    private func startTimer(interval: Double) {
-        timer?.cancel()
-        timer = Timer.publish(every: interval, on: .main, in: .common)
+    private func metadataPollingMode(for snapshot: NowPlayingSnapshot? = nil) -> MetadataPollingMode {
+        let resolvedSnapshot = snapshot
+        let resolvedProvider = resolvedSnapshot?.provider ?? provider
+        let resolvedTitle = resolvedSnapshot?.title ?? title
+        let resolvedIsPlaying = resolvedSnapshot?.isPlaying ?? isPlaying
+
+        if resolvedIsPlaying {
+            return .playing
+        }
+        if resolvedProvider != .none, !resolvedTitle.isEmpty {
+            return .pausedTrack
+        }
+        return .idle
+    }
+
+    private func updateMetadataPollingTimerIfNeeded(using snapshot: NowPlayingSnapshot? = nil) {
+        let mode = metadataPollingMode(for: snapshot)
+        let interval = mode.interval
+        guard abs(currentMetadataPollInterval - interval) > 0.001 else { return }
+
+        metadataRefreshTimer?.cancel()
+        currentMetadataPollInterval = interval
+        metadataRefreshTimer = Timer.publish(every: interval, on: .main, in: .common)
             .autoconnect()
-            .sink { [weak self] _ in self?.refresh() }
+            .sink { [weak self] _ in
+                #if DEBUG
+                self?.recordMetadataPollTick()
+                #endif
+                self?.refresh()
+            }
+
+        #if DEBUG
+        NSLog("PlayStatus polling: metadata interval=%.2fs mode=%@", interval, mode.debugLabel)
+        #endif
+    }
+
+    private func desiredAudioPollingInterval() -> TimeInterval {
+        isPopoverVisible ? 10.0 : 30.0
+    }
+
+    private func updateAudioPollingTimerIfNeeded() {
+        let interval = desiredAudioPollingInterval()
+        guard abs(currentAudioPollInterval - interval) > 0.001 else { return }
+
+        audioRefreshTimer?.cancel()
+        currentAudioPollInterval = interval
+        audioRefreshTimer = Timer.publish(every: interval, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                #if DEBUG
+                self?.recordAudioPollTick()
+                #endif
+                self?.refreshAudioState()
+            }
+
+        #if DEBUG
+        NSLog("PlayStatus polling: audio interval=%.2fs visible=%d", interval, isPopoverVisible ? 1 : 0)
+        #endif
+    }
+
+    #if DEBUG
+    private func recordMetadataPollTick() {
+        debugMetadataPollCount += 1
+        flushDebugPollMetricsIfNeeded()
+    }
+
+    private func recordAudioPollTick() {
+        debugAudioPollCount += 1
+        flushDebugPollMetricsIfNeeded()
+    }
+
+    private func flushDebugPollMetricsIfNeeded(force: Bool = false) {
+        let now = Date()
+        guard force || now.timeIntervalSince(debugPollMetricsWindowStart) >= 60 else { return }
+        NSLog(
+            "PlayStatus polling metrics: metadata=%d/min audio=%d/min",
+            debugMetadataPollCount,
+            debugAudioPollCount
+        )
+        debugMetadataPollCount = 0
+        debugAudioPollCount = 0
+        debugPollMetricsWindowStart = now
+    }
+    #endif
+
+    deinit {
+        metadataRefreshTimer?.cancel()
+        audioRefreshTimer?.cancel()
+        #if DEBUG
+        flushDebugPollMetricsIfNeeded(force: true)
+        #endif
     }
 
     func refresh() {
@@ -440,11 +563,9 @@ final class NowPlayingModel: ObservableObject {
 
                 let spotify = self.enableSpotify ? SpotifyProvider.fetch() : nil
                 let music = self.enableMusic ? MusicProvider.fetch() : nil
-                let audioState = AudioOutputController.currentState()
 
                 DispatchQueue.main.async { [weak self] in
                     self?.applyFetchedSnapshots(music: music, spotify: spotify)
-                    self?.applyAudioState(audioState)
                 }
             } while self.refreshPending
             self.refreshInFlight = false
@@ -528,6 +649,7 @@ final class NowPlayingModel: ObservableObject {
             self.artwork = snapshot.artwork
             self.updateTint(from: snapshot.artwork)
             self.configureMarquee()
+            self.updateMetadataPollingTimerIfNeeded(using: snapshot)
         }
 
         if snapshot.provider != .none, !snapshot.title.isEmpty {

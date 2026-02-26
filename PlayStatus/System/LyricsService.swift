@@ -32,8 +32,13 @@ actor LyricsService {
         case unavailable
     }
 
+    private let maxInMemoryEntries = 150
     private var cache: [String: CacheEntry] = [:]
+    private var cacheAccessOrder: [String] = []
     private var inflight: [String: Task<LyricsFetchOutcome, Never>] = [:]
+    #if DEBUG
+    private var debugCacheEvictionCount: Int = 0
+    #endif
 
     func cancelAllInflightLyricsFetches() {
         for task in inflight.values {
@@ -54,7 +59,7 @@ actor LyricsService {
         }
 
         let key = descriptor.cacheKey
-        if !forceRefresh, let cached = cache[key] {
+        if !forceRefresh, let cached = cachedEntry(for: key) {
             switch cached {
             case .available(let payload): return .available(payload)
             case .unavailable: return .unavailable
@@ -64,10 +69,10 @@ actor LyricsService {
         if !forceRefresh, let diskCached = await PersistentMediaCache.shared.fetchLyrics(forKey: key) {
             switch diskCached {
             case .available(let payload):
-                cache[key] = .available(payload)
+                storeCacheEntry(.available(payload), for: key)
                 return .available(payload)
             case .unavailable:
-                cache[key] = .unavailable
+                storeCacheEntry(.unavailable, for: key)
                 return .unavailable
             }
         }
@@ -114,11 +119,11 @@ actor LyricsService {
 
         switch outcome {
         case .available(let payload):
-            cache[key] = .available(payload)
+            storeCacheEntry(.available(payload), for: key)
             await PersistentMediaCache.shared.storeLyricsAvailable(payload, forKey: key)
         case .unavailable:
             if cacheUnavailableResult {
-                cache[key] = .unavailable
+                storeCacheEntry(.unavailable, for: key)
                 await PersistentMediaCache.shared.storeLyricsUnavailable(forKey: key)
             }
         case .failed:
@@ -126,6 +131,49 @@ actor LyricsService {
         }
 
         return outcome
+    }
+
+    private func cachedEntry(for key: String) -> CacheEntry? {
+        guard let entry = cache[key] else { return nil }
+        touchCacheKey(key)
+        return entry
+    }
+
+    private func storeCacheEntry(_ entry: CacheEntry, for key: String) {
+        cache[key] = entry
+        touchCacheKey(key)
+        pruneInMemoryCacheIfNeeded()
+    }
+
+    private func touchCacheKey(_ key: String) {
+        if let existingIndex = cacheAccessOrder.firstIndex(of: key) {
+            cacheAccessOrder.remove(at: existingIndex)
+        }
+        cacheAccessOrder.append(key)
+    }
+
+    private func pruneInMemoryCacheIfNeeded() {
+        var didEvict = false
+        while cache.count > maxInMemoryEntries {
+            guard !cacheAccessOrder.isEmpty else { break }
+            let evictKey = cacheAccessOrder.removeFirst()
+            if cache.removeValue(forKey: evictKey) != nil {
+                didEvict = true
+                #if DEBUG
+                debugCacheEvictionCount += 1
+                #endif
+            }
+        }
+
+        #if DEBUG
+        if didEvict {
+            NSLog(
+                "PlayStatus cache(memory): lyrics entries=%d evictions=%d",
+                cache.count,
+                debugCacheEvictionCount
+            )
+        }
+        #endif
     }
 }
 

@@ -54,7 +54,7 @@ final class StatusBarMarqueeView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if window == nil {
-            stopTicker()
+            suspendScrolling()
         } else if shouldScroll && !isTransitioning {
             startTickerIfNeeded()
         }
@@ -255,6 +255,23 @@ final class StatusBarMarqueeView: NSView {
         applyLayout()
     }
 
+    func suspendScrolling() {
+        stopTicker()
+        isTransitioning = false
+        shouldScroll = false
+        currentSignature = ""
+        xOffset = 0
+        transitionLabel.isHidden = true
+        transitionLabel.alphaValue = 1
+        secondaryLabel.isHidden = true
+        secondaryLabel.alphaValue = 1
+        primaryLabel.alphaValue = 1
+        applyLayout()
+        #if DEBUG
+        NSLog("PlayStatus marquee ticker: suspended")
+        #endif
+    }
+
     private func startTickerIfNeeded() {
         guard tickTimer == nil else { return }
         tickTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 240.0, repeats: true) { [weak self] _ in
@@ -263,12 +280,21 @@ final class StatusBarMarqueeView: NSView {
         if let tickTimer {
             RunLoop.main.add(tickTimer, forMode: .common)
         }
+        #if DEBUG
+        NSLog("PlayStatus marquee ticker: started")
+        #endif
     }
 
     private func stopTicker() {
+        let hadTimer = tickTimer != nil
         tickTimer?.invalidate()
         tickTimer = nil
         lastTickTime = 0
+        #if DEBUG
+        if hadTimer {
+            NSLog("PlayStatus marquee ticker: stopped")
+        }
+        #endif
     }
 
     private func tick() {
@@ -664,6 +690,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             let iconY = floor((button.bounds.height - iconSize) / 2)
             let iconX = floor((button.bounds.width - iconSize) / 2)
             iconView.frame = CGRect(x: iconX, y: iconY, width: iconSize, height: iconSize)
+            marqueeView.suspendScrolling()
             marqueeView.isHidden = true
             return
         }

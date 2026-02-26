@@ -1,11 +1,50 @@
 import Foundation
 import AppKit
 
+private func providerAppIsRunning(bundleIdentifier: String) -> Bool {
+    NSRunningApplication
+        .runningApplications(withBundleIdentifier: bundleIdentifier)
+        .contains(where: { !$0.isTerminated })
+}
+
+private func estimatedImageMemoryCostBytes(_ image: NSImage) -> Int {
+    let targetSize = image.size
+    let targetRect = NSRect(origin: .zero, size: targetSize)
+    if let rep = image.bestRepresentation(for: targetRect, context: nil, hints: nil) {
+        let width = max(rep.pixelsWide, 1)
+        let height = max(rep.pixelsHigh, 1)
+        return max(1, width * height * 4)
+    }
+    let width = max(Int(targetSize.width.rounded()), 1)
+    let height = max(Int(targetSize.height.rounded()), 1)
+    return max(1, width * height * 4)
+}
+
+#if DEBUG
+private final class MemoryCacheEvictionLogger: NSObject, NSCacheDelegate {
+    private let cacheName: String
+    private(set) var evictionCount: Int = 0
+
+    init(cacheName: String) {
+        self.cacheName = cacheName
+    }
+
+    func cache(_ cache: NSCache<AnyObject, AnyObject>, willEvictObject obj: Any) {
+        evictionCount += 1
+        NSLog("PlayStatus cache(memory): %@ evict total=%d", cacheName, evictionCount)
+    }
+}
+#endif
+
 enum MusicProvider {
     private static var cachedArtworkTrackKey: String?
     private static var cachedArtworkImage: NSImage?
 
     static func fetch() -> NowPlayingSnapshot? {
+        guard providerAppIsRunning(bundleIdentifier: "com.apple.Music") else {
+            return nil
+        }
+
         let metaScript = """
         tell application "Music"
             if it is running then
@@ -240,6 +279,10 @@ enum MusicProvider {
 
 enum SpotifyProvider {
     static func fetch() -> NowPlayingSnapshot? {
+        guard providerAppIsRunning(bundleIdentifier: "com.spotify.client") else {
+            return nil
+        }
+
         let metaScript = """
         tell application "Spotify"
             if it is running then
@@ -312,11 +355,23 @@ enum SpotifyProvider {
 
 final class ArtworkCache {
     static let shared = ArtworkCache()
-    private var cache: [URL: NSImage] = [:]
+    private let cache = NSCache<NSURL, NSImage>()
     private var inflight: Set<URL> = []
+    #if DEBUG
+    private let debugEvictionLogger = MemoryCacheEvictionLogger(cacheName: "spotify_artwork")
+    private var debugInsertCount: Int = 0
+    #endif
+
+    private init() {
+        cache.totalCostLimit = 24 * 1024 * 1024
+        cache.countLimit = 120
+        #if DEBUG
+        cache.delegate = debugEvictionLogger
+        #endif
+    }
 
     func image(for url: URL) -> NSImage? {
-        if let img = cache[url] { return img }
+        if let image = cache.object(forKey: url as NSURL) { return image }
         if inflight.contains(url) { return nil }
         inflight.insert(url)
 
@@ -326,7 +381,23 @@ final class ArtworkCache {
 
             if let cachedData = await PersistentMediaCache.shared.fetchArtworkData(forKey: url.absoluteString),
                let cachedImage = NSImage(data: cachedData) {
-                DispatchQueue.main.async { self.cache[url] = cachedImage }
+                DispatchQueue.main.async {
+                    self.cache.setObject(
+                        cachedImage,
+                        forKey: url as NSURL,
+                        cost: estimatedImageMemoryCostBytes(cachedImage)
+                    )
+                    #if DEBUG
+                    self.debugInsertCount += 1
+                    NSLog(
+                        "PlayStatus cache(memory): spotify_artwork insert=%d limitBytes=%d countLimit=%d evictions=%d",
+                        self.debugInsertCount,
+                        self.cache.totalCostLimit,
+                        self.cache.countLimit,
+                        self.debugEvictionLogger.evictionCount
+                    )
+                    #endif
+                }
                 return
             }
 
@@ -336,7 +407,23 @@ final class ArtworkCache {
                 return
             }
 
-            DispatchQueue.main.async { self.cache[url] = image }
+            DispatchQueue.main.async {
+                self.cache.setObject(
+                    image,
+                    forKey: url as NSURL,
+                    cost: estimatedImageMemoryCostBytes(image)
+                )
+                #if DEBUG
+                self.debugInsertCount += 1
+                NSLog(
+                    "PlayStatus cache(memory): spotify_artwork insert=%d limitBytes=%d countLimit=%d evictions=%d",
+                    self.debugInsertCount,
+                    self.cache.totalCostLimit,
+                    self.cache.countLimit,
+                    self.debugEvictionLogger.evictionCount
+                )
+                #endif
+            }
             await PersistentMediaCache.shared.storeArtworkImage(image, forKey: url.absoluteString)
         }
 
@@ -347,12 +434,24 @@ final class ArtworkCache {
 final class ITunesArtworkLookup {
     static let shared = ITunesArtworkLookup()
 
-    private var imageCache: [String: NSImage] = [:]
+    private let imageCache = NSCache<NSString, NSImage>()
     private var inflight: Set<String> = []
+    #if DEBUG
+    private let debugEvictionLogger = MemoryCacheEvictionLogger(cacheName: "itunes_artwork")
+    private var debugInsertCount: Int = 0
+    #endif
+
+    private init() {
+        imageCache.totalCostLimit = 12 * 1024 * 1024
+        imageCache.countLimit = 80
+        #if DEBUG
+        imageCache.delegate = debugEvictionLogger
+        #endif
+    }
 
     func lookup(artist: String, album: String, title: String, completion: @escaping (NSImage?) -> Void) {
         let key = "\(artist)|\(album)|\(title)"
-        if let cached = imageCache[key] {
+        if let cached = imageCache.object(forKey: key as NSString) {
             completion(cached)
             return
         }
@@ -368,7 +467,23 @@ final class ITunesArtworkLookup {
 
             if let cachedData = await PersistentMediaCache.shared.fetchArtworkData(forKey: key),
                let cachedImage = NSImage(data: cachedData) {
-                DispatchQueue.main.async { self.imageCache[key] = cachedImage }
+                DispatchQueue.main.async {
+                    self.imageCache.setObject(
+                        cachedImage,
+                        forKey: key as NSString,
+                        cost: estimatedImageMemoryCostBytes(cachedImage)
+                    )
+                    #if DEBUG
+                    self.debugInsertCount += 1
+                    NSLog(
+                        "PlayStatus cache(memory): itunes_artwork insert=%d limitBytes=%d countLimit=%d evictions=%d",
+                        self.debugInsertCount,
+                        self.imageCache.totalCostLimit,
+                        self.imageCache.countLimit,
+                        self.debugEvictionLogger.evictionCount
+                    )
+                    #endif
+                }
                 completion(cachedImage)
                 return
             }
@@ -398,7 +513,23 @@ final class ITunesArtworkLookup {
                 return
             }
 
-            DispatchQueue.main.async { self.imageCache[key] = image }
+            DispatchQueue.main.async {
+                self.imageCache.setObject(
+                    image,
+                    forKey: key as NSString,
+                    cost: estimatedImageMemoryCostBytes(image)
+                )
+                #if DEBUG
+                self.debugInsertCount += 1
+                NSLog(
+                    "PlayStatus cache(memory): itunes_artwork insert=%d limitBytes=%d countLimit=%d evictions=%d",
+                    self.debugInsertCount,
+                    self.imageCache.totalCostLimit,
+                    self.imageCache.countLimit,
+                    self.debugEvictionLogger.evictionCount
+                )
+                #endif
+            }
             await PersistentMediaCache.shared.storeArtworkImage(image, forKey: key)
             completion(image)
         }
