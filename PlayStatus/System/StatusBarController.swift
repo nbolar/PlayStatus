@@ -295,11 +295,76 @@ final class DetachedNowPlayingWindow: NSWindow {
     override var canBecomeMain: Bool { true }
 }
 
+private final class DetachedNowPlayingContainerController: NSViewController {
+    private let hostController: NSHostingController<AnyView>
+    private let materialView = NSVisualEffectView()
+    private let neutralWashView = NSView()
+    private let cornerRadius: CGFloat
+
+    init(hostController: NSHostingController<AnyView>, cornerRadius: CGFloat = 18) {
+        self.hostController = hostController
+        self.cornerRadius = cornerRadius
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        return nil
+    }
+
+    override func loadView() {
+        let root = NSView()
+        root.wantsLayer = true
+        root.layer?.cornerRadius = cornerRadius
+        root.layer?.masksToBounds = true
+        root.layer?.backgroundColor = NSColor.clear.cgColor
+        view = root
+
+        materialView.translatesAutoresizingMaskIntoConstraints = false
+        materialView.material = .popover
+        materialView.blendingMode = .withinWindow
+        materialView.state = .active
+
+        neutralWashView.translatesAutoresizingMaskIntoConstraints = false
+        neutralWashView.wantsLayer = true
+        neutralWashView.layer?.backgroundColor = NSColor(calibratedWhite: 0.08, alpha: 0.28).cgColor
+
+        root.addSubview(materialView)
+        materialView.addSubview(neutralWashView)
+
+        NSLayoutConstraint.activate([
+            materialView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            materialView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            materialView.topAnchor.constraint(equalTo: root.topAnchor),
+            materialView.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+
+            neutralWashView.leadingAnchor.constraint(equalTo: materialView.leadingAnchor),
+            neutralWashView.trailingAnchor.constraint(equalTo: materialView.trailingAnchor),
+            neutralWashView.topAnchor.constraint(equalTo: materialView.topAnchor),
+            neutralWashView.bottomAnchor.constraint(equalTo: materialView.bottomAnchor)
+        ])
+
+        addChild(hostController)
+        let hostView = hostController.view
+        hostView.translatesAutoresizingMaskIntoConstraints = false
+        hostView.wantsLayer = true
+        hostView.layer?.backgroundColor = NSColor.clear.cgColor
+        materialView.addSubview(hostView)
+
+        NSLayoutConstraint.activate([
+            hostView.leadingAnchor.constraint(equalTo: materialView.leadingAnchor),
+            hostView.trailingAnchor.constraint(equalTo: materialView.trailingAnchor),
+            hostView.topAnchor.constraint(equalTo: materialView.topAnchor),
+            hostView.bottomAnchor.constraint(equalTo: materialView.bottomAnchor)
+        ])
+    }
+}
+
 final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
     private let popoverHost = NSHostingController(rootView: AnyView(EmptyView()))
     private let detachedHost = NSHostingController(rootView: AnyView(EmptyView()))
+    private lazy var detachedContainerController = DetachedNowPlayingContainerController(hostController: detachedHost)
     private var detachedWindow: DetachedNowPlayingWindow?
     private var cancellables = Set<AnyCancellable>()
     private let model = NowPlayingModel.shared
@@ -875,7 +940,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         window.delegate = self
 
         detachedHost.rootView = AnyView(NowPlayingPopover(model: model))
-        window.contentViewController = detachedHost
+        window.contentViewController = detachedContainerController
 
         detachedWindow = window
         lastAppliedDetachedSize = targetContentSize

@@ -9,6 +9,52 @@ enum NowPlayingSurfaceMode: String {
     case detached
 }
 
+enum DetachedWindowSizePreset: String, CaseIterable {
+    case small
+    case medium
+    case large
+
+    var displayName: String {
+        switch self {
+        case .small: return "Small"
+        case .medium: return "Medium"
+        case .large: return "Large"
+        }
+    }
+
+    var miniScaleFactor: CGFloat {
+        switch self {
+        case .small: return 0.70
+        case .medium: return 0.90
+        case .large: return 1.15
+        }
+    }
+
+    var regularScaleFactor: CGFloat {
+        switch self {
+        case .small: return 0.95
+        case .medium: return 1.00
+        case .large: return 1.08
+        }
+    }
+
+    var regularControlScaleFactor: CGFloat {
+        switch self {
+        case .small: return 0.90
+        case .medium: return 1.00
+        case .large: return 1.08
+        }
+    }
+
+    var miniControlScaleFactor: CGFloat {
+        switch self {
+        case .small: return 0.82
+        case .medium: return 1.00
+        case .large: return 1.12
+        }
+    }
+}
+
 enum ProviderIconKind: Equatable {
     case sfSymbol(String)
     case iconifyAsset(String)
@@ -83,12 +129,14 @@ enum PreferredProvider: String, CaseIterable {
 
 enum ArtworkMotionStyle: String, CaseIterable {
     case parallaxByPointer
-    case depthPulse
+    case vinylSpin
+    case filmGrainDrift
 
     var displayName: String {
         switch self {
         case .parallaxByPointer: return "Parallax by Pointer"
-        case .depthPulse: return "Depth Pulse"
+        case .vinylSpin: return "Vinyl Spin"
+        case .filmGrainDrift: return "Film Grain Drift"
         }
     }
 }

@@ -564,6 +564,7 @@ struct PlayStatusSettingsView: View {
     @State private var selectedTab: SettingsTab = .display
     @State private var tabDirection: SettingsTabDirection = .forward
     @State private var showAnimatedStreamPreview = false
+    @State private var showHoverMotionStylePreview = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -618,6 +619,9 @@ struct PlayStatusSettingsView: View {
                 model: model,
                 demoStreamURL: defaultAnimatedArtworkDemoStreamURL
             )
+        }
+        .sheet(isPresented: $showHoverMotionStylePreview) {
+            HoverMotionStylePreviewSheet(model: model)
         }
         .environment(\.controlActiveState, .key)
     }
@@ -706,6 +710,23 @@ struct PlayStatusSettingsView: View {
                 isOn: $model.detachedWindowAlwaysOnTop
             )
 
+            SettingsControlRow(
+                title: "Detached window size",
+                caption: "Chooses the standalone detached window size preset."
+            ) {
+                Picker("Detached window size", selection: Binding(
+                    get: { model.detachedWindowSizePreset },
+                    set: { model.detachedWindowSizePreset = $0 }
+                )) {
+                    ForEach(DetachedWindowSizePreset.allCases, id: \.self) { preset in
+                        Text(preset.displayName).tag(preset)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(width: 220, alignment: .trailing)
+            }
+
             Divider().padding(.vertical, 2)
 
             SettingsSliderRow(
@@ -751,10 +772,10 @@ struct PlayStatusSettingsView: View {
                     Divider().padding(.vertical, 2)
 
                     SettingsControlRow(
-                        title: "Stream Quality",
+                        title: "Animated Stream Quality",
                         caption: "Sets default playback quality for animated artwork streams."
                     ) {
-                        Picker("Stream Quality", selection: Binding(
+                        Picker("Animated Stream Quality", selection: Binding(
                             get: { model.animatedArtworkQualityPolicy },
                             set: { model.animatedArtworkQualityPolicy = $0 }
                         )) {
@@ -814,8 +835,8 @@ struct PlayStatusSettingsView: View {
                 Divider().padding(.vertical, 2)
 
                 SettingsControlRow(
-                    title: "Hover Motion Style",
-                    caption: "Sets the character of artwork motion on cursor hover."
+                    title: "Artwork Motion Style",
+                    caption: "Sets the character of motion applied to album artwork."
                 ) {
                     Picker("Motion Style", selection: Binding(
                         get: { model.artworkMotionStyle },
@@ -828,6 +849,19 @@ struct PlayStatusSettingsView: View {
                     .pickerStyle(.menu)
                     .labelsHidden()
                     .frame(width: 220, alignment: .trailing)
+                }
+
+                SettingsControlRow(
+                    title: "Motion Style Preview",
+                    caption: "Opens a help preview showing how each artwork motion style behaves."
+                ) {
+                    Button {
+                        showHoverMotionStylePreview = true
+                    } label: {
+                        Label("Open Preview", systemImage: "rectangle.stack")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
             }
         }
@@ -1099,6 +1133,205 @@ private struct AnimatedArtworkStreamPreviewSheet: View {
         }
         .padding(18)
         .frame(width: 390)
+    }
+}
+
+private struct HoverMotionStylePreviewSheet: View {
+    @ObservedObject var model: NowPlayingModel
+    @Environment(\.dismiss) private var dismiss
+
+    private var previewArtwork: NSImage? {
+        model.artwork ?? HoverMotionStylePreviewArtwork.image
+    }
+
+    private var previewTint: Color {
+        if model.artwork != nil {
+            return model.glassTint
+        }
+        return Color(red: 0.96, green: 0.38, blue: 0.20)
+    }
+
+    private var previewAnimatedArtworkURL: URL? {
+        model.effectiveAnimatedArtworkURL
+    }
+
+    private var previewTileSide: CGFloat {
+        min(max(model.artworkDisplaySize, 124), 220)
+    }
+
+    private var previewColumns: [GridItem] {
+        [
+            GridItem(.flexible(minimum: 220, maximum: 280), spacing: 14),
+            GridItem(.flexible(minimum: 220, maximum: 280), spacing: 14)
+        ]
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Artwork Motion Style Preview")
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+
+            Text("See how artwork motion behaves on the same artwork pipeline used in the popover.")
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+
+            LazyVGrid(columns: previewColumns, alignment: .center, spacing: 14) {
+                ForEach(ArtworkMotionStyle.allCases, id: \.self) { style in
+                    HoverMotionStylePreviewCard(
+                        style: style,
+                        image: previewArtwork,
+                        tint: previewTint,
+                        animatedArtworkURL: previewAnimatedArtworkURL,
+                        tileSide: previewTileSide,
+                        isSelected: model.artworkMotionStyle == style,
+                        onSelect: {
+                            model.artworkMotionStyle = style
+                        }
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+
+            HStack {
+                Spacer()
+                Button("Done") {
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(18)
+        .frame(width: 560)
+    }
+}
+
+private struct HoverMotionStylePreviewCard: View {
+    let style: ArtworkMotionStyle
+    let image: NSImage?
+    let tint: Color
+    let animatedArtworkURL: URL?
+    let tileSide: CGFloat
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            AnimatedArtworkView(
+                image: image,
+                tint: tint,
+                isEnabled: false,
+                seed: "settings-motion-preview-\(style.rawValue)",
+                style: style,
+                animatedArtworkURL: animatedArtworkURL,
+                animatedArtworkIsVisible: true
+            )
+            .frame(width: tileSide, height: tileSide)
+            .animatedArtworkMotion(
+                isEnabled: true,
+                seed: "settings-motion-preview-\(style.rawValue)",
+                style: style,
+                isPlaying: true,
+                hasAnimatedStream: animatedArtworkURL != nil,
+                tint: tint,
+                artworkImage: image
+            )
+
+            Text(style.displayName)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+
+            Text(style.previewCaption)
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+
+            Button(isSelected ? "Selected" : "Use This Style") {
+                onSelect()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(isSelected)
+        }
+        .padding(10)
+        .frame(width: 236, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(isSelected ? .white.opacity(0.28) : .white.opacity(0.10), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private enum HoverMotionStylePreviewArtwork {
+    static let image: NSImage = {
+        let size = NSSize(width: 900, height: 900)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        defer { image.unlockFocus() }
+
+        let bounds = NSRect(origin: .zero, size: size)
+        NSColor(calibratedWhite: 0.08, alpha: 1.0).setFill()
+        bounds.fill()
+
+        NSGradient(colors: [
+            NSColor(calibratedRed: 0.06, green: 0.13, blue: 0.34, alpha: 1.0),
+            NSColor(calibratedRed: 0.18, green: 0.10, blue: 0.35, alpha: 1.0),
+            NSColor(calibratedRed: 0.34, green: 0.16, blue: 0.10, alpha: 1.0)
+        ])?.draw(in: bounds, angle: 220)
+
+        NSGraphicsContext.saveGraphicsState()
+        let transform = NSAffineTransform()
+        transform.translateX(by: size.width / 2, yBy: size.height / 2)
+        transform.rotate(byDegrees: -28)
+        transform.translateX(by: -(size.width / 2), yBy: -(size.height / 2))
+        transform.concat()
+        NSColor.white.withAlphaComponent(0.16).setFill()
+        var stripeX: CGFloat = -220
+        while stripeX < size.width + 220 {
+            NSBezierPath(rect: NSRect(x: stripeX, y: 0, width: 110, height: size.height)).fill()
+            stripeX += 210
+        }
+        NSGraphicsContext.restoreGraphicsState()
+
+        let haloRect = bounds.insetBy(dx: 130, dy: 130)
+        if let haloGradient = NSGradient(colorsAndLocations:
+            (NSColor(calibratedRed: 0.98, green: 0.48, blue: 0.22, alpha: 0.92), 0.0),
+            (NSColor(calibratedRed: 0.98, green: 0.48, blue: 0.22, alpha: 0.42), 0.45),
+            (NSColor(calibratedRed: 0.98, green: 0.48, blue: 0.22, alpha: 0.0), 1.0)
+        ) {
+            haloGradient.draw(in: NSBezierPath(ovalIn: haloRect), relativeCenterPosition: .zero)
+        }
+
+        let coreRect = bounds.insetBy(dx: 240, dy: 240)
+        if let coreGradient = NSGradient(colors: [
+            NSColor(calibratedRed: 0.99, green: 0.65, blue: 0.30, alpha: 1.0),
+            NSColor(calibratedRed: 0.89, green: 0.25, blue: 0.18, alpha: 1.0)
+        ]) {
+            coreGradient.draw(in: NSBezierPath(ovalIn: coreRect), angle: 300)
+        }
+
+        let ringPath = NSBezierPath(ovalIn: coreRect.insetBy(dx: -16, dy: -16))
+        ringPath.lineWidth = 10
+        NSColor.white.withAlphaComponent(0.30).setStroke()
+        ringPath.stroke()
+
+        return image
+    }()
+}
+
+private extension ArtworkMotionStyle {
+    var previewCaption: String {
+        switch self {
+        case .parallaxByPointer:
+            return "Tilts and shifts with pointer position. Hover your cursor over the artwork"
+        case .vinylSpin:
+            return "Applies a record-inspired disc overlay that spins only while playback is active."
+        case .filmGrainDrift:
+            return "Adds a cinematic grain texture that slowly drifts across the artwork."
+        }
     }
 }
 

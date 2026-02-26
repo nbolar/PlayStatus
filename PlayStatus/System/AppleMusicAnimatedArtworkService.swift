@@ -1,13 +1,19 @@
 import Foundation
 
+enum AnimatedAlbumLookupProfile: String {
+    case standard
+    case strict
+}
+
 struct AnimatedArtworkTrackDescriptor: Equatable {
+    let sourceProvider: NowPlayingProvider
     let artist: String
     let album: String
     let title: String
     let appleMusicAlbumURL: URL?
 
     var cacheKey: String {
-        [artist, album, title]
+        [sourceProvider.rawValue, artist, album]
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
             .joined(separator: "|")
     }
@@ -53,6 +59,7 @@ final class AppleMusicAnimatedArtworkService {
             )
         }
 
+        let lookupProfile: AnimatedAlbumLookupProfile = descriptor.sourceProvider == .spotify ? .strict : .standard
         let resolvedAlbumURL: URL?
         if let albumURL = descriptor.appleMusicAlbumURL {
             resolvedAlbumURL = albumURL
@@ -60,7 +67,8 @@ final class AppleMusicAnimatedArtworkService {
             resolvedAlbumURL = await ITunesMetadataLookup.shared.lookupAlbumURL(
                 artist: descriptor.artist,
                 album: descriptor.album,
-                title: descriptor.title
+                title: descriptor.title,
+                profile: lookupProfile
             )
         }
 
@@ -161,7 +169,12 @@ final class AppleMusicAnimatedArtworkService {
 
         let orderedUnique = deduplicatePreservingOrder(rawCandidates)
         let scored = orderedUnique.sorted { lhs, rhs in
-            candidateScore(lhs) > candidateScore(rhs)
+            let lhsScore = candidateScore(lhs)
+            let rhsScore = candidateScore(rhs)
+            if lhsScore != rhsScore {
+                return lhsScore > rhsScore
+            }
+            return lhs < rhs
         }
 
         return scored.compactMap(URL.init(string:))
@@ -340,6 +353,9 @@ final class AppleMusicAnimatedArtworkService {
 
 actor ITunesMetadataLookup {
     static let shared = ITunesMetadataLookup()
+    private static let requestUserAgent =
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+    private static let persistentAlbumURLCacheKey = "PlayStatus.ITunesMetadataLookup.AlbumURLCache.v1"
 
     private struct SearchTarget {
         let artistRaw: String
@@ -384,6 +400,7 @@ actor ITunesMetadataLookup {
     private struct CandidateScore {
         let total: Int
         let album: Int
+        let artist: Int
     }
 
     private struct ScoredCandidate {
@@ -391,34 +408,86 @@ actor ITunesMetadataLookup {
         let score: CandidateScore
     }
 
-    private var cache: [String: URL?] = [:]
-    private var inflight: [String: Task<URL?, Never>] = [:]
+    private struct ITunesSearchResponse {
+        let results: [[String: Any]]
+        let statusCode: Int?
 
-    func lookupAlbumURL(artist: String, album: String, title: String) async -> URL? {
-        let key = [artist, album, title]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-            .joined(separator: "|")
-
-        if let cached = cache[key] {
-            return cached
+        var isRateLimited: Bool {
+            statusCode == 429
         }
 
-        if let task = inflight[key] {
+        var isForbidden: Bool {
+            statusCode == 403
+        }
+
+        var isBlocked: Bool {
+            isRateLimited || isForbidden
+        }
+    }
+
+    private var cache: [String: URL?] = [:]
+    private var inflight: [String: Task<URL?, Never>] = [:]
+    private var persistentAlbumURLCacheLoaded = false
+    private var persistentAlbumURLCache: [String: String] = [:]
+
+    func lookupAlbumURL(
+        artist: String,
+        album: String,
+        title: String,
+        profile: AnimatedAlbumLookupProfile = .standard
+    ) async -> URL? {
+        let normalizedArtist = Self.normalizeText(artist)
+        let normalizedAlbum = Self.normalizeText(album)
+        let exactKey = [profile.rawValue, normalizedArtist, normalizedAlbum].joined(separator: "|")
+        let albumKey = [profile.rawValue, normalizedAlbum].joined(separator: "|")
+        let persistentKeys = persistentLookupKeys(
+            profile: profile,
+            normalizedArtist: normalizedArtist,
+            normalizedAlbum: normalizedAlbum
+        )
+
+        if let cached = cache[exactKey] ?? cache[albumKey] {
+            return cached
+        }
+        if let persisted = persistedAlbumURL(for: persistentKeys) {
+            cache[exactKey] = persisted
+            cache[albumKey] = persisted
+            Self.logLookupEvent(
+                "persistent albumURL cache hit url=\(persisted.absoluteString) artist=\(artist) album=\(album)"
+            )
+            return persisted
+        }
+
+        if let task = inflight[exactKey] {
             return await task.value
         }
 
         let task = Task<URL?, Never> {
-            await Self.resolveAlbumURL(artist: artist, album: album, title: title)
+            await Self.resolveAlbumURL(
+                artist: artist,
+                album: album,
+                title: title,
+                profile: profile
+            )
         }
 
-        inflight[key] = task
+        inflight[exactKey] = task
         let resolved = await task.value
-        inflight[key] = nil
-        cache[key] = resolved
+        inflight[exactKey] = nil
+        if let resolved {
+            cache[exactKey] = resolved
+            cache[albumKey] = resolved
+            persistAlbumURL(resolved, for: persistentKeys)
+        }
         return resolved
     }
 
-    private static func resolveAlbumURL(artist: String, album: String, title: String) async -> URL? {
+    private static func resolveAlbumURL(
+        artist: String,
+        album: String,
+        title: String,
+        profile: AnimatedAlbumLookupProfile
+    ) async -> URL? {
         let target = SearchTarget(artist: artist, album: album, title: title)
         guard target.hasMinimumMetadata else {
             logLookupEvent("skip iTunes lookup: missing artist/album artist=\(artist) album=\(album)")
@@ -426,41 +495,80 @@ actor ITunesMetadataLookup {
         }
 
         let storefront = currentStorefrontCode()
-        let albumTerm = [target.artistRaw, target.albumRaw]
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-        let songTerm = [target.artistRaw, target.albumRaw, target.titleRaw]
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
+        let searchTerms = prioritizedAlbumSearchTerms(for: target)
+        guard !searchTerms.isEmpty else {
+            logLookupEvent("skip iTunes lookup: no search terms artist=\(target.artistRaw) album=\(target.albumRaw)")
+            return nil
+        }
 
-        async let albumStrictResults = searchITunes(
-            term: albumTerm,
-            entity: "album",
-            country: storefront,
-            limit: 25,
-            attribute: "albumTerm"
-        )
-        async let albumBroadResults = searchITunes(
-            term: albumTerm,
-            entity: "album",
-            country: storefront,
-            limit: 25,
-            attribute: nil
-        )
-        async let songResults = searchITunes(
-            term: songTerm.isEmpty ? albumTerm : songTerm,
-            entity: "song",
-            country: storefront,
-            limit: 25,
-            attribute: nil
-        )
+        var uniqueCandidates: [AlbumCandidate] = []
+        var blockedStatusCodes: [Int] = []
 
-        let strict = await albumStrictResults
-        let broad = await albumBroadResults
-        let songs = await songResults
+        for (index, term) in searchTerms.enumerated() {
+            if index == 0 {
+                async let strict = searchITunes(
+                    term: term,
+                    entity: "album",
+                    country: storefront,
+                    limit: 25,
+                    attribute: "albumTerm"
+                )
+                async let broad = searchITunes(
+                    term: term,
+                    entity: "album",
+                    country: storefront,
+                    limit: 25,
+                    attribute: nil
+                )
+                let strictResponse = await strict
+                let broadResponse = await broad
+                if strictResponse.isBlocked, let code = strictResponse.statusCode {
+                    blockedStatusCodes.append(code)
+                }
+                if broadResponse.isBlocked, let code = broadResponse.statusCode {
+                    blockedStatusCodes.append(code)
+                }
+                let parsed = [strictResponse, broadResponse]
+                    .flatMap(\.results)
+                    .compactMap(parseCandidate(from:))
+                uniqueCandidates = deduplicateCandidates(parsed)
+            } else {
+                let response = await searchITunes(
+                    term: term,
+                    entity: "album",
+                    country: storefront,
+                    limit: 25,
+                    attribute: nil
+                )
+                if response.isBlocked, let code = response.statusCode {
+                    blockedStatusCodes.append(code)
+                }
+                let parsed = response.results.compactMap(parseCandidate(from:))
+                uniqueCandidates = deduplicateCandidates(uniqueCandidates + parsed)
+            }
 
-        let parsed = (strict + broad + songs).compactMap(parseCandidate(from:))
-        let uniqueCandidates = deduplicateCandidates(parsed)
+            if !uniqueCandidates.isEmpty {
+                break
+            }
+
+            // Stop fanout immediately once iTunes starts blocking requests.
+            if !blockedStatusCodes.isEmpty {
+                break
+            }
+        }
+
+        if uniqueCandidates.isEmpty, !blockedStatusCodes.isEmpty {
+            let blockedCodes = blockedStatusCodes.map(String.init).joined(separator: ",")
+            logLookupEvent("iTunes lookup blocked status=\(blockedCodes) artist=\(target.artistRaw) album=\(target.albumRaw)")
+            if let fallbackURL = await searchAppleMusicWebAlbumURL(target: target, storefront: storefront) {
+                logLookupEvent(
+                    "selected Apple Music web fallback albumURL=\(fallbackURL.absoluteString) " +
+                    "artist=\(target.artistRaw) album=\(target.albumRaw)"
+                )
+                return fallbackURL
+            }
+            return nil
+        }
         guard !uniqueCandidates.isEmpty else {
             logLookupEvent("no iTunes candidates for artist=\(target.artistRaw) album=\(target.albumRaw)")
             return nil
@@ -473,11 +581,27 @@ actor ITunesMetadataLookup {
             return nil
         }
 
-        let minimumTotalScore = 170
-        let minimumAlbumScore = 80
-        guard best.score.total >= minimumTotalScore, best.score.album >= minimumAlbumScore else {
+        let minimumTotalScore: Int
+        let minimumAlbumScore: Int
+        let minimumArtistScore: Int
+        switch profile {
+        case .standard:
+            minimumTotalScore = 170
+            minimumAlbumScore = 80
+            minimumArtistScore = 0
+        case .strict:
+            // Spotify strict mode: keep artist confidence high, but relax album/total
+            // thresholds to reduce false negatives on valid single/edition matches.
+            minimumTotalScore = 230
+            minimumAlbumScore = 130
+            minimumArtistScore = 70
+        }
+        guard best.score.total >= minimumTotalScore,
+              best.score.album >= minimumAlbumScore,
+              best.score.artist >= minimumArtistScore else {
             logLookupEvent(
-                "reject iTunes candidate totalScore=\(best.score.total) albumScore=\(best.score.album) " +
+                "reject iTunes candidate profile=\(profile.rawValue) totalScore=\(best.score.total) " +
+                "albumScore=\(best.score.album) artistScore=\(best.score.artist) " +
                 "artist=\(best.candidate.artistName) album=\(best.candidate.collectionName)"
             )
             return nil
@@ -492,8 +616,9 @@ actor ITunesMetadataLookup {
         }
 
         logLookupEvent(
-            "selected iTunes albumURL=\(resolvedURL.absoluteString) totalScore=\(best.score.total) " +
-            "albumScore=\(best.score.album) artist=\(best.candidate.artistName) album=\(best.candidate.collectionName)"
+            "selected iTunes albumURL=\(resolvedURL.absoluteString) profile=\(profile.rawValue) " +
+            "totalScore=\(best.score.total) albumScore=\(best.score.album) artistScore=\(best.score.artist) " +
+            "artist=\(best.candidate.artistName) album=\(best.candidate.collectionName)"
         )
         return resolvedURL
     }
@@ -504,33 +629,190 @@ actor ITunesMetadataLookup {
         country: String,
         limit: Int,
         attribute: String?
-    ) async -> [[String: Any]] {
+    ) async -> ITunesSearchResponse {
         let trimmedTerm = term.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTerm.isEmpty else { return [] }
+        guard !trimmedTerm.isEmpty else {
+            return ITunesSearchResponse(results: [], statusCode: nil)
+        }
 
-        var components = URLComponents(string: "https://itunes.apple.com/search")
-        var queryItems: [URLQueryItem] = [
+        let queryItems: [URLQueryItem] = [
             URLQueryItem(name: "term", value: trimmedTerm),
             URLQueryItem(name: "country", value: country),
             URLQueryItem(name: "entity", value: entity),
             URLQueryItem(name: "limit", value: "\(max(1, min(limit, 50)))")
         ]
-        if let attribute, !attribute.isEmpty {
-            queryItems.append(URLQueryItem(name: "attribute", value: attribute))
+        guard let primaryURL = searchURL(
+            base: "https://itunes.apple.com/search",
+            queryItems: queryItems,
+            attribute: attribute
+        ) else {
+            return ITunesSearchResponse(results: [], statusCode: nil)
         }
-        components?.queryItems = queryItems
+        return await performITunesSearchRequest(primaryURL)
+    }
 
-        guard let searchURL = components?.url else { return [] }
-        let request = URLRequest(url: searchURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 8)
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode >= 200,
-              httpResponse.statusCode < 300,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let results = json["results"] as? [[String: Any]] else {
-            return []
+    private static func searchURL(
+        base: String,
+        queryItems: [URLQueryItem],
+        attribute: String?
+    ) -> URL? {
+        var components = URLComponents(string: base)
+        var resolvedItems = queryItems
+        if let attribute, !attribute.isEmpty {
+            resolvedItems.append(URLQueryItem(name: "attribute", value: attribute))
         }
-        return results
+        components?.queryItems = resolvedItems
+        return components?.url
+    }
+
+    private static func performITunesSearchRequest(_ searchURL: URL) async -> ITunesSearchResponse {
+        logLookupEvent("iTunes search request url=\(searchURL.absoluteString)")
+        var request = URLRequest(url: searchURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 8)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        request.setValue(requestUserAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("https://music.apple.com/", forHTTPHeaderField: "Referer")
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let httpResponse = response as? HTTPURLResponse else {
+            logLookupEvent("iTunes search transport failure url=\(searchURL.absoluteString)")
+            return ITunesSearchResponse(results: [], statusCode: nil)
+        }
+        guard httpResponse.statusCode >= 200,
+              httpResponse.statusCode < 300 else {
+            logLookupEvent("iTunes search HTTP \(httpResponse.statusCode) url=\(searchURL.absoluteString)")
+            return ITunesSearchResponse(results: [], statusCode: httpResponse.statusCode)
+        }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            logLookupEvent("iTunes search invalid JSON url=\(searchURL.absoluteString)")
+            return ITunesSearchResponse(results: [], statusCode: httpResponse.statusCode)
+        }
+        let resultsAny = (json["results"] as? [Any]) ?? []
+        let results = resultsAny.compactMap { $0 as? [String: Any] }
+        logLookupEvent("iTunes search results count=\(results.count) url=\(searchURL.absoluteString)")
+        return ITunesSearchResponse(results: results, statusCode: httpResponse.statusCode)
+    }
+
+    private static func searchAppleMusicWebAlbumURL(
+        target: SearchTarget,
+        storefront: String
+    ) async -> URL? {
+        let terms = Array(prioritizedAlbumSearchTerms(for: target).prefix(1))
+        for term in terms {
+            guard var components = URLComponents(string: "https://music.apple.com/\(storefront)/search") else {
+                continue
+            }
+            components.queryItems = [URLQueryItem(name: "term", value: term)]
+            guard let searchURL = components.url else { continue }
+
+            logLookupEvent("Apple Music web search request url=\(searchURL.absoluteString)")
+            var request = URLRequest(url: searchURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 8)
+            request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+            request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+            request.setValue(requestUserAgent, forHTTPHeaderField: "User-Agent")
+            request.setValue("https://music.apple.com/", forHTTPHeaderField: "Referer")
+
+            guard let (data, response) = try? await URLSession.shared.data(for: request),
+                  let httpResponse = response as? HTTPURLResponse else {
+                logLookupEvent("Apple Music web search transport failure url=\(searchURL.absoluteString)")
+                continue
+            }
+            guard httpResponse.statusCode >= 200,
+                  httpResponse.statusCode < 300 else {
+                logLookupEvent("Apple Music web search HTTP \(httpResponse.statusCode) url=\(searchURL.absoluteString)")
+                continue
+            }
+            guard let html = String(data: data, encoding: .utf8), !html.isEmpty else {
+                logLookupEvent("Apple Music web search invalid HTML url=\(searchURL.absoluteString)")
+                continue
+            }
+
+            let candidates = extractAppleMusicAlbumURLs(fromSearchHTML: html, storefront: storefront)
+            guard !candidates.isEmpty else { continue }
+            let ranked = candidates.sorted { lhs, rhs in
+                scoreAppleMusicWebCandidate(lhs, target: target) > scoreAppleMusicWebCandidate(rhs, target: target)
+            }
+            if let selected = ranked.first {
+                return selected
+            }
+        }
+
+        return nil
+    }
+
+    private static func extractAppleMusicAlbumURLs(fromSearchHTML html: String, storefront: String) -> [URL] {
+        let normalized = html
+            .replacingOccurrences(of: "\\u002F", with: "/")
+            .replacingOccurrences(of: "\\u0026", with: "&")
+            .replacingOccurrences(of: "\\/", with: "/")
+            .replacingOccurrences(of: "&amp;", with: "&")
+
+        let patterns = [
+            #"https://music\.apple\.com/[a-z]{2}/album/[^\"'\s<>?]+/(?:id)?\d+"#,
+            #"/[a-z]{2}/album/[^\"'\s<>?]+/(?:id)?\d+"#
+        ]
+
+        var rawMatches: [String] = []
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let range = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
+            let matches = regex.matches(in: normalized, range: range)
+            rawMatches.append(contentsOf: matches.compactMap { match in
+                guard let matchedRange = Range(match.range, in: normalized) else { return nil }
+                return String(normalized[matchedRange])
+            })
+        }
+
+        var seen = Set<String>()
+        var urls: [URL] = []
+        urls.reserveCapacity(rawMatches.count)
+        for raw in rawMatches {
+            let absoluteString: String
+            if raw.hasPrefix("http://") || raw.hasPrefix("https://") {
+                absoluteString = raw
+            } else {
+                absoluteString = "https://music.apple.com\(raw)"
+            }
+
+            guard var components = URLComponents(string: absoluteString) else { continue }
+            components.query = nil
+            components.fragment = nil
+            guard let url = components.url else { continue }
+            guard url.path.contains("/album/") else { continue }
+
+            let lower = url.absoluteString.lowercased()
+            guard !seen.contains(lower) else { continue }
+            seen.insert(lower)
+            urls.append(url)
+        }
+
+        if storefront.count == 2 {
+            let storefrontPrefix = "/\(storefront.lowercased())/"
+            let preferred = urls.filter { $0.path.lowercased().hasPrefix(storefrontPrefix) }
+            if !preferred.isEmpty {
+                return preferred
+            }
+        }
+
+        return urls
+    }
+
+    private static func scoreAppleMusicWebCandidate(_ url: URL, target: SearchTarget) -> Int {
+        let normalizedPath = normalizeText(url.path.replacingOccurrences(of: "-", with: " "))
+        let pathTokens = tokenSet(forNormalizedText: normalizedPath)
+        var score = tokenOverlapScore(lhs: target.albumTokens, rhs: pathTokens, maxPoints: 100)
+        if !target.albumNorm.isEmpty,
+           normalizedPath.contains(target.albumNorm) {
+            score += 60
+        }
+
+        let primaryArtist = normalizeText(primaryArtistComponent(from: target.artistRaw))
+        if !primaryArtist.isEmpty,
+           normalizedPath.contains(primaryArtist) {
+            score += 20
+        }
+
+        return score
     }
 
     private static func parseCandidate(from raw: [String: Any]) -> AlbumCandidate? {
@@ -649,7 +931,11 @@ actor ITunesMetadataLookup {
             total -= 60
         }
 
-        return CandidateScore(total: total, album: max(albumScore, 0))
+        return CandidateScore(
+            total: total,
+            album: max(albumScore, 0),
+            artist: max(artistScore, 0)
+        )
     }
 
     private static func mismatchPenalty(target: SearchTarget, candidateAlbum: String, candidateTrack: String) -> Int {
@@ -708,6 +994,93 @@ actor ITunesMetadataLookup {
         return compacted.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private static func prioritizedAlbumSearchTerms(for target: SearchTarget) -> [String] {
+        var terms: [String] = []
+        var seen = Set<String>()
+
+        func append(_ value: String) {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            let compacted = trimmed.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            guard !compacted.isEmpty else { return }
+            let normalizedKey = normalizeText(compacted)
+            guard !normalizedKey.isEmpty, !seen.contains(normalizedKey) else { return }
+            seen.insert(normalizedKey)
+            terms.append(compacted)
+        }
+
+        let simplifiedAlbum = simplifiedAlbumTitle(target.albumRaw)
+        let primaryArtist = primaryArtistComponent(from: target.artistRaw)
+
+        append([primaryArtist, simplifiedAlbum].filter { !$0.isEmpty }.joined(separator: " "))
+        append([target.artistRaw, simplifiedAlbum].filter { !$0.isEmpty }.joined(separator: " "))
+        append(simplifiedAlbum)
+        append(target.albumRaw)
+
+        return Array(terms.prefix(2))
+    }
+
+    private static func simplifiedAlbumTitle(_ rawAlbum: String) -> String {
+        let trimmed = rawAlbum.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+
+        var cleaned = trimmed
+        cleaned = cleaned.replacingOccurrences(
+            of: #"(?i)\s*-\s*(single|ep)\s*$"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"(?i)\s*\[(feat\.?|featuring|with)[^\]]*\]"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"(?i)\s*\((feat\.?|featuring|with)[^\)]*\)"#,
+            with: "",
+            options: .regularExpression
+        )
+
+        let bracketStripped = cleaned.replacingOccurrences(
+            of: #"\s*(\[[^\]]*\]|\([^)]*\))"#,
+            with: "",
+            options: .regularExpression
+        )
+        let normalizedBracketStripped = bracketStripped
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalizedBracketStripped.count >= 4 {
+            cleaned = normalizedBracketStripped
+        }
+
+        cleaned = cleaned
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return cleaned.isEmpty ? trimmed : cleaned
+    }
+
+    private static func primaryArtistComponent(from rawArtist: String) -> String {
+        let separators = [
+            " feat. ",
+            " feat ",
+            " featuring ",
+            " with ",
+            " x ",
+            "&",
+            ",",
+            "/"
+        ]
+        var working = rawArtist
+        for separator in separators {
+            if let range = working.range(of: separator, options: [.caseInsensitive]) {
+                working = String(working[..<range.lowerBound])
+                break
+            }
+        }
+        return working.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private static func currentStorefrontCode() -> String {
         let regionCode = Locale.current.region?.identifier.lowercased() ?? ""
         if regionCode.count == 2 {
@@ -730,6 +1103,63 @@ actor ITunesMetadataLookup {
             return Int64(value)
         }
         return nil
+    }
+
+    private func persistedAlbumURL(for keys: [String]) -> URL? {
+        loadPersistentAlbumURLCacheIfNeeded()
+        for key in keys {
+            guard let raw = persistentAlbumURLCache[key],
+                  let url = URL(string: raw),
+                  !url.absoluteString.isEmpty else {
+                continue
+            }
+            return url
+        }
+        return nil
+    }
+
+    private func persistAlbumURL(_ url: URL, for keys: [String]) {
+        loadPersistentAlbumURLCacheIfNeeded()
+        guard !keys.isEmpty else { return }
+        let absolute = url.absoluteString
+        guard !absolute.isEmpty else { return }
+        var didUpdate = false
+        for key in keys where persistentAlbumURLCache[key] != absolute {
+            persistentAlbumURLCache[key] = absolute
+            didUpdate = true
+        }
+        if didUpdate {
+            UserDefaults.standard.set(persistentAlbumURLCache, forKey: Self.persistentAlbumURLCacheKey)
+        }
+    }
+
+    private func loadPersistentAlbumURLCacheIfNeeded() {
+        guard !persistentAlbumURLCacheLoaded else { return }
+        persistentAlbumURLCacheLoaded = true
+        let stored = UserDefaults.standard.dictionary(forKey: Self.persistentAlbumURLCacheKey) as? [String: String]
+        persistentAlbumURLCache = stored ?? [:]
+    }
+
+    private func persistentLookupKeys(
+        profile: AnimatedAlbumLookupProfile,
+        normalizedArtist: String,
+        normalizedAlbum: String
+    ) -> [String] {
+        guard !normalizedAlbum.isEmpty else { return [] }
+
+        var keys: [String] = []
+        var seen = Set<String>()
+        func append(_ value: String) {
+            guard !value.isEmpty, !seen.contains(value) else { return }
+            seen.insert(value)
+            keys.append(value)
+        }
+
+        append([profile.rawValue, normalizedArtist, normalizedAlbum].joined(separator: "|"))
+        append([profile.rawValue, normalizedAlbum].joined(separator: "|"))
+        append([normalizedArtist, normalizedAlbum].joined(separator: "|"))
+        append(normalizedAlbum)
+        return keys
     }
 
     private static func logLookupEvent(_ message: String) {

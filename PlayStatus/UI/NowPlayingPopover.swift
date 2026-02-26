@@ -38,9 +38,10 @@ struct NowPlayingPopover: View {
             .opacity(modeCrossfadeOpacity)
             .frame(
                 width: model.popoverWidth,
-                height: max(0, geometry.size.height),
+                height: resolvedPopoverHeight,
                 alignment: .topLeading
             )
+            .clipped()
         }
         .frame(
             width: model.popoverWidth,
@@ -167,12 +168,15 @@ struct NowPlayingPopover: View {
         let shouldRenderRegularLyricsPane = showRegularLyricsPane || visibleRegularLyricsHeight > 0.5
         let regularControlContrastBoost = model.regularControlsContrastBoost
         let searchTrailingAlignmentNudge: CGFloat = 4
+        let regularDetachedTransparencyMultiplier: Double = model.surfaceMode == .detached ? 0.80 : 1.0
+        let regularDetachedControlScale = model.detachedRegularControlScaleFactor
 
         return VStack(spacing: 0) {
             LiquidGlassCard(
                 tint: model.glassTint,
                 palette: model.cardBackgroundPalette,
-                readabilityBoost: regularControlContrastBoost
+                readabilityBoost: regularControlContrastBoost,
+                transparencyMultiplier: regularDetachedTransparencyMultiplier
             ) {
             VStack(spacing: 8) {
                 HStack(alignment: .center, spacing: 16) {
@@ -191,7 +195,11 @@ struct NowPlayingPopover: View {
                                 .animatedArtworkMotion(
                                     isEnabled: model.animatedArtworkEnabled,
                                     seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
-                                    style: model.artworkMotionStyle
+                                    style: model.artworkMotionStyle,
+                                    isPlaying: model.isPlaying,
+                                    hasAnimatedStream: model.effectiveAnimatedArtworkURL != nil,
+                                    tint: model.glassTint,
+                                    artworkImage: model.artwork
                                 )
                                 .matchedGeometryEffect(id: "heroArtwork", in: artworkMorphNamespace)
                         } else {
@@ -208,7 +216,11 @@ struct NowPlayingPopover: View {
                                 .animatedArtworkMotion(
                                     isEnabled: model.animatedArtworkEnabled,
                                     seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
-                                    style: model.artworkMotionStyle
+                                    style: model.artworkMotionStyle,
+                                    isPlaying: model.isPlaying,
+                                    hasAnimatedStream: model.effectiveAnimatedArtworkURL != nil,
+                                    tint: model.glassTint,
+                                    artworkImage: model.artwork
                                 )
                                 .opacity(regularArtworkOpacity)
                         }
@@ -246,7 +258,8 @@ struct NowPlayingPopover: View {
                                 onPrev: { model.previousTrack() },
                                 onPlayPause: { model.playPause() },
                                 onNext: { model.nextTrack() },
-                                contrastBoost: regularControlContrastBoost
+                                contrastBoost: regularControlContrastBoost,
+                                controlScale: regularDetachedControlScale
                             )
                             Spacer(minLength: 0)
                         }
@@ -256,6 +269,7 @@ struct NowPlayingPopover: View {
                             model: model,
                             showDeviceName: true,
                             contrastBoost: regularControlContrastBoost,
+                            controlScale: regularDetachedControlScale,
                             showFavorite: model.canFavoriteCurrentTrack,
                             favoriteIsActive: model.isCurrentTrackFavorited,
                             favoritePulseToken: model.favoriteActionPulseToken,
@@ -271,7 +285,8 @@ struct NowPlayingPopover: View {
                         Spacer(minLength: 0)
                         searchSection(
                             maxWidth: min(280, max(170, model.popoverWidth * 0.50)),
-                            contrastBoost: regularControlContrastBoost
+                            contrastBoost: regularControlContrastBoost,
+                            controlScale: regularDetachedControlScale
                         )
                     }
                     .padding(.trailing, -searchTrailingAlignmentNudge)
@@ -283,8 +298,13 @@ struct NowPlayingPopover: View {
             }
             .frame(height: baseRegularHeight, alignment: .top)
             .overlay(alignment: .topTrailing) {
-                HStack(spacing: 6) {
-                    ModeToggleControl(isMiniMode: false, transitionActive: modeTransitionActive, contrastBoost: regularControlContrastBoost) {
+                HStack(spacing: 6 * regularDetachedControlScale) {
+                    ModeToggleControl(
+                        isMiniMode: false,
+                        transitionActive: modeTransitionActive,
+                        contrastBoost: regularControlContrastBoost,
+                        sizeScale: regularDetachedControlScale
+                    ) {
                         withAnimation(modeMorphAnimation) {
                             artworkMorphEnabled = true
                             pendingMiniInitialExpand = true
@@ -295,7 +315,8 @@ struct NowPlayingPopover: View {
                     DetachedSurfaceToggleControl(
                         isDetachedMode: model.surfaceMode == .detached,
                         transitionActive: modeTransitionActive,
-                        contrastBoost: regularControlContrastBoost
+                        contrastBoost: regularControlContrastBoost,
+                        sizeScale: regularDetachedControlScale
                     ) {
                         model.requestToggleDetachedMode()
                     }
@@ -304,14 +325,16 @@ struct NowPlayingPopover: View {
                         DetachedWindowPinControl(
                             isPinned: model.detachedWindowAlwaysOnTop,
                             transitionActive: modeTransitionActive,
-                            contrastBoost: regularControlContrastBoost
+                            contrastBoost: regularControlContrastBoost,
+                            sizeScale: regularDetachedControlScale
                         ) {
                             model.detachedWindowAlwaysOnTop.toggle()
                         }
 
                         DetachedWindowCloseControl(
                             transitionActive: modeTransitionActive,
-                            contrastBoost: regularControlContrastBoost
+                            contrastBoost: regularControlContrastBoost,
+                            sizeScale: regularDetachedControlScale
                         ) {
                             model.requestCloseDetachedWindow()
                         }
@@ -321,7 +344,8 @@ struct NowPlayingPopover: View {
                         RegularLyricsToggleControl(
                             isOn: model.lyricsPanelExpanded,
                             lyricsState: model.lyricsState,
-                            contrastBoost: regularControlContrastBoost
+                            contrastBoost: regularControlContrastBoost,
+                            sizeScale: regularDetachedControlScale
                         ) {
                             let targetExpanded = !model.lyricsPanelExpanded
                             syncRenderedRegularLyricsPane(
@@ -333,9 +357,12 @@ struct NowPlayingPopover: View {
 
                     SettingsOpenControl {
                         Image(systemName: "gearshape.fill")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 16 * regularDetachedControlScale, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.94))
-                            .frame(width: 24, height: 24)
+                            .frame(
+                                width: 24 * regularDetachedControlScale,
+                                height: 24 * regularDetachedControlScale
+                            )
                             .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * regularControlContrastBoost)))))
                             .overlay(
                                 Circle()
@@ -345,8 +372,8 @@ struct NowPlayingPopover: View {
                     .buttonStyle(.plain)
                     .hoverHint("Settings", enabled: !modeTransitionActive)
                 }
-                .padding(.top, 8)
-                .padding(.trailing, 14)
+                .padding(.top, 8 * regularDetachedControlScale)
+                .padding(.trailing, 14 * regularDetachedControlScale)
             }
 
             if shouldRenderRegularLyricsPane {
@@ -365,7 +392,11 @@ struct NowPlayingPopover: View {
         .frame(width: model.popoverWidth, height: resolvedRegularHeight, alignment: .topLeading)
         .background(
             ZStack {
-                LiquidGlassBackground(tint: model.glassTint, readabilityBoost: regularControlContrastBoost)
+                LiquidGlassBackground(
+                    tint: model.glassTint,
+                    readabilityBoost: regularControlContrastBoost,
+                    transparencyMultiplier: regularDetachedTransparencyMultiplier
+                )
             }
         )
     }
@@ -394,27 +425,28 @@ struct NowPlayingPopover: View {
 //        }
 //    }
 
-    private func searchSection(maxWidth: CGFloat, contrastBoost: Double) -> some View {
+    private func searchSection(maxWidth: CGFloat, contrastBoost: Double, controlScale: CGFloat = 1) -> some View {
         let searchProvider = model.resolvedSearchProvider
         let searchPlaceholder = searchProvider == .spotify ? "Search Spotify" : "Search Music library"
         let actionLabel = searchProvider == .spotify ? "Open" : "Play"
         let clampedContrast = min(max(contrastBoost, 0), 1)
+        let clampedControlScale = min(max(controlScale, 0.80), 1.20)
         let searchForeground = Color.white
         let searchFillOpacity = min(0.34, 0.08 + (0.18 * clampedContrast))
         let searchStrokeOpacity = min(0.28, 0.12 + (0.08 * clampedContrast))
         let searchDarkenOpacity = 0.10 * clampedContrast
         let actionTint = Color.black.opacity(min(0.88, 0.44 + (0.34 * clampedContrast)))
-        let spacing: CGFloat = 4
-        let collapsedWidth: CGFloat = 30
-        let playWidth: CGFloat = 64
+        let spacing: CGFloat = 4 * clampedControlScale
+        let collapsedWidth: CGFloat = 30 * clampedControlScale
+        let playWidth: CGFloat = 64 * clampedControlScale
         let rowWidth = max(180, maxWidth)
         let expandedSearchWidth = max(140, rowWidth - playWidth - spacing)
         let containerWidth = isSearchExpanded ? expandedSearchWidth : collapsedWidth
-        let textFieldWidth = max(0, expandedSearchWidth - 40)
+        let textFieldWidth = max(0, expandedSearchWidth - (40 * clampedControlScale))
         let spring = Animation.interactiveSpring(response: 0.34, dampingFraction: 0.86, blendDuration: 0.12)
 
         return HStack(spacing: spacing) {
-            HStack(spacing: isSearchExpanded ? 6 : 0) {
+            HStack(spacing: isSearchExpanded ? (6 * clampedControlScale) : 0) {
                 Button {
                     if isSearchExpanded && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         withAnimation(spring) {
@@ -431,19 +463,19 @@ struct NowPlayingPopover: View {
                     Image(systemName: "magnifyingglass")
                         .imageScale(.small)
                         .foregroundStyle(searchForeground.opacity(0.90))
-                        .frame(width: 18, height: 18)
+                        .frame(width: 18 * clampedControlScale, height: 18 * clampedControlScale)
                 }
                 .buttonStyle(.plain)
                 .frame(
-                    width: isSearchExpanded ? 18 : collapsedWidth,
-                    height: 34,
+                    width: isSearchExpanded ? (18 * clampedControlScale) : collapsedWidth,
+                    height: 34 * clampedControlScale,
                     alignment: .center
                 )
                 .contentShape(Rectangle())
 
                 TextField(searchPlaceholder, text: $searchText)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.system(size: 12 * clampedControlScale, weight: .medium, design: .rounded))
                     .foregroundStyle(searchForeground.opacity(0.94))
                     .focused($isSearchFocused)
                     .onSubmit { runSearchAction() }
@@ -451,21 +483,21 @@ struct NowPlayingPopover: View {
                     .opacity(isSearchExpanded ? 1 : 0)
                     .allowsHitTesting(isSearchExpanded)
             }
-            .padding(.horizontal, isSearchExpanded ? 8 : 0)
-            .frame(width: containerWidth, height: 34, alignment: isSearchExpanded ? .leading : .center)
+            .padding(.horizontal, isSearchExpanded ? (8 * clampedControlScale) : 0)
+            .frame(width: containerWidth, height: 34 * clampedControlScale, alignment: isSearchExpanded ? .leading : .center)
             .background(
                 ZStack {
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    RoundedRectangle(cornerRadius: 11 * clampedControlScale, style: .continuous)
                         .fill(Color.primary.opacity(searchFillOpacity))
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    RoundedRectangle(cornerRadius: 11 * clampedControlScale, style: .continuous)
                         .fill(Color.black.opacity(searchDarkenOpacity))
                 }
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                RoundedRectangle(cornerRadius: 11 * clampedControlScale, style: .continuous)
                     .stroke(.white.opacity(searchStrokeOpacity), lineWidth: 1)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 11 * clampedControlScale, style: .continuous))
             .onTapGesture {
                 guard !isSearchExpanded else { return }
                 withAnimation(spring) {
@@ -489,7 +521,7 @@ struct NowPlayingPopover: View {
             .disabled(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
         }
-        .frame(height: 44)
+        .frame(height: 44 * clampedControlScale)
         .background(
             GeometryReader { proxy in
                 Color.clear.preference(
@@ -750,6 +782,7 @@ private struct MiniNowPlayingCard: View {
         let seamOpacity = min(1, max(0, visibleLyricsHeight / max(1, model.miniLyricsPaneHeight)))
         let miniMarqueeLaneWidth = max(120, model.popoverWidth - 64)
         let miniTrackKey = "\(model.provider.rawValue)|\(model.artist)|\(model.album)|\(model.title)"
+        let miniDetachedControlScale = model.detachedMiniControlScaleFactor
 
         return VStack(spacing: 0) {
             ZStack {
@@ -811,7 +844,11 @@ private struct MiniNowPlayingCard: View {
                 .animatedArtworkMotion(
                     isEnabled: model.animatedArtworkEnabled,
                     seed: "mini|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
-                    style: model.artworkMotionStyle
+                    style: model.artworkMotionStyle,
+                    isPlaying: model.isPlaying,
+                    hasAnimatedStream: model.effectiveAnimatedArtworkURL != nil,
+                    tint: model.glassTint,
+                    artworkImage: model.artwork
                 )
                 .padding(8)
             }
@@ -822,12 +859,18 @@ private struct MiniNowPlayingCard: View {
                     .stroke(.white.opacity(0.14), lineWidth: 1)
             )
             .overlay(alignment: .topTrailing) {
-                HStack(spacing: 6) {
-                    ModeToggleControl(isMiniMode: true, transitionActive: transitionActive, action: onToggleMode)
+                HStack(spacing: 6 * miniDetachedControlScale) {
+                    ModeToggleControl(
+                        isMiniMode: true,
+                        transitionActive: transitionActive,
+                        sizeScale: miniDetachedControlScale,
+                        action: onToggleMode
+                    )
 
                     DetachedSurfaceToggleControl(
                         isDetachedMode: model.surfaceMode == .detached,
-                        transitionActive: transitionActive
+                        transitionActive: transitionActive,
+                        sizeScale: miniDetachedControlScale
                     ) {
                         model.requestToggleDetachedMode()
                     }
@@ -835,19 +878,24 @@ private struct MiniNowPlayingCard: View {
                     if model.surfaceMode == .detached {
                         DetachedWindowPinControl(
                             isPinned: model.detachedWindowAlwaysOnTop,
-                            transitionActive: transitionActive
+                            transitionActive: transitionActive,
+                            sizeScale: miniDetachedControlScale
                         ) {
                             model.detachedWindowAlwaysOnTop.toggle()
                         }
 
-                        DetachedWindowCloseControl(transitionActive: transitionActive) {
+                        DetachedWindowCloseControl(
+                            transitionActive: transitionActive,
+                            sizeScale: miniDetachedControlScale
+                        ) {
                             model.requestCloseDetachedWindow()
                         }
                     }
 
                     MiniLyricsToggleControl(
                         isOn: model.miniLyricsEnabled,
-                        transitionActive: transitionActive
+                        transitionActive: transitionActive,
+                        sizeScale: miniDetachedControlScale
                     ) {
                         let targetEnabled = !model.miniLyricsEnabled
                         syncRenderedMiniLyricsPane(for: targetEnabled)
@@ -862,9 +910,12 @@ private struct MiniNowPlayingCard: View {
 
                     SettingsOpenControl {
                         Image(systemName: "gearshape.fill")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 16 * miniDetachedControlScale, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.94))
-                            .frame(width: 26, height: 26)
+                            .frame(
+                                width: 26 * miniDetachedControlScale,
+                                height: 26 * miniDetachedControlScale
+                            )
                             .background(Circle().fill(Color.white.opacity(0.14)))
                             .overlay(
                                 Circle().stroke(.white.opacity(0.18), lineWidth: 1)
@@ -873,8 +924,8 @@ private struct MiniNowPlayingCard: View {
                     .buttonStyle(.plain)
                     .hoverHint("Settings", enabled: !transitionActive)
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 5)
+                .padding(.horizontal, 6 * miniDetachedControlScale)
+                .padding(.vertical, 5 * miniDetachedControlScale)
                 .background(
                     GeometryReader { geo in
                         ZStack {
@@ -890,7 +941,7 @@ private struct MiniNowPlayingCard: View {
                                     .opacity(0.85)
                             }
 
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            RoundedRectangle(cornerRadius: 12 * miniDetachedControlScale, style: .continuous)
                                 .fill(Color.black.opacity(0.30))
                                 .overlay(
                                     Color(red: 0.60, green: 0.66, blue: 0.74)
@@ -901,7 +952,7 @@ private struct MiniNowPlayingCard: View {
                                         .opacity(blueFogOpacity * 0.65)
                                 )
 
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            RoundedRectangle(cornerRadius: 12 * miniDetachedControlScale, style: .continuous)
                                 .fill(
                                     LinearGradient(
                                         colors: [.white.opacity(0.10), .clear],
@@ -910,16 +961,16 @@ private struct MiniNowPlayingCard: View {
                                     )
                                 )
 
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            RoundedRectangle(cornerRadius: 12 * miniDetachedControlScale, style: .continuous)
                                 .stroke(.white.opacity(0.18), lineWidth: 1)
                         }
                         .frame(width: geo.size.width, height: geo.size.height)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 12 * miniDetachedControlScale, style: .continuous))
                     }
                 )
-                .shadow(color: .black.opacity(0.30), radius: 6, x: 0, y: 2)
-                .padding(.top, 10)
-                .padding(.trailing, 10)
+                .shadow(color: .black.opacity(0.30), radius: 6 * miniDetachedControlScale, x: 0, y: 2 * miniDetachedControlScale)
+                .padding(.top, 10 * miniDetachedControlScale)
+                .padding(.trailing, 10 * miniDetachedControlScale)
                 .opacity(controlsVisible ? 1 : 0)
                 .allowsHitTesting(controlsVisible)
             }
@@ -1031,7 +1082,8 @@ private struct MiniNowPlayingCard: View {
                                     isPlaying: model.isPlaying,
                                     onPrev: { model.previousTrack() },
                                     onPlayPause: { model.playPause() },
-                                    onNext: { model.nextTrack() }
+                                    onNext: { model.nextTrack() },
+                                    controlScale: miniDetachedControlScale
                                 )
                                 Spacer(minLength: 0)
                             }
@@ -1040,6 +1092,7 @@ private struct MiniNowPlayingCard: View {
                             OutputControlsRow(
                                 model: model,
                                 showDeviceName: false,
+                                controlScale: miniDetachedControlScale,
                                 showFavorite: model.canFavoriteCurrentTrack,
                                 favoriteIsActive: model.isCurrentTrackFavorited,
                                 favoritePulseToken: model.favoriteActionPulseToken,
@@ -1193,7 +1246,7 @@ private struct MiniArtworkTransitionSurface: View {
     @State private var incomingScale: CGFloat = 1
     @State private var incomingBlur: CGFloat = 0
     @State private var streamReadyForDisplay: Bool = false
-    private let streamCrossfadeDuration: Double = 1.8
+    private let streamCrossfadeDuration: Double = 2.8
 
     private var streamCrossfadeAnimation: Animation {
         .easeInOut(duration: streamCrossfadeDuration)
@@ -1652,16 +1705,21 @@ private struct ModeToggleControl: View {
     let isMiniMode: Bool
     let transitionActive: Bool
     var contrastBoost: Double = 0
+    var sizeScale: CGFloat = 1
     let action: () -> Void
     @State private var hovering = false
+
+    private var clampedSizeScale: CGFloat {
+        min(max(sizeScale, 0.80), 1.20)
+    }
 
     var body: some View {
         let clampedContrast = min(max(contrastBoost, 0), 1)
         Button(action: action) {
             Image(systemName: isMiniMode ? "rectangle.expand.vertical" : "rectangle.compress.vertical")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.94))
-                .frame(width: 24, height: 24)
+                .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
                 .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
                 .overlay(
                     Circle()
@@ -1689,16 +1747,21 @@ private struct DetachedSurfaceToggleControl: View {
     let isDetachedMode: Bool
     let transitionActive: Bool
     var contrastBoost: Double = 0
+    var sizeScale: CGFloat = 1
     let action: () -> Void
     @State private var hovering = false
+
+    private var clampedSizeScale: CGFloat {
+        min(max(sizeScale, 0.80), 1.20)
+    }
 
     var body: some View {
         let clampedContrast = min(max(contrastBoost, 0), 1)
         Button(action: action) {
             Image(systemName: isDetachedMode ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 15 * clampedSizeScale, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.94))
-                .frame(width: 24, height: 24)
+                .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
                 .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
                 .overlay(
                     Circle()
@@ -1724,16 +1787,21 @@ private struct DetachedWindowPinControl: View {
     let isPinned: Bool
     let transitionActive: Bool
     var contrastBoost: Double = 0
+    var sizeScale: CGFloat = 1
     let action: () -> Void
     @State private var hovering = false
+
+    private var clampedSizeScale: CGFloat {
+        min(max(sizeScale, 0.80), 1.20)
+    }
 
     var body: some View {
         let clampedContrast = min(max(contrastBoost, 0), 1)
         Button(action: action) {
             Image(systemName: isPinned ? "pin.fill" : "pin")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 14 * clampedSizeScale, weight: .semibold))
                 .foregroundStyle(.white.opacity(isPinned ? 0.98 : 0.90))
-                .frame(width: 24, height: 24)
+                .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
                 .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
                 .overlay(
                     Circle()
@@ -1758,16 +1826,21 @@ private struct DetachedWindowPinControl: View {
 private struct DetachedWindowCloseControl: View {
     let transitionActive: Bool
     var contrastBoost: Double = 0
+    var sizeScale: CGFloat = 1
     let action: () -> Void
     @State private var hovering = false
+
+    private var clampedSizeScale: CGFloat {
+        min(max(sizeScale, 0.80), 1.20)
+    }
 
     var body: some View {
         let clampedContrast = min(max(contrastBoost, 0), 1)
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: 14, weight: .bold))
+                .font(.system(size: 14 * clampedSizeScale, weight: .bold))
                 .foregroundStyle(.white.opacity(0.94))
-                .frame(width: 24, height: 24)
+                .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
                 .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
                 .overlay(
                     Circle()
@@ -1792,15 +1865,20 @@ private struct DetachedWindowCloseControl: View {
 private struct MiniLyricsToggleControl: View {
     let isOn: Bool
     let transitionActive: Bool
+    var sizeScale: CGFloat = 1
     let action: () -> Void
     @State private var hovering = false
+
+    private var clampedSizeScale: CGFloat {
+        min(max(sizeScale, 0.80), 1.20)
+    }
 
     var body: some View {
         Button(action: action) {
             Image(systemName: isOn ? "quote.bubble.fill" : "quote.bubble")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
                 .foregroundStyle(.primary.opacity(isOn ? 0.98 : 0.90))
-                .frame(width: 24, height: 24)
+                .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
                 .background(Circle().fill(Color.white.opacity(0.14)))
                 .overlay(
                     Circle()
@@ -1904,15 +1982,20 @@ private struct RegularLyricsToggleControl: View {
     let isOn: Bool
     let lyricsState: LyricsState
     var contrastBoost: Double = 0
+    var sizeScale: CGFloat = 1
     let action: () -> Void
     @State private var hovering = false
+
+    private var clampedSizeScale: CGFloat {
+        min(max(sizeScale, 0.80), 1.20)
+    }
 
     var body: some View {
         let clampedContrast = min(max(contrastBoost, 0), 1)
         Button(action: action) {
             ZStack {
                 Image(systemName: isOn ? "quote.bubble.fill" : "quote.bubble")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
                     .foregroundStyle(.white.opacity(isOn ? 0.98 : 0.90))
 
                 // Subtle loading indicator dot
@@ -1923,7 +2006,7 @@ private struct RegularLyricsToggleControl: View {
 //                        .offset(x: 7, y: -7)
 //                }
             }
-            .frame(width: 24, height: 24)
+            .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
             .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
             .overlay(
                 Circle()

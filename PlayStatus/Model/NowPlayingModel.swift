@@ -64,7 +64,11 @@ final class NowPlayingModel: ObservableObject {
             refreshAnimatedArtworkForCurrentTrack(force: true)
         }
     }
-    @AppStorage("artworkMotionStyle") private var artworkMotionStyleRaw: String = ArtworkMotionStyle.parallaxByPointer.rawValue
+    @AppStorage("artworkMotionStyle") private var artworkMotionStyleRaw: String = ArtworkMotionStyle.parallaxByPointer.rawValue {
+        didSet {
+            objectWillChange.send()
+        }
+    }
     @AppStorage("showLyricsPanel") var showLyricsPanel: Bool = true { didSet { requestPopoverLayoutRefresh() } }
     @AppStorage("expandLyricsByDefault") var expandLyricsByDefault: Bool = false {
         didSet {
@@ -89,6 +93,11 @@ final class NowPlayingModel: ObservableObject {
     @AppStorage("detachedWindowAlwaysOnTop") var detachedWindowAlwaysOnTop: Bool = true {
         didSet {
             detachedWindowLevelRevision &+= 1
+        }
+    }
+    @AppStorage("detachedWindowSizePreset") private var detachedWindowSizePresetRaw: String = DetachedWindowSizePreset.medium.rawValue {
+        didSet {
+            requestPopoverLayoutRefresh()
         }
     }
     // UI state
@@ -160,7 +169,11 @@ final class NowPlayingModel: ObservableObject {
     private var pendingFallbackWork: DispatchWorkItem?
     private var lyricsFetchTask: Task<Void, Never>?
     private var animatedArtworkResolveTask: Task<Void, Never>?
+    private var animatedArtworkResolveRequestID: UUID?
     private var animatedArtworkLookupKey: String = ""
+    private var animatedArtworkStreamIdentity: String = ""
+    private var lastAnimatedArtworkValidMusicSnapshotAt: Date = .distantPast
+    private let animatedArtworkTransientClearGrace: TimeInterval = 2.0
     private var currentLyricsTrackKey: String = ""
     #if DEBUG
     private var lyricsMetricMusicAppHits: Int = 0
@@ -189,10 +202,21 @@ final class NowPlayingModel: ObservableObject {
 
     var artworkMotionStyle: ArtworkMotionStyle {
         get {
-            if artworkMotionStyleRaw == "editorialLoops" || artworkMotionStyleRaw == "glassSheen" {
+            if artworkMotionStyleRaw == "editorialLoops" ||
+                artworkMotionStyleRaw == "glassSheen" ||
+                artworkMotionStyleRaw == "depthPulse" {
+                artworkMotionStyleRaw = ArtworkMotionStyle.parallaxByPointer.rawValue
                 return .parallaxByPointer
             }
-            return ArtworkMotionStyle(rawValue: artworkMotionStyleRaw) ?? .parallaxByPointer
+            if artworkMotionStyleRaw == "ambientEdgeBloom" {
+                artworkMotionStyleRaw = ArtworkMotionStyle.filmGrainDrift.rawValue
+                return .filmGrainDrift
+            }
+            guard let resolved = ArtworkMotionStyle(rawValue: artworkMotionStyleRaw) else {
+                artworkMotionStyleRaw = ArtworkMotionStyle.parallaxByPointer.rawValue
+                return .parallaxByPointer
+            }
+            return resolved
         }
         set { artworkMotionStyleRaw = newValue.rawValue }
     }
@@ -200,6 +224,31 @@ final class NowPlayingModel: ObservableObject {
     var animatedArtworkQualityPolicy: AnimatedArtworkQualityPolicy {
         get { AnimatedArtworkQualityPolicy(rawValue: animatedArtworkQualityPolicyRaw) ?? .adaptive1080 }
         set { animatedArtworkQualityPolicyRaw = newValue.rawValue }
+    }
+
+    var detachedWindowSizePreset: DetachedWindowSizePreset {
+        get { DetachedWindowSizePreset(rawValue: detachedWindowSizePresetRaw) ?? .medium }
+        set { detachedWindowSizePresetRaw = newValue.rawValue }
+    }
+
+    private var detachedMiniScaleFactor: CGFloat {
+        guard surfaceMode == .detached else { return 1 }
+        return detachedWindowSizePreset.miniScaleFactor
+    }
+
+    private var detachedRegularScaleFactor: CGFloat {
+        guard surfaceMode == .detached else { return 1 }
+        return detachedWindowSizePreset.regularScaleFactor
+    }
+
+    var detachedRegularControlScaleFactor: CGFloat {
+        guard surfaceMode == .detached else { return 1 }
+        return detachedWindowSizePreset.regularControlScaleFactor
+    }
+
+    var detachedMiniControlScaleFactor: CGFloat {
+        guard surfaceMode == .detached else { return 1 }
+        return detachedWindowSizePreset.miniControlScaleFactor
     }
 
     var statusTextWidth: CGFloat {
@@ -234,32 +283,38 @@ final class NowPlayingModel: ObservableObject {
     }
 
     var artworkDisplaySize: CGFloat {
-        CGFloat(min(max(artworkDisplaySizeStorage, 120), 260))
+        let base = CGFloat(min(max(artworkDisplaySizeStorage, 120), 260))
+        let scale = miniMode ? detachedMiniScaleFactor : detachedRegularScaleFactor
+        return base * scale
     }
 
-    var miniPopoverWidth: CGFloat { 380 }
+    var miniPopoverWidth: CGFloat { 380 * detachedMiniScaleFactor }
 
     var regularPopoverWidth: CGFloat {
         // Artwork + spacing + readable text/controls column + container padding.
-        return max(410, artworkDisplaySize + 330)
+        let baseArtwork = CGFloat(min(max(artworkDisplaySizeStorage, 120), 260))
+        let base = max(410, baseArtwork + 330)
+        return base * detachedRegularScaleFactor
     }
 
     var popoverWidth: CGFloat {
         miniMode ? miniPopoverWidth : regularPopoverWidth
     }
 
-    var miniBaseHeight: CGFloat { 380 }
-    var miniLyricsPaneHeight: CGFloat { 180 }
+    var miniBaseHeight: CGFloat { 380 * detachedMiniScaleFactor }
+    var miniLyricsPaneHeight: CGFloat { 180 * detachedMiniScaleFactor }
     var miniExpandedHeight: CGFloat { miniBaseHeight + miniLyricsPaneHeight }
 
     var miniPopoverHeight: CGFloat {
         (miniMode && miniLyricsEnabled) ? miniExpandedHeight : miniBaseHeight
     }
 
-    var regularLyricsPaneHeight: CGFloat { 241 } // 1pt divider + 240pt pane
+    var regularLyricsPaneHeight: CGFloat { 241 * detachedRegularScaleFactor } // 1pt divider + 240pt pane
 
     var estimatedRegularPopoverHeight: CGFloat {
-        max(220, artworkDisplaySize + 54)
+        let baseArtwork = CGFloat(min(max(artworkDisplaySizeStorage, 120), 260))
+        let base = max(220, baseArtwork + 54)
+        return base * detachedRegularScaleFactor
     }
 
     var regularPopoverHeight: CGFloat {
@@ -327,11 +382,18 @@ final class NowPlayingModel: ObservableObject {
     var canSeek: Bool { PlaybackClock.shared.canSeek }
     var effectiveAnimatedArtworkURL: URL? {
         guard animatedArtworkEnabled,
-              animatedArtworkStreamsEnabled,
-              animatedArtworkState == .available else {
+              animatedArtworkStreamsEnabled else {
             return nil
         }
-        return animatedArtworkHLSURL
+        switch animatedArtworkState {
+        case .available:
+            return animatedArtworkHLSURL
+        case .loading:
+            // Keep current stream visible while revalidating same-track metadata.
+            return animatedArtworkHLSURL
+        case .none, .unavailable, .failed:
+            return nil
+        }
     }
     var statusIcon: ProviderIconKind { provider.iconKind }
     var statusLine: String {
@@ -465,9 +527,6 @@ final class NowPlayingModel: ObservableObject {
             PlaybackClock.shared.duration = snapshot.duration
             self.artwork = snapshot.artwork
             self.updateTint(from: snapshot.artwork)
-            self.animatedArtworkHLSURL = snapshot.animatedArtworkHLSURL
-            self.animatedArtworkState = snapshot.animatedArtworkState
-            self.animatedArtworkStatusMessage = snapshot.animatedArtworkState == .none ? "Idle" : self.animatedArtworkStatusMessage
             self.configureMarquee()
         }
 
@@ -491,11 +550,14 @@ final class NowPlayingModel: ObservableObject {
         pendingFallbackWork?.cancel()
         pendingFallbackWork = nil
 
-        guard !snapshot.title.isEmpty else { return }
+        guard !snapshot.title.isEmpty else {
+            updateAnimatedArtwork(for: snapshot)
+            return
+        }
 
         switch snapshot.nativeArtworkState {
         case .available:
-            updateAnimatedArtwork(for: snapshot, trackChanged: trackChanged)
+            updateAnimatedArtwork(for: snapshot)
             return
         case .none:
             fetchFallbackArtwork(for: snapshot)
@@ -515,7 +577,7 @@ final class NowPlayingModel: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
         }
 
-        updateAnimatedArtwork(for: snapshot, trackChanged: trackChanged)
+        updateAnimatedArtwork(for: snapshot)
     }
 
     private func isSameTrack(_ a: NowPlayingSnapshot?, _ b: NowPlayingSnapshot) -> Bool {
@@ -1074,7 +1136,9 @@ final class NowPlayingModel: ObservableObject {
         if !animatedArtworkEnabled || !animatedArtworkStreamsEnabled {
             animatedArtworkResolveTask?.cancel()
             animatedArtworkResolveTask = nil
+            animatedArtworkResolveRequestID = nil
             animatedArtworkHLSURL = nil
+            animatedArtworkStreamIdentity = ""
             animatedArtworkState = .none
             animatedArtworkStatusMessage = "Animated streams disabled"
             animatedArtworkLastError = ""
@@ -1084,78 +1148,128 @@ final class NowPlayingModel: ObservableObject {
     }
 
     private func refreshAnimatedArtworkForCurrentTrack(force: Bool) {
-        guard let snapshot = lastSnapshot,
-              snapshot.provider == .music,
-              !snapshot.title.isEmpty else {
+        guard let snapshot = lastSnapshot else {
             animatedArtworkResolveTask?.cancel()
             animatedArtworkResolveTask = nil
+            animatedArtworkResolveRequestID = nil
             animatedArtworkHLSURL = nil
+            animatedArtworkStreamIdentity = ""
             animatedArtworkState = .none
             animatedArtworkStatusMessage = "Idle"
             animatedArtworkLastError = ""
             return
         }
 
-        guard animatedArtworkEnabled, animatedArtworkStreamsEnabled else {
-            animatedArtworkResolveTask?.cancel()
-            animatedArtworkResolveTask = nil
-            animatedArtworkHLSURL = nil
-            animatedArtworkState = .none
-            animatedArtworkStatusMessage = "Animated streams disabled"
-            animatedArtworkLastError = ""
-            return
-        }
-
-        let lookupKey = animatedArtworkLookupKey(for: snapshot)
-        if !force,
-           lookupKey == animatedArtworkLookupKey,
-           (animatedArtworkState == .available || animatedArtworkState == .loading) {
-            return
-        }
-        animatedArtworkLookupKey = lookupKey
-        resolveAnimatedArtwork(for: snapshot, lookupKey: lookupKey)
+        updateAnimatedArtwork(for: snapshot, force: force)
     }
 
-    private func updateAnimatedArtwork(for snapshot: NowPlayingSnapshot, trackChanged: Bool) {
-        guard snapshot.provider == .music,
+    private func updateAnimatedArtwork(for snapshot: NowPlayingSnapshot, force: Bool = false) {
+        let now = Date()
+        let isMusicProvider = snapshot.provider == .music
+        let isSpotifyProvider = snapshot.provider == .spotify
+        let isSupportedProvider = isMusicProvider || isSpotifyProvider
+
+        if isMusicProvider, !snapshot.title.isEmpty {
+            lastAnimatedArtworkValidMusicSnapshotAt = now
+        }
+
+        guard isSupportedProvider,
               !snapshot.title.isEmpty else {
+            // Music AppleScript metadata can occasionally transiently drop to empty;
+            // keep current animated artwork briefly to avoid visible teardown/relookup jitter.
+            if snapshot.provider == .none,
+               now.timeIntervalSince(lastAnimatedArtworkValidMusicSnapshotAt) < animatedArtworkTransientClearGrace {
+                return
+            }
             animatedArtworkResolveTask?.cancel()
             animatedArtworkResolveTask = nil
+            animatedArtworkResolveRequestID = nil
             animatedArtworkHLSURL = nil
+            animatedArtworkStreamIdentity = ""
             animatedArtworkState = .none
             animatedArtworkStatusMessage = "Idle"
             animatedArtworkLastError = ""
             animatedArtworkLookupKey = ""
+            lastAnimatedArtworkValidMusicSnapshotAt = .distantPast
             return
         }
 
         guard animatedArtworkEnabled, animatedArtworkStreamsEnabled else {
             animatedArtworkResolveTask?.cancel()
             animatedArtworkResolveTask = nil
+            animatedArtworkResolveRequestID = nil
             animatedArtworkHLSURL = nil
+            animatedArtworkStreamIdentity = ""
             animatedArtworkState = .none
             animatedArtworkStatusMessage = "Animated streams disabled"
             animatedArtworkLastError = ""
+            lastAnimatedArtworkValidMusicSnapshotAt = .distantPast
             return
         }
 
         let lookupKey = animatedArtworkLookupKey(for: snapshot)
-        if !trackChanged, lookupKey == animatedArtworkLookupKey {
+        let sameLookupKey = lookupKey == animatedArtworkLookupKey
+
+        if isSpotifyProvider, !snapshot.isPlaying {
+            animatedArtworkResolveTask?.cancel()
+            animatedArtworkResolveTask = nil
+            animatedArtworkResolveRequestID = nil
+            animatedArtworkLookupKey = lookupKey
+
+            if animatedArtworkHLSURL != nil, sameLookupKey {
+                animatedArtworkState = .available
+                animatedArtworkStatusMessage = "Animated artwork available (Apple Music stream)"
+            } else {
+                animatedArtworkHLSURL = nil
+                animatedArtworkStreamIdentity = ""
+                animatedArtworkState = .none
+                animatedArtworkStatusMessage = "Spotify paused (static artwork)"
+                animatedArtworkLastError = ""
+            }
             return
         }
+
+        if !force,
+           sameLookupKey,
+           (animatedArtworkState != .none &&
+            !(animatedArtworkState == .loading && animatedArtworkResolveTask == nil)) {
+            return
+        }
+        let preserveCurrentStream = isMusicProvider && shouldPreserveAnimatedArtworkStream(for: snapshot)
         animatedArtworkLookupKey = lookupKey
-        resolveAnimatedArtwork(for: snapshot, lookupKey: lookupKey)
+        let clearExistingURL: Bool
+        if isSpotifyProvider {
+            // Spotify always starts static-first for new tracks.
+            clearExistingURL = !sameLookupKey
+        } else {
+            clearExistingURL = !(sameLookupKey || preserveCurrentStream)
+        }
+        resolveAnimatedArtwork(
+            for: snapshot,
+            lookupKey: lookupKey,
+            clearExistingURL: clearExistingURL
+        )
     }
 
-    private func resolveAnimatedArtwork(for snapshot: NowPlayingSnapshot, lookupKey: String) {
+    private func resolveAnimatedArtwork(
+        for snapshot: NowPlayingSnapshot,
+        lookupKey: String,
+        clearExistingURL: Bool
+    ) {
         animatedArtworkResolveTask?.cancel()
         animatedArtworkResolveTask = nil
+        let requestID = UUID()
+        animatedArtworkResolveRequestID = requestID
 
         animatedArtworkState = .loading
-        animatedArtworkStatusMessage = "Looking up animated artwork..."
-        animatedArtworkHLSURL = nil
+        animatedArtworkStatusMessage = animatedArtworkLoadingStatusMessage(for: snapshot.provider)
+        if clearExistingURL {
+            animatedArtworkHLSURL = nil
+            animatedArtworkStreamIdentity = ""
+        }
 
         let descriptor = AnimatedArtworkTrackDescriptor(
+            sourceProvider: snapshot.provider,
             artist: snapshot.artist,
             album: snapshot.album,
             title: snapshot.title,
@@ -1169,26 +1283,154 @@ final class NowPlayingModel: ObservableObject {
                 for: descriptor,
                 qualityPolicy: quality
             )
-            guard !Task.isCancelled else { return }
+            let wasCancelled = Task.isCancelled
 
             await MainActor.run {
-                guard self.provider == snapshot.provider,
-                      self.title == snapshot.title,
-                      self.artist == snapshot.artist,
-                      self.album == snapshot.album else { return }
-                guard self.animatedArtworkLookupKey == lookupKey else { return }
+                guard self.animatedArtworkResolveRequestID == requestID else { return }
+                self.animatedArtworkResolveTask = nil
+                self.animatedArtworkResolveRequestID = nil
+
+                if wasCancelled {
+                    if self.animatedArtworkState == .loading, self.animatedArtworkHLSURL == nil {
+                        self.animatedArtworkState = .none
+                        self.animatedArtworkStatusMessage = "Idle"
+                    }
+                    return
+                }
+
+                let isCurrentSnapshotMatch =
+                    self.provider == snapshot.provider &&
+                    self.title == snapshot.title &&
+                    self.artist == snapshot.artist &&
+                    self.album == snapshot.album
+                let isTransientMusicGap =
+                    snapshot.provider == .music &&
+                    self.provider == .none &&
+                    self.title.isEmpty &&
+                    Date().timeIntervalSince(self.lastAnimatedArtworkValidMusicSnapshotAt) < self.animatedArtworkTransientClearGrace
+
+                guard isCurrentSnapshotMatch || isTransientMusicGap else {
+                    if self.animatedArtworkState == .loading, self.animatedArtworkHLSURL == nil {
+                        self.animatedArtworkState = .none
+                        self.animatedArtworkStatusMessage = "Idle"
+                    }
+                    return
+                }
+                guard self.animatedArtworkLookupKey == lookupKey else {
+                    if self.animatedArtworkState == .loading, self.animatedArtworkHLSURL == nil {
+                        self.animatedArtworkState = .none
+                        self.animatedArtworkStatusMessage = "Idle"
+                    }
+                    return
+                }
+
+                let shouldRetainExistingStream =
+                    resolution.state != .available &&
+                    self.animatedArtworkHLSURL != nil &&
+                    self.shouldPreserveAnimatedArtworkStream(for: snapshot)
+                if shouldRetainExistingStream {
+                    self.animatedArtworkState = .available
+                    self.animatedArtworkStatusMessage = self.animatedArtworkResolvedStatusMessage(
+                        for: .available,
+                        provider: snapshot.provider,
+                        fallback: "Animated artwork available"
+                    )
+                    self.animatedArtworkLastError = resolution.diagnosticMessage
+                    return
+                }
 
                 self.animatedArtworkState = resolution.state
                 self.animatedArtworkHLSURL = resolution.hlsURL
-                self.animatedArtworkStatusMessage = resolution.statusMessage
-
+                self.animatedArtworkStatusMessage = self.animatedArtworkResolvedStatusMessage(
+                    for: resolution.state,
+                    provider: snapshot.provider,
+                    fallback: resolution.statusMessage
+                )
+                if resolution.state == .available, resolution.hlsURL != nil {
+                    self.animatedArtworkStreamIdentity = self.animatedArtworkIdentityKey(
+                        title: snapshot.title,
+                        artist: snapshot.artist
+                    )
+                } else if resolution.hlsURL == nil {
+                    self.animatedArtworkStreamIdentity = ""
+                }
                 self.animatedArtworkLastError = resolution.diagnosticMessage
             }
         }
     }
 
     private func animatedArtworkLookupKey(for snapshot: NowPlayingSnapshot) -> String {
-        "\(snapshot.provider.rawValue)|\(snapshot.artist)|\(snapshot.album)|\(snapshot.title)"
+        if let albumURL = snapshot.appleMusicAlbumURL?.absoluteString, !albumURL.isEmpty {
+            return "\(snapshot.provider.rawValue)|albumURL|\(albumURL.lowercased())"
+        }
+        return [
+            snapshot.provider.rawValue,
+            animatedArtworkLookupComponent(snapshot.artist),
+            animatedArtworkLookupComponent(snapshot.album),
+            animatedArtworkLookupComponent(snapshot.title)
+        ].joined(separator: "|")
+    }
+
+    private func animatedArtworkLookupComponent(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.diacriticInsensitive, .widthInsensitive], locale: .current)
+            .lowercased()
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func animatedArtworkIdentityKey(title: String, artist: String) -> String {
+        [
+            animatedArtworkLookupComponent(artist),
+            animatedArtworkLookupComponent(title)
+        ].joined(separator: "|")
+    }
+
+    private func shouldPreserveAnimatedArtworkStream(for snapshot: NowPlayingSnapshot) -> Bool {
+        guard snapshot.provider == .music, animatedArtworkHLSURL != nil else { return false }
+        let snapshotIdentity = animatedArtworkIdentityKey(title: snapshot.title, artist: snapshot.artist)
+        guard !snapshotIdentity.isEmpty else { return false }
+
+        if animatedArtworkStreamIdentity == snapshotIdentity {
+            return true
+        }
+
+        let currentIdentity = animatedArtworkIdentityKey(title: title, artist: artist)
+        if !currentIdentity.isEmpty, currentIdentity == snapshotIdentity {
+            return true
+        }
+
+        return false
+    }
+
+    private func animatedArtworkLoadingStatusMessage(for provider: NowPlayingProvider) -> String {
+        switch provider {
+        case .spotify:
+            return "Looking up animated artwork (Spotify)"
+        default:
+            return "Looking up animated artwork..."
+        }
+    }
+
+    private func animatedArtworkResolvedStatusMessage(
+        for state: AnimatedArtworkState,
+        provider: NowPlayingProvider,
+        fallback: String
+    ) -> String {
+        guard provider == .spotify else { return fallback }
+        switch state {
+        case .available:
+            return "Animated artwork available (Apple Music stream)"
+        case .unavailable:
+            return "No animated stream found for this Spotify track"
+        case .failed:
+            return "Animated stream lookup failed for this Spotify track"
+        case .loading:
+            return "Looking up animated artwork (Spotify)"
+        case .none:
+            return fallback
+        }
     }
 
     private func fetchFallbackArtwork(for snapshot: NowPlayingSnapshot) {

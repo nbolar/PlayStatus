@@ -57,12 +57,17 @@ struct ControlsRow: View {
     let onPlayPause: () -> Void
     let onNext: () -> Void
     var contrastBoost: Double = 0
+    var controlScale: CGFloat = 1
+
+    private var clampedControlScale: CGFloat {
+        min(max(controlScale, 0.80), 1.20)
+    }
 
     var body: some View {
-        HStack(spacing: 10) {
-            GlassButton(systemName: "backward.fill", contrastBoost: contrastBoost, action: onPrev)
-            GlassButton(systemName: isPlaying ? "pause.fill" : "play.fill", isPrimary: true, contrastBoost: contrastBoost, action: onPlayPause)
-            GlassButton(systemName: "forward.fill", contrastBoost: contrastBoost, action: onNext)
+        HStack(spacing: 10 * clampedControlScale) {
+            GlassButton(systemName: "backward.fill", contrastBoost: contrastBoost, sizeScale: clampedControlScale, action: onPrev)
+            GlassButton(systemName: isPlaying ? "pause.fill" : "play.fill", isPrimary: true, contrastBoost: contrastBoost, sizeScale: clampedControlScale, action: onPlayPause)
+            GlassButton(systemName: "forward.fill", contrastBoost: contrastBoost, sizeScale: clampedControlScale, action: onNext)
         }
     }
 }
@@ -71,6 +76,7 @@ struct OutputControlsRow: View {
     @ObservedObject var model: NowPlayingModel
     let showDeviceName: Bool
     var contrastBoost: Double = 0
+    var controlScale: CGFloat = 1
     var showFavorite: Bool = false
     var favoriteIsActive: Bool = false
     var favoritePulseToken: Int = 0
@@ -97,8 +103,12 @@ struct OutputControlsRow: View {
         min(0.26, 0.10 + (0.08 * clampedContrastBoost))
     }
 
+    private var clampedControlScale: CGFloat {
+        min(max(controlScale, 0.80), 1.20)
+    }
+
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8 * clampedControlScale) {
             Menu {
                 if model.availableOutputDevices.isEmpty {
                     Text("No output devices found")
@@ -116,20 +126,20 @@ struct OutputControlsRow: View {
                     }
                 }
             } label: {
-                HStack(spacing: 5) {
+                HStack(spacing: 5 * clampedControlScale) {
                     Image(systemName: "hifispeaker.fill")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 10 * clampedControlScale, weight: .semibold))
 //                    if showDeviceName {
 //                        Text(selectedDeviceName)
 //                            .lineLimit(1)
 //                            .truncationMode(.tail)
 //                    }
                 }
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .font(.system(size: 10 * clampedControlScale, weight: .semibold, design: .rounded))
                 .foregroundStyle(controlForeground.opacity(0.90))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .frame(maxWidth: showDeviceName ? 168 : nil, alignment: .leading)
+                .padding(.horizontal, 8 * clampedControlScale)
+                .padding(.vertical, 5 * clampedControlScale)
+                .frame(maxWidth: showDeviceName ? (168 * clampedControlScale) : nil, alignment: .leading)
                 .background(Capsule().fill(Color.primary.opacity(controlFillOpacity)))
                 .overlay(Capsule().stroke(.white.opacity(controlStrokeOpacity), lineWidth: 1))
             }
@@ -140,8 +150,8 @@ struct OutputControlsRow: View {
                 model.toggleOutputMute()
             } label: {
                 Image(systemName: model.outputMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                    .font(.system(size: 10, weight: .semibold))
-                    .frame(width: 22, height: 22)
+                    .font(.system(size: 10 * clampedControlScale, weight: .semibold))
+                    .frame(width: 22 * clampedControlScale, height: 22 * clampedControlScale)
                     .background(Circle().fill(Color.primary.opacity(controlFillOpacity)))
                     .overlay(Circle().stroke(.white.opacity(controlStrokeOpacity), lineWidth: 1))
                     .foregroundStyle(model.outputMuted ? controlForeground.opacity(0.65) : controlForeground.opacity(0.94))
@@ -155,12 +165,18 @@ struct OutputControlsRow: View {
                 ),
                 in: 0...1
             )
-            .frame(minWidth: 84, maxWidth: .infinity)
+            .frame(minWidth: 84 * clampedControlScale, maxWidth: .infinity)
             .tint(controlForeground.opacity(0.88))
             .opacity(model.outputMuted ? 0.55 : 1.0)
 
             if showFavorite, let onFavorite {
-                GlassButton(systemName: favoriteIsActive ? "heart.fill" : "heart", compact: true, contrastBoost: contrastBoost, action: onFavorite)
+                GlassButton(
+                    systemName: favoriteIsActive ? "heart.fill" : "heart",
+                    compact: true,
+                    contrastBoost: contrastBoost,
+                    sizeScale: clampedControlScale,
+                    action: onFavorite
+                )
                     .foregroundStyle(favoriteIsActive ? Color.red.opacity(0.9) : controlForeground.opacity(0.94))
                     .scaleEffect(favoritePulseActive ? 1.16 : 1.0)
                     .animation(.spring(response: 0.22, dampingFraction: 0.70), value: favoritePulseActive)
@@ -184,6 +200,7 @@ struct GlassButton: View {
     var isPrimary: Bool = false
     var compact: Bool = false
     var contrastBoost: Double = 0
+    var sizeScale: CGFloat = 1
     let action: () -> Void
 
     @State private var isHovering = false
@@ -212,12 +229,32 @@ struct GlassButton: View {
         return max(0.03, base - (0.06 * clampedContrastBoost))
     }
 
+    private var clampedSizeScale: CGFloat {
+        min(max(sizeScale, 0.80), 1.20)
+    }
+
+    private var iconSize: CGFloat {
+        (compact ? 12 : 13) * clampedSizeScale
+    }
+
+    private var buttonWidth: CGFloat {
+        (compact ? 30 : (isPrimary ? 40 : 32)) * clampedSizeScale
+    }
+
+    private var buttonHeight: CGFloat {
+        (compact ? 26 : (isPrimary ? 32 : 28)) * clampedSizeScale
+    }
+
+    private var cornerRadius: CGFloat {
+        (compact ? 10 : 12) * clampedSizeScale
+    }
+
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: compact ? 12 : 13, weight: .semibold))
-                .frame(width: compact ? 30 : (isPrimary ? 40 : 32), height: compact ? 26 : (isPrimary ? 32 : 28))
-                .contentShape(RoundedRectangle(cornerRadius: compact ? 10 : 12, style: .continuous))
+                .font(.system(size: iconSize, weight: .semibold))
+                .frame(width: buttonWidth, height: buttonHeight)
+                .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
         .foregroundStyle(iconColor.opacity(isPrimary ? 0.98 : 0.92))
@@ -226,13 +263,13 @@ struct GlassButton: View {
                 // macOS 26: avoid system materials (.ultraThinMaterial/.thinMaterial) inside
                 // NSHostingController — they trigger DesignLibrary glass compositor on every
                 // SwiftUI re-render, causing recursive stack overflow. Use plain fills instead.
-                RoundedRectangle(cornerRadius: compact ? 10 : 12, style: .continuous)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(Color.primary.opacity(fillOpacity))
 
-                RoundedRectangle(cornerRadius: compact ? 10 : 12, style: .continuous)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(Color.black.opacity(0.18 * clampedContrastBoost))
 
-                RoundedRectangle(cornerRadius: compact ? 10 : 12, style: .continuous)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [.white.opacity(highlightOpacity), .clear],
@@ -242,7 +279,7 @@ struct GlassButton: View {
                     )
                     .blendMode(.plusLighter)
 
-                RoundedRectangle(cornerRadius: compact ? 10 : 12, style: .continuous)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .stroke(.white.opacity(strokeOpacity), lineWidth: 1)
             }
         )
@@ -347,10 +384,66 @@ private struct ArtworkMotionModifier: ViewModifier {
     let isEnabled: Bool
     let seed: String
     let style: ArtworkMotionStyle
-    @State private var pulsePhase = false
+    let isPlaying: Bool
+    let hasAnimatedStream: Bool
+    let tint: Color
+    let artworkImage: NSImage?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var hovering = false
     @State private var pointerLocation: CGPoint = .zero
     @State private var viewSize: CGSize = .zero
+    @State private var filmDriftPhase = false
+    @State private var vinylBaseTurns: Double = 0
+    @State private var vinylSpinStartDate: Date? = nil
+    @State private var wasVinylSpinning = false
+
+    private let vinylRotationDuration: Double = 12.0
+    private let filmDriftDuration: Double = 7.6
+
+    private var parallaxEnabled: Bool {
+        isEnabled && style == .parallaxByPointer && !reduceMotion
+    }
+
+    private var shouldSpinVinyl: Bool {
+        isEnabled &&
+            style == .vinylSpin &&
+            isPlaying &&
+            !hasAnimatedStream &&
+            !reduceMotion
+    }
+
+    private var shouldAnimateFilmDrift: Bool {
+        isEnabled &&
+            style == .filmGrainDrift &&
+            isPlaying &&
+            !reduceMotion
+    }
+
+    private var filmGrainOpacity: Double {
+        let base: Double
+        if reduceMotion {
+            base = 0.08
+        } else if isPlaying {
+            base = 0.17
+        } else {
+            base = 0.11
+        }
+        return hasAnimatedStream ? (base * 0.58) : base
+    }
+
+    private var filmDriftOffsetPrimary: CGSize {
+        guard shouldAnimateFilmDrift else { return .zero }
+        let amplitude: CGFloat = hasAnimatedStream ? 6 : 12
+        let x = filmDriftPhase ? amplitude : -amplitude
+        let y = filmDriftPhase ? (-amplitude * 0.72) : (amplitude * 0.72)
+        return CGSize(width: x, height: y)
+    }
+
+    private var filmDriftOffsetSecondary: CGSize {
+        let primary = filmDriftOffsetPrimary
+        return CGSize(width: -primary.width * 0.62, height: primary.height * 0.48)
+    }
 
     private var centeredPointerX: CGFloat {
         guard viewSize.width > 0 else { return 0 }
@@ -363,39 +456,58 @@ private struct ArtworkMotionModifier: ViewModifier {
     }
 
     private var parallaxScale: CGFloat {
-        guard isEnabled, style == .parallaxByPointer, hovering else { return 1.0 }
+        guard parallaxEnabled, hovering else { return 1.0 }
         return 1.018
     }
 
     private var parallaxOffset: CGSize {
-        guard isEnabled, style == .parallaxByPointer else { return .zero }
+        guard parallaxEnabled else { return .zero }
         let x = centeredPointerX * 14
         let y = centeredPointerY * 12
         return CGSize(width: x, height: y)
     }
 
     private var parallaxTiltX: Double {
-        guard isEnabled, style == .parallaxByPointer else { return 0 }
+        guard parallaxEnabled else { return 0 }
         return Double(-centeredPointerY * 9)
     }
 
     private var parallaxTiltY: Double {
-        guard isEnabled, style == .parallaxByPointer else { return 0 }
+        guard parallaxEnabled else { return 0 }
         return Double(centeredPointerX * 11)
     }
 
-    private var pulseScale: CGFloat {
-        guard isEnabled, style == .depthPulse else { return 1.0 }
-        return pulsePhase ? 1.026 : 1.0
+    private var filmDriftScale: CGFloat {
+        guard shouldAnimateFilmDrift else { return 1.0 }
+        return filmDriftPhase ? 1.06 : 1.0
     }
 
-    private var pulseOpacity: Double {
-        guard isEnabled, style == .depthPulse else { return 0 }
-        return pulsePhase ? 0.22 : 0.0
+    private var artworkSide: CGFloat {
+        max(0, min(viewSize.width, viewSize.height))
     }
 
-    private var pulseAnimation: Animation {
-        .easeInOut(duration: 1.8).repeatForever(autoreverses: true)
+    private var vinylDiscDiameter: CGFloat {
+        artworkSide * 0.98
+    }
+
+    private var vinylCenterLabelDiameter: CGFloat {
+        vinylDiscDiameter * 0.82
+    }
+
+    private var vinylLabelRingWidth: CGFloat {
+        max(1.6, vinylCenterLabelDiameter * 0.055)
+    }
+
+    private var vinylHubHoleDiameter: CGFloat {
+        vinylCenterLabelDiameter * 0.13
+    }
+
+    private var vinylGrooveWidth: CGFloat {
+        max(1.4, vinylDiscDiameter * 0.034)
+    }
+
+    private var filmDriftAnimation: Animation {
+        .linear(duration: filmDriftDuration).repeatForever(autoreverses: true)
     }
 
     func body(content: Content) -> some View {
@@ -409,7 +521,7 @@ private struct ArtworkMotionModifier: ViewModifier {
                         }
                 }
             )
-            .scaleEffect(parallaxScale * pulseScale)
+            .scaleEffect(parallaxScale)
             .offset(
                 x: parallaxOffset.width,
                 y: parallaxOffset.height
@@ -417,11 +529,154 @@ private struct ArtworkMotionModifier: ViewModifier {
             .rotation3DEffect(.degrees(parallaxTiltX), axis: (x: 1, y: 0, z: 0))
             .rotation3DEffect(.degrees(parallaxTiltY), axis: (x: 0, y: 1, z: 0))
             .overlay {
-                if style == .depthPulse && isEnabled {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.white.opacity(pulseOpacity), lineWidth: 1.2)
-                        .blendMode(.screen)
-                        .allowsHitTesting(false)
+                if style == .vinylSpin && isEnabled && !hasAnimatedStream && artworkSide > 1 {
+                    ZStack {
+                        // Translucent background (no artwork outside the disc)
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(Color.black.opacity(0.95))
+
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        tint.opacity(0.16),
+                                        .black.opacity(0.22),
+                                        .white.opacity(0.06)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .blendMode(.screen)
+                            .opacity(0.62)
+
+                        TimelineView(.periodic(from: Date(), by: 1.0 / 60.0)) { context in
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                Color.black.opacity(0.94),
+                                                Color.black.opacity(0.74),
+                                                Color.black.opacity(0.92)
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+
+                                Circle()
+                                    .stroke(.white.opacity(0.14), lineWidth: 1.1)
+
+                                Circle()
+                                    .stroke(tint.opacity(0.18), lineWidth: 1.2)
+
+                                Circle()
+                                    .trim(from: 0.03, to: 0.97)
+                                    .stroke(
+                                        Color.black.opacity(0.38),
+                                        style: StrokeStyle(
+                                            lineWidth: vinylGrooveWidth,
+                                            lineCap: .round
+                                        )
+                                    )
+
+                                Circle()
+                                    .trim(from: 0.08, to: 0.92)
+                                    .stroke(
+                                        .white.opacity(0.08),
+                                        style: StrokeStyle(
+                                            lineWidth: vinylGrooveWidth * 0.42,
+                                            lineCap: .round
+                                        )
+                                    )
+
+                                Circle()
+                                    .fill(.white.opacity(0.08))
+                                    .blur(radius: vinylDiscDiameter * 0.10)
+                                    .scaleEffect(0.72)
+                                    .offset(x: -vinylDiscDiameter * 0.14, y: -vinylDiscDiameter * 0.14)
+                                    .blendMode(.screen)
+
+                                Group {
+                                    if let artworkImage {
+                                        Image(nsImage: artworkImage)
+                                            .resizable()
+                                            .interpolation(.high)
+                                            .scaledToFill()
+                                    } else {
+                                        LinearGradient(
+                                            colors: [tint.opacity(0.58), .black.opacity(0.50)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    }
+                                }
+                                .frame(width: vinylCenterLabelDiameter, height: vinylCenterLabelDiameter)
+                                .clipShape(Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(.white.opacity(0.26), lineWidth: 1.0)
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.black.opacity(0.34), lineWidth: vinylLabelRingWidth)
+                                )
+
+                                Circle()
+                                    .fill(Color.black.opacity(0.92))
+                                    .frame(width: vinylHubHoleDiameter, height: vinylHubHoleDiameter)
+
+                                Circle()
+                                    .fill(.white.opacity(0.26))
+                                    .frame(width: vinylHubHoleDiameter * 0.42, height: vinylHubHoleDiameter * 0.42)
+                            }
+                            .frame(width: vinylDiscDiameter, height: vinylDiscDiameter)
+                            .rotationEffect(.degrees(vinylRotationDegrees(at: context.date)))
+                            .opacity(shouldSpinVinyl ? 0.99 : 0.94)
+                        }
+                        .frame(width: vinylDiscDiameter, height: vinylDiscDiameter)
+                    }
+                    .frame(width: artworkSide, height: artworkSide)
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .allowsHitTesting(false)
+                }
+            }
+            .overlay {
+                if style == .filmGrainDrift && isEnabled {
+                    ZStack {
+                        Image(nsImage: FilmGrainTexture.image)
+                            .resizable()
+                            .interpolation(.none)
+                            .scaledToFill()
+                            .scaleEffect(filmDriftScale)
+                            .offset(filmDriftOffsetPrimary)
+                            .opacity(filmGrainOpacity)
+                            .blendMode(.overlay)
+
+                        Image(nsImage: FilmGrainTexture.image)
+                            .resizable()
+                            .interpolation(.none)
+                            .scaledToFill()
+                            .scaleEffect(filmDriftScale * 1.03)
+                            .offset(filmDriftOffsetSecondary)
+                            .opacity(filmGrainOpacity * 0.58)
+                            .blendMode(.softLight)
+
+                        LinearGradient(
+                            colors: [
+                                .white.opacity(filmDriftPhase ? 0.06 : 0.03),
+                                .clear,
+                                .black.opacity(filmDriftPhase ? 0.05 : 0.02)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        .blendMode(.overlay)
+                        .opacity(reduceMotion ? 0.22 : 0.34)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .allowsHitTesting(false)
                 }
             }
             .animation(
@@ -432,7 +687,7 @@ private struct ArtworkMotionModifier: ViewModifier {
                 .spring(response: 0.26, dampingFraction: 0.80, blendDuration: 0.1),
                 value: hovering
             )
-            .animation(pulseAnimation, value: pulsePhase)
+            .animation(filmDriftAnimation, value: filmDriftPhase)
             .onContinuousHover { phase in
                 switch phase {
                 case .active(let location):
@@ -444,28 +699,159 @@ private struct ArtworkMotionModifier: ViewModifier {
                 }
             }
             .onAppear {
-                if isEnabled && style == .depthPulse {
-                    pulsePhase = true
-                }
                 if pointerLocation == .zero {
                     pointerLocation = CGPoint(x: viewSize.width / 2, y: viewSize.height / 2)
                 }
+                synchronizeAnimationState(allowVinylSettle: false)
             }
-            .onChange(of: style) { newStyle in
-                pulsePhase = isEnabled && newStyle == .depthPulse
+            .onDisappear {
+                stopVinylMotion(allowSettle: false)
+            }
+            .onChange(of: style) { _ in
+                if style == .vinylSpin, vinylSpinStartDate == nil {
+                    vinylSpinStartDate = Date()
+                    wasVinylSpinning = true
+                }
+                synchronizeAnimationState(allowVinylSettle: false)
             }
             .onChange(of: isEnabled) { enabled in
-                pulsePhase = enabled && style == .depthPulse
                 if !enabled {
                     hovering = false
                 }
+                synchronizeAnimationState(allowVinylSettle: false)
             }
+            .onChange(of: isPlaying) { _ in
+                synchronizeAnimationState(allowVinylSettle: true)
+            }
+            .onChange(of: hasAnimatedStream) { _ in
+                synchronizeAnimationState(allowVinylSettle: true)
+            }
+            .onChange(of: reduceMotion) { _ in
+                synchronizeAnimationState(allowVinylSettle: false)
+            }
+            .onChange(of: shouldSpinVinyl) { shouldSpin in
+                if shouldSpin {
+                    if vinylSpinStartDate == nil {
+                        vinylSpinStartDate = Date()
+                    }
+                    wasVinylSpinning = true
+                } else {
+                    stopVinylMotion(allowSettle: true)
+                }
+            }
+    }
+
+    private func synchronizeAnimationState(allowVinylSettle: Bool) {
+        if shouldSpinVinyl {
+            if vinylSpinStartDate == nil {
+                vinylSpinStartDate = Date()
+            }
+            wasVinylSpinning = true
+        } else {
+            stopVinylMotion(allowSettle: allowVinylSettle)
+        }
+
+        if shouldAnimateFilmDrift {
+            filmDriftPhase = true
+        } else {
+            filmDriftPhase = false
+        }
+    }
+
+    private func vinylRotationDegrees(at date: Date) -> Double {
+        vinylTurns(at: date) * 360
+    }
+
+    private func vinylTurns(at date: Date) -> Double {
+        guard shouldSpinVinyl, let startDate = vinylSpinStartDate else {
+            return vinylBaseTurns
+        }
+        let elapsed = max(0, date.timeIntervalSince(startDate))
+        return vinylBaseTurns + (elapsed / vinylRotationDuration)
+    }
+
+    private func stopVinylMotion(allowSettle: Bool) {
+        if let startDate = vinylSpinStartDate {
+            let elapsed = max(0, Date().timeIntervalSince(startDate))
+            vinylBaseTurns += elapsed / vinylRotationDuration
+            vinylSpinStartDate = nil
+        }
+        if wasVinylSpinning && allowSettle {
+            withAnimation(.easeOut(duration: 0.85)) {
+                vinylBaseTurns += 0.08
+            }
+        }
+        wasVinylSpinning = false
     }
 }
 
+private enum FilmGrainTexture {
+    static let image: NSImage = {
+        let width = 192
+        let height = 192
+        let fallback = NSImage(size: NSSize(width: 1, height: 1))
+
+        guard let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: width,
+            pixelsHigh: height,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: width * 4,
+            bitsPerPixel: 32
+        ), let bytes = bitmap.bitmapData else {
+            return fallback
+        }
+
+        var state: UInt64 = 0xA24BAED4963EE407
+        func nextByte(state: inout UInt64) -> UInt8 {
+            state = state &* 6364136223846793005 &+ 1
+            return UInt8((state >> 33) & 0xFF)
+        }
+
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = ((y * width) + x) * 4
+                let value = Int(nextByte(state: &state))
+                let grain = UInt8(min(255, max(0, value + (value > 127 ? 22 : -18))))
+                bytes[index] = grain
+                bytes[index + 1] = grain
+                bytes[index + 2] = grain
+                bytes[index + 3] = 180
+            }
+        }
+
+        let image = NSImage(size: NSSize(width: width, height: height))
+        image.addRepresentation(bitmap)
+        return image
+    }()
+}
+
 extension View {
-    func animatedArtworkMotion(isEnabled: Bool, seed: String, style: ArtworkMotionStyle) -> some View {
-        modifier(ArtworkMotionModifier(isEnabled: isEnabled, seed: seed, style: style))
+    func animatedArtworkMotion(
+        isEnabled: Bool,
+        seed: String,
+        style: ArtworkMotionStyle,
+        isPlaying: Bool,
+        hasAnimatedStream: Bool,
+        tint: Color = .white,
+        artworkImage: NSImage? = nil
+    ) -> some View {
+        modifier(
+            ArtworkMotionModifier(
+                isEnabled: isEnabled,
+                seed: seed,
+                style: style,
+                isPlaying: isPlaying,
+                hasAnimatedStream: hasAnimatedStream,
+                tint: tint,
+                artworkImage: artworkImage
+            )
+        )
+        .id("motion|\(seed)|\(style.rawValue)|\(isEnabled ? 1 : 0)|\(hasAnimatedStream ? 1 : 0)")
     }
 }
 
@@ -484,7 +870,15 @@ struct AnimatedArtworkView: View {
             animatedArtworkURL: animatedArtworkURL,
             animatedArtworkIsVisible: animatedArtworkIsVisible
         )
-            .animatedArtworkMotion(isEnabled: isEnabled, seed: seed, style: style)
+            .animatedArtworkMotion(
+                isEnabled: isEnabled,
+                seed: seed,
+                style: style,
+                isPlaying: true,
+                hasAnimatedStream: animatedArtworkURL != nil,
+                tint: tint,
+                artworkImage: image
+            )
     }
 }
 
@@ -494,7 +888,7 @@ struct ArtworkView: View {
     let animatedArtworkURL: URL?
     let animatedArtworkIsVisible: Bool
     @State private var streamReadyForDisplay = false
-    private let streamCrossfadeDuration: Double = 1.8
+    private let streamCrossfadeDuration: Double = 2.8
 
     private var streamCrossfadeAnimation: Animation {
         .easeInOut(duration: streamCrossfadeDuration)
@@ -653,6 +1047,8 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
     private var layerReadinessObservation: NSKeyValueObservation?
     private var onRenderReadinessChanged: ((Bool) -> Void)?
     private var hasReportedReadyForDisplay = false
+    private var shouldBePlaying = false
+    private var startedPlaybackForCurrentItem = false
     private var lastNotifiedReadiness: Bool?
     private var currentURL: URL?
 
@@ -683,6 +1079,7 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
         onRenderReadinessChanged: @escaping (Bool) -> Void
     ) {
         self.onRenderReadinessChanged = onRenderReadinessChanged
+        shouldBePlaying = isActive
         if currentURL != streamURL || player == nil {
             setupPlayer(streamURL: streamURL)
         } else {
@@ -690,7 +1087,7 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
         }
 
         if isActive {
-            player?.play()
+            startPlaybackIfPossible()
         } else {
             player?.pause()
         }
@@ -705,6 +1102,7 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
     private func setupPlayer(streamURL: URL) {
         teardownPlayer(shouldNotify: false)
         hasReportedReadyForDisplay = false
+        startedPlaybackForCurrentItem = false
         notifyRenderReadiness(false)
 
         let item = AVPlayerItem(url: streamURL)
@@ -730,6 +1128,7 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
             guard !self.hasReportedReadyForDisplay else { return }
             self.hasReportedReadyForDisplay = true
             self.notifyRenderReadiness(true)
+            self.startPlaybackIfPossible()
         }
 
         endObserver = NotificationCenter.default.addObserver(
@@ -738,6 +1137,7 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
             queue: .main
         ) { [weak self] _ in
             guard let self else { return }
+            guard self.shouldBePlaying else { return }
             self.player?.seek(to: .zero)
             self.player?.play()
         }
@@ -751,6 +1151,8 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
         }
         endObserver = nil
         hasReportedReadyForDisplay = false
+        startedPlaybackForCurrentItem = false
+        shouldBePlaying = false
         if shouldNotify {
             notifyRenderReadiness(false)
         } else {
@@ -771,6 +1173,23 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
             callback(isReady)
         }
     }
+
+    private func startPlaybackIfPossible() {
+        guard shouldBePlaying else { return }
+        guard hasReportedReadyForDisplay else { return }
+
+        if startedPlaybackForCurrentItem {
+            player?.play()
+            return
+        }
+
+        startedPlaybackForCurrentItem = true
+        player?.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+            guard let self else { return }
+            guard self.shouldBePlaying else { return }
+            self.player?.play()
+        }
+    }
 }
 
 // MARK: - Liquid Glass background/card
@@ -778,6 +1197,11 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
 struct LiquidGlassBackground: View {
     let tint: Color
     var readabilityBoost: Double = 0
+    var transparencyMultiplier: Double = 1
+
+    private var clampedTransparencyMultiplier: Double {
+        min(max(transparencyMultiplier, 0.35), 2.0)
+    }
 
     private var clampedReadabilityBoost: Double {
         min(max(readabilityBoost, 0), 1)
@@ -800,19 +1224,23 @@ struct LiquidGlassBackground: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [tint.opacity(0.10), tint.opacity(0.06), tint.opacity(0.09)],
+                        colors: [
+                            tint.opacity(0.10 * clampedTransparencyMultiplier),
+                            tint.opacity(0.06 * clampedTransparencyMultiplier),
+                            tint.opacity(0.09 * clampedTransparencyMultiplier)
+                        ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
 
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.black.opacity(darkenOpacity))
+                .fill(Color.black.opacity(darkenOpacity * clampedTransparencyMultiplier))
 
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(
                     RadialGradient(
-                        colors: [tint.opacity(0.14), .clear],
+                        colors: [tint.opacity(0.14 * clampedTransparencyMultiplier), .clear],
                         center: .topLeading,
                         startRadius: 8,
                         endRadius: 300
@@ -832,6 +1260,7 @@ struct LiquidGlassCard<Content: View>: View {
     let tint: Color
     let palette: [Color]
     var readabilityBoost: Double = 0
+    var transparencyMultiplier: Double = 1
     @ViewBuilder var content: Content
 
     private var primary: Color { palette.first ?? tint }
@@ -849,6 +1278,9 @@ struct LiquidGlassCard<Content: View>: View {
     private var strokeOpacity: Double {
         min(0.26, 0.12 + (0.10 * clampedReadabilityBoost))
     }
+    private var clampedTransparencyMultiplier: Double {
+        min(max(transparencyMultiplier, 0.35), 2.0)
+    }
 
     var body: some View {
         ZStack {
@@ -864,10 +1296,10 @@ struct LiquidGlassCard<Content: View>: View {
                         endPoint: .bottomTrailing
                     )
                 )
-                .opacity(0.90)
+                .opacity(0.90 * clampedTransparencyMultiplier)
 
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.black.opacity(darkenOpacity))
+                .fill(Color.black.opacity(darkenOpacity * clampedTransparencyMultiplier))
 
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(
@@ -878,10 +1310,10 @@ struct LiquidGlassCard<Content: View>: View {
                     )
                 )
                 .blendMode(.screen)
-                .opacity(sheenOpacity)
+                .opacity(sheenOpacity * clampedTransparencyMultiplier)
 
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(.white.opacity(strokeOpacity), lineWidth: 1)
+                .stroke(.white.opacity(strokeOpacity * clampedTransparencyMultiplier), lineWidth: 1)
 
             content.padding(14)
         }
