@@ -308,6 +308,7 @@ struct ProgressBlock: View {
 
     @State private var isDragging = false
     @State private var dragValue: Double = 0
+    @State private var railHovering = false
 
     private var clampedContrastBoost: Double {
         min(max(contrastBoost, 0), 1)
@@ -325,6 +326,14 @@ struct ProgressBlock: View {
         Color.white
     }
 
+    private var railInteractionActive: Bool {
+        canSeek && (railHovering || isDragging)
+    }
+
+    private var railHeight: CGFloat {
+        railInteractionActive ? 10 : 7
+    }
+
     var body: some View {
         VStack(spacing: 6) {
             GeometryReader { geo in
@@ -337,9 +346,18 @@ struct ProgressBlock: View {
                         .frame(width: max(6, w * CGFloat(min(max(p, 0), 1))))
                         .blendMode(.screen)
                 }
-                .frame(height: 7)
+                .frame(height: railHeight)
                 .contentShape(Rectangle())
-                .gesture(
+                .onHover { hovering in
+                    guard canSeek else {
+                        railHovering = false
+                        return
+                    }
+                    withAnimation(.easeInOut(duration: 0.14)) {
+                        railHovering = hovering
+                    }
+                }
+                .highPriorityGesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
                             guard canSeek else { return }
@@ -354,8 +372,13 @@ struct ProgressBlock: View {
                         }
                 )
             }
-            .frame(height: 7)
+            .frame(height: railHeight)
             .opacity(canSeek ? 1.0 : 0.55)
+            .animation(.easeInOut(duration: 0.14), value: railInteractionActive)
+            .background(
+                DetachedWindowDragLockBridge(locked: railInteractionActive)
+                    .frame(width: 0, height: 0)
+            )
 
             HStack {
                 Text(formatTime(isDragging ? (duration * dragValue) : elapsed))
@@ -375,6 +398,63 @@ struct ProgressBlock: View {
         guard seconds.isFinite, seconds > 0 else { return "0:00" }
         let s = Int(seconds.rounded())
         return String(format: "%d:%02d", s / 60, s % 60)
+    }
+}
+
+private struct DetachedWindowDragLockBridge: NSViewRepresentable {
+    let locked: Bool
+
+    func makeNSView(context: Context) -> DetachedWindowDragLockView {
+        let view = DetachedWindowDragLockView()
+        view.setLocked(locked)
+        return view
+    }
+
+    func updateNSView(_ nsView: DetachedWindowDragLockView, context: Context) {
+        nsView.setLocked(locked)
+    }
+}
+
+private final class DetachedWindowDragLockView: NSView {
+    private weak var trackedWindow: DetachedNowPlayingWindow?
+    private var isLocked = false
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        setLocked(isLocked)
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if window !== newWindow {
+            releaseTrackedWindowIfNeeded()
+        }
+        super.viewWillMove(toWindow: newWindow)
+    }
+
+    func setLocked(_ locked: Bool) {
+        isLocked = locked
+
+        guard let detachedWindow = window as? DetachedNowPlayingWindow else {
+            releaseTrackedWindowIfNeeded()
+            return
+        }
+
+        if locked {
+            trackedWindow = detachedWindow
+            detachedWindow.isMovableByWindowBackground = false
+        } else {
+            releaseTrackedWindowIfNeeded()
+        }
+    }
+
+    deinit {
+        releaseTrackedWindowIfNeeded()
+    }
+
+    private func releaseTrackedWindowIfNeeded() {
+        guard let trackedWindow else { return }
+        trackedWindow.isMovableByWindowBackground = true
+        self.trackedWindow = nil
     }
 }
 

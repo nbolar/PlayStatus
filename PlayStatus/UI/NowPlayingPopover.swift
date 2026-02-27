@@ -25,6 +25,7 @@ struct NowPlayingPopover: View {
     @State private var modeCrossfadeSequence: Int = 0
     @State private var showRegularLyricsPane = false
     @State private var regularLyricsHideWorkItem: DispatchWorkItem?
+    @State private var regularPointerHovering = false
     private var resolvedPopoverHeight: CGFloat {
         model.miniMode ? model.miniPopoverHeight : model.regularPopoverHeight
     }
@@ -93,6 +94,9 @@ struct NowPlayingPopover: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + modeCrossfadeOutDuration, execute: swap)
             syncRenderedRegularLyricsPane(for: regularLyricsRequested)
 
+            if miniMode {
+                regularPointerHovering = false
+            }
             guard miniMode else { return }
             searchText = ""
             isSearchFocused = false
@@ -116,6 +120,7 @@ struct NowPlayingPopover: View {
             modeCrossfadeSwapWorkItem = nil
             regularLyricsHideWorkItem?.cancel()
             regularLyricsHideWorkItem = nil
+            regularPointerHovering = false
         }
         .simultaneousGesture(
             SpatialTapGesture().onEnded { value in
@@ -170,6 +175,7 @@ struct NowPlayingPopover: View {
         let searchTrailingAlignmentNudge: CGFloat = 4
         let regularDetachedTransparencyMultiplier: Double = model.surfaceMode == .detached ? 0.80 : 1.0
         let regularDetachedControlScale = model.detachedRegularControlScaleFactor
+        let regularTopControlsVisible = regularPointerHovering
 
         return VStack(spacing: 0) {
             LiquidGlassCard(
@@ -374,6 +380,9 @@ struct NowPlayingPopover: View {
                 }
                 .padding(.top, 8 * regularDetachedControlScale)
                 .padding(.trailing, 14 * regularDetachedControlScale)
+                .opacity(regularTopControlsVisible ? 1 : 0)
+                .allowsHitTesting(regularTopControlsVisible)
+                .animation(.easeInOut(duration: 0.16), value: regularTopControlsVisible)
             }
 
             if shouldRenderRegularLyricsPane {
@@ -399,6 +408,14 @@ struct NowPlayingPopover: View {
                 )
             }
         )
+        .overlay {
+            MiniCardPointerTrackingOverlay(enabled: true) { hovering in
+                withAnimation(.easeInOut(duration: 0.16)) {
+                    regularPointerHovering = hovering
+                }
+            }
+            .allowsHitTesting(false)
+        }
     }
 
 //    private var header: some View {
@@ -1397,6 +1414,11 @@ private final class TrackingNSView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         syncHoverState()
+        // Run once more after attachment so first-entry hover is correct when
+        // the popover/window appears under a stationary cursor.
+        DispatchQueue.main.async { [weak self] in
+            self?.syncHoverState()
+        }
     }
 
     override func updateTrackingAreas() {
@@ -1407,7 +1429,7 @@ private final class TrackingNSView: NSView {
         guard enabled else { return }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.activeAlways, .inVisibleRect, .mouseEnteredAndExited, .assumeInside],
+            options: [.activeAlways, .inVisibleRect, .mouseEnteredAndExited],
             owner: self,
             userInfo: nil
         )
@@ -1716,7 +1738,7 @@ private struct ModeToggleControl: View {
     var body: some View {
         let clampedContrast = min(max(contrastBoost, 0), 1)
         Button(action: action) {
-            Image(systemName: isMiniMode ? "rectangle.expand.vertical" : "rectangle.compress.vertical")
+            Image(systemName: isMiniMode ? "rectangle.compress.vertical" : "rectangle.expand.vertical")
                 .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.94))
                 .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
@@ -2038,7 +2060,10 @@ private struct RegularLyricsPane: View {
     let artwork: NSImage?
     let visibleHeight: CGFloat
 
-    private let paneHeight: CGFloat = 240
+    private var paneContentHeight: CGFloat {
+        // visibleHeight includes the 1pt divider at the top of this pane.
+        max(0, visibleHeight - 1)
+    }
 
     var body: some View {
         let bleed = lyricsBleedOpacities(for: model.artworkColorIntensity)
@@ -2162,7 +2187,7 @@ private struct RegularLyricsPane: View {
                 .padding(.bottom, 12)
                 .padding(.horizontal, 14)
             }
-            .frame(height: paneHeight)
+            .frame(height: paneContentHeight)
         }
         .frame(height: max(0, visibleHeight), alignment: .top)
         .clipped()
