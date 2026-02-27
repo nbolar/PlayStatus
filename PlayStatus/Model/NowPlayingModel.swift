@@ -1556,14 +1556,16 @@ final class NowPlayingModel: ObservableObject {
     }
 
     private func fetchFallbackArtwork(for snapshot: NowPlayingSnapshot) {
-        let key = "\(snapshot.provider.rawValue)|\(snapshot.artist)|\(snapshot.album)|\(snapshot.title)"
+        let durationKeyComponent = snapshot.duration > 0 ? "d:\(Int(snapshot.duration.rounded()))" : "d:none"
+        let key = "\(snapshot.provider.rawValue)|\(snapshot.artist)|\(snapshot.album)|\(snapshot.title)|\(durationKeyComponent)"
         if fallbackArtworkTaskKey == key { return }
         fallbackArtworkTaskKey = key
 
         ITunesArtworkLookup.shared.lookup(
             artist: snapshot.artist,
             album: snapshot.album,
-            title: snapshot.title
+            title: snapshot.title,
+            trackDurationSeconds: snapshot.duration > 0 ? snapshot.duration : nil
         ) { [weak self] image in
             guard let self, let image else { return }
             DispatchQueue.main.async {

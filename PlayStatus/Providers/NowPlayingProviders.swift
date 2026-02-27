@@ -449,8 +449,20 @@ final class ITunesArtworkLookup {
         #endif
     }
 
-    func lookup(artist: String, album: String, title: String, completion: @escaping (NSImage?) -> Void) {
-        let key = "\(artist)|\(album)|\(title)"
+    func lookup(
+        artist: String,
+        album: String,
+        title: String,
+        trackDurationSeconds: Double? = nil,
+        completion: @escaping (NSImage?) -> Void
+    ) {
+        let durationKeyComponent: String
+        if let trackDurationSeconds, trackDurationSeconds > 0 {
+            durationKeyComponent = "d:\(Int(trackDurationSeconds.rounded()))"
+        } else {
+            durationKeyComponent = "d:none"
+        }
+        let key = "\(artist)|\(album)|\(title)|\(durationKeyComponent)"
         if let cached = imageCache.object(forKey: key as NSString) {
             completion(cached)
             return
@@ -491,21 +503,31 @@ final class ITunesArtworkLookup {
             let query = [artist, album, title]
                 .joined(separator: " ")
                 .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-            guard let searchURL = URL(string: "https://itunes.apple.com/search?term=\(query)&country=us&limit=1") else {
+            guard let searchURL = URL(string: "https://itunes.apple.com/search?term=\(query)&country=us&entity=song&limit=25") else {
                 completion(nil)
                 return
             }
 
             guard let (searchData, _) = try? await URLSession.shared.data(from: searchURL),
                   let json = try? JSONSerialization.jsonObject(with: searchData) as? [String: Any],
-                  let results = json["results"] as? [[String: Any]],
-                  let artwork100 = results.first?["artworkUrl100"] as? String,
-                  !artwork100.isEmpty else {
+                  let results = json["results"] as? [[String: Any]] else {
                 completion(nil)
                 return
             }
 
-            let highRes = artwork100.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg")
+            let candidates = results.compactMap(SearchCandidate.init(result:))
+            guard let bestCandidate = selectBestCandidate(
+                from: candidates,
+                artist: artist,
+                album: album,
+                title: title,
+                trackDurationSeconds: trackDurationSeconds
+            ) else {
+                completion(nil)
+                return
+            }
+
+            let highRes = bestCandidate.artwork100.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg")
             guard let imageURL = URL(string: highRes),
                   let (imageData, _) = try? await URLSession.shared.data(from: imageURL),
                   let image = NSImage(data: imageData) else {
@@ -533,5 +555,108 @@ final class ITunesArtworkLookup {
             await PersistentMediaCache.shared.storeArtworkImage(image, forKey: key)
             completion(image)
         }
+    }
+
+    private struct SearchCandidate {
+        let artwork100: String
+        let trackName: String
+        let artistName: String
+        let collectionName: String
+        let durationSeconds: Double?
+
+        init?(result: [String: Any]) {
+            guard let artwork100 = result["artworkUrl100"] as? String, !artwork100.isEmpty else { return nil }
+            self.artwork100 = artwork100
+            self.trackName = result["trackName"] as? String ?? ""
+            self.artistName = result["artistName"] as? String ?? ""
+            self.collectionName = result["collectionName"] as? String ?? ""
+            if let millis = result["trackTimeMillis"] as? NSNumber {
+                self.durationSeconds = millis.doubleValue / 1000.0
+            } else if let millis = result["trackTimeMillis"] as? Double {
+                self.durationSeconds = millis / 1000.0
+            } else if let millis = result["trackTimeMillis"] as? Int {
+                self.durationSeconds = Double(millis) / 1000.0
+            } else {
+                self.durationSeconds = nil
+            }
+        }
+    }
+
+    private func selectBestCandidate(
+        from candidates: [SearchCandidate],
+        artist: String,
+        album: String,
+        title: String,
+        trackDurationSeconds: Double?
+    ) -> SearchCandidate? {
+        guard !candidates.isEmpty else { return nil }
+
+        let targetArtist = normalize(artist)
+        let targetAlbum = normalize(album)
+        let targetTitle = normalize(title)
+        let targetDuration = (trackDurationSeconds ?? 0) > 0 ? trackDurationSeconds : nil
+
+        return candidates.max { lhs, rhs in
+            let lhsScore = metadataScore(for: lhs, targetArtist: targetArtist, targetAlbum: targetAlbum, targetTitle: targetTitle)
+            let rhsScore = metadataScore(for: rhs, targetArtist: targetArtist, targetAlbum: targetAlbum, targetTitle: targetTitle)
+            if lhsScore != rhsScore { return lhsScore < rhsScore }
+
+            if targetDuration != nil {
+                let lhsDelta = durationDelta(candidateDuration: lhs.durationSeconds, targetDuration: targetDuration)
+                let rhsDelta = durationDelta(candidateDuration: rhs.durationSeconds, targetDuration: targetDuration)
+                if lhsDelta != rhsDelta { return lhsDelta > rhsDelta }
+
+                let lhsHasDuration = lhs.durationSeconds != nil
+                let rhsHasDuration = rhs.durationSeconds != nil
+                if lhsHasDuration != rhsHasDuration { return !lhsHasDuration && rhsHasDuration }
+            }
+
+            return lhs.artwork100.count < rhs.artwork100.count
+        }
+    }
+
+    private func metadataScore(
+        for candidate: SearchCandidate,
+        targetArtist: String,
+        targetAlbum: String,
+        targetTitle: String
+    ) -> Int {
+        let artistScore = fieldScore(candidate: normalize(candidate.artistName), target: targetArtist, exact: 170, contains: 110, overlap: 70)
+        let albumScore = fieldScore(candidate: normalize(candidate.collectionName), target: targetAlbum, exact: 125, contains: 80, overlap: 50)
+        let titleScore = fieldScore(candidate: normalize(candidate.trackName), target: targetTitle, exact: 170, contains: 110, overlap: 70)
+        return artistScore + albumScore + titleScore
+    }
+
+    private func fieldScore(candidate: String, target: String, exact: Int, contains: Int, overlap: Int) -> Int {
+        guard !target.isEmpty, !candidate.isEmpty else { return 0 }
+        if candidate == target { return exact }
+        if candidate.contains(target) || target.contains(candidate) { return contains }
+        return tokenOverlapScore(lhs: tokenSet(candidate), rhs: tokenSet(target), maxPoints: overlap)
+    }
+
+    private func tokenSet(_ value: String) -> Set<String> {
+        Set(value.split(separator: " ").map(String.init))
+    }
+
+    private func tokenOverlapScore(lhs: Set<String>, rhs: Set<String>, maxPoints: Int) -> Int {
+        guard !lhs.isEmpty, !rhs.isEmpty else { return 0 }
+        let overlap = lhs.intersection(rhs).count
+        guard overlap > 0 else { return 0 }
+        let ratio = Double(overlap) / Double(max(lhs.count, rhs.count))
+        return Int((Double(maxPoints) * ratio).rounded())
+    }
+
+    private func durationDelta(candidateDuration: Double?, targetDuration: Double?) -> Double {
+        guard let targetDuration, targetDuration > 0 else { return 0 }
+        guard let candidateDuration, candidateDuration > 0 else { return .greatestFiniteMagnitude }
+        return abs(candidateDuration - targetDuration)
+    }
+
+    private func normalize(_ input: String) -> String {
+        input
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .replacingOccurrences(of: "[^a-z0-9]+", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
