@@ -718,12 +718,16 @@ private extension View {
                         capsule.fill(Color.black.opacity(0.30))
                     )
                     .overlay(
-                        Color(red: 0.60, green: 0.66, blue: 0.74)
-                            .opacity(neutralWashOpacity * 0.62)
+                        capsule.fill(
+                            Color(red: 0.60, green: 0.66, blue: 0.74)
+                                .opacity(neutralWashOpacity * 0.62)
+                        )
                     )
                     .overlay(
-                        Color(red: 0.52, green: 0.61, blue: 0.76)
-                            .opacity(blueFogOpacity * 0.58)
+                        capsule.fill(
+                            Color(red: 0.52, green: 0.61, blue: 0.76)
+                                .opacity(blueFogOpacity * 0.58)
+                        )
                     )
                     .overlay(
                         capsule.fill(
@@ -773,12 +777,16 @@ private extension View {
                 panel
                     .fill(Color.black.opacity(0.22 + (0.18 * clampedEmphasis)))
                     .overlay(
-                        Color(red: 0.60, green: 0.66, blue: 0.74)
-                            .opacity(neutralWashOpacity * (0.42 - (0.10 * clampedEmphasis)))
+                        panel.fill(
+                            Color(red: 0.60, green: 0.66, blue: 0.74)
+                                .opacity(neutralWashOpacity * (0.42 - (0.10 * clampedEmphasis)))
+                        )
                     )
                     .overlay(
-                        Color(red: 0.52, green: 0.61, blue: 0.76)
-                            .opacity(blueFogOpacity * (0.44 - (0.12 * clampedEmphasis)))
+                        panel.fill(
+                            Color(red: 0.52, green: 0.61, blue: 0.76)
+                                .opacity(blueFogOpacity * (0.44 - (0.12 * clampedEmphasis)))
+                        )
                     )
                     .overlay(
                         panel.fill(
@@ -1012,6 +1020,7 @@ private struct MiniNowPlayingCard: View {
         let miniMarqueeLaneWidth = max(120, model.miniPopoverWidth - 64)
         let miniTrackKey = "\(model.provider.rawValue)|\(model.artist)|\(model.album)|\(model.title)"
         let miniDetachedControlScale = model.detachedMiniControlScaleFactor
+        let miniInfoBandTopCornerRadius = 24 * miniDetachedControlScale
         let showMiniControlRow = pointerHovering && primaryContentVisible
         let showMiniSecondaryControls = showMiniControlRow && secondaryContentVisible
 
@@ -1228,6 +1237,7 @@ private struct MiniNowPlayingCard: View {
                             )
                         )
                         .frame(height: infoBandHeight)
+                        .mask(TopRoundedBandShape(cornerRadius: miniInfoBandTopCornerRadius))
                         .allowsHitTesting(false)
 
                     VStack(alignment: .leading, spacing: 10) {
