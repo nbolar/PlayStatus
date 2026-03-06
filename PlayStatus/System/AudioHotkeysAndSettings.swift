@@ -1372,7 +1372,7 @@ private extension ArtworkMotionStyle {
         case .parallaxByPointer:
             return "Tilts and shifts with pointer position. Hover your cursor over the artwork"
         case .vinylSpin:
-            return "Applies a record-inspired disc overlay that spins only while playback is active."
+            return "Applies a record-inspired disc overlay that spins only while playback is active. Artwork Streaming takes precedence when enabled."
         case .filmGrainDrift:
             return "Adds a cinematic grain texture that slowly drifts across the artwork."
         }

@@ -1,9 +1,9 @@
 import SwiftUI
 import AppKit
 
-private let modeMorphAnimation = Animation.linear(duration: modeTransitionDuration / 3.0)
-private let modeCrossfadeOutDuration: Double = modeTransitionDuration * 0.25
-private let modeCrossfadeInDuration: Double = modeTransitionDuration * 0.65
+private let modeMorphAnimation = Animation.interactiveSpring(response: 0.36, dampingFraction: 0.88, blendDuration: 0.10)
+private let modePrimaryRevealAnimation = Animation.easeOut(duration: 0.20)
+private let modeSecondaryRevealAnimation = Animation.easeOut(duration: 0.24)
 private let miniSeamBlendHeight: CGFloat = 1
 private let miniSeamBlurRadius: CGFloat = 10
 
@@ -15,19 +15,37 @@ struct NowPlayingPopover: View {
     @FocusState private var isSearchFocused: Bool
     @State private var searchSectionFrame: CGRect = .zero
     @State private var modeTransitionActive = false
-    @State private var modeTransitionResetWorkItem: DispatchWorkItem?
-    @State private var modeCrossfadeSwapWorkItem: DispatchWorkItem?
-    @State private var artworkMorphEnabled = false
-    @State private var regularArtworkOpacity: Double = 1
     @State private var pendingMiniInitialExpand = false
     @State private var displayedMiniMode = false
-    @State private var modeCrossfadeOpacity: Double = 1
-    @State private var modeCrossfadeSequence: Int = 0
+    @State private var modePrimaryContentVisible = true
+    @State private var modeSecondaryContentVisible = true
     @State private var showRegularDetailsPane = false
     @State private var regularDetailsHideWorkItem: DispatchWorkItem?
     @State private var regularPointerHovering = false
-    private var resolvedPopoverHeight: CGFloat {
-        model.miniMode ? model.miniPopoverHeight : model.regularPopoverHeight
+
+    private var renderedPopoverWidth: CGFloat {
+        popoverWidth(for: displayedMiniMode)
+    }
+
+    private var renderedPopoverHeight: CGFloat {
+        popoverHeight(for: displayedMiniMode)
+    }
+
+    private var regularArtworkSize: CGFloat {
+        model.regularArtworkDisplaySize
+    }
+
+    private func popoverWidth(for miniMode: Bool) -> CGFloat {
+        miniMode ? model.miniPopoverWidth : model.regularPopoverWidth
+    }
+
+    private func popoverHeight(for miniMode: Bool, miniLyricsEnabled: Bool? = nil) -> CGFloat {
+        if miniMode {
+            return (miniLyricsEnabled ?? model.miniLyricsEnabled) ? model.miniExpandedHeight : model.miniBaseHeight
+        }
+
+        let base = model.estimatedRegularPopoverHeight
+        return model.lyricsPanelExpanded ? base + model.regularLyricsPaneHeight : base
     }
 
     var body: some View {
@@ -36,17 +54,16 @@ struct NowPlayingPopover: View {
                 miniMode: displayedMiniMode,
                 availableHeight: max(0, geometry.size.height)
             )
-            .opacity(modeCrossfadeOpacity)
             .frame(
-                width: model.popoverWidth,
-                height: resolvedPopoverHeight,
+                width: renderedPopoverWidth,
+                height: renderedPopoverHeight,
                 alignment: .topLeading
             )
             .clipped()
         }
         .frame(
-            width: model.popoverWidth,
-            height: model.isPopoverVisible ? nil : resolvedPopoverHeight,
+            width: renderedPopoverWidth,
+            height: model.isPopoverVisible ? nil : renderedPopoverHeight,
             alignment: .topLeading
         )
         .clipped()
@@ -64,34 +81,16 @@ struct NowPlayingPopover: View {
         }
         .onChange(of: model.miniMode) { miniMode in
             beginModeTransition()
-            modeCrossfadeSwapWorkItem?.cancel()
-            modeCrossfadeSequence += 1
-            let sequence = modeCrossfadeSequence
-            withAnimation(.easeOut(duration: modeCrossfadeOutDuration)) {
-                modeCrossfadeOpacity = 0
-            }
-
-            let swap = DispatchWorkItem {
-                guard sequence == modeCrossfadeSequence else { return }
+            withAnimation(modeMorphAnimation) {
                 displayedMiniMode = miniMode
-
-                if miniMode {
-                    artworkMorphEnabled = true
-                } else {
-                    artworkMorphEnabled = false
-                    regularArtworkOpacity = 0
-                    withAnimation(.easeInOut(duration: modeTransitionDuration)) {
-                        regularArtworkOpacity = 1
-                    }
-                }
-
-                withAnimation(.easeInOut(duration: modeCrossfadeInDuration)) {
-                    modeCrossfadeOpacity = 1
-                }
-                modeCrossfadeSwapWorkItem = nil
             }
-            modeCrossfadeSwapWorkItem = swap
-            DispatchQueue.main.asyncAfter(deadline: .now() + modeCrossfadeOutDuration, execute: swap)
+
+            var immediate = Transaction(animation: nil)
+            immediate.disablesAnimations = true
+            withTransaction(immediate) {
+                modePrimaryContentVisible = true
+                modeSecondaryContentVisible = true
+            }
             syncRenderedRegularDetailsPane(for: regularDetailsRequested)
 
             if miniMode {
@@ -100,7 +99,7 @@ struct NowPlayingPopover: View {
             guard miniMode else { return }
             searchText = ""
             isSearchFocused = false
-            withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.90, blendDuration: 0.90)) {
+            withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.90, blendDuration: 0.12)) {
                 isSearchExpanded = false
             }
         }
@@ -109,12 +108,11 @@ struct NowPlayingPopover: View {
         }
         .onAppear {
             displayedMiniMode = model.miniMode
-            modeCrossfadeOpacity = 1
+            modePrimaryContentVisible = true
+            modeSecondaryContentVisible = true
             syncRenderedRegularDetailsPaneImmediately()
         }
         .onDisappear {
-            modeCrossfadeSwapWorkItem?.cancel()
-            modeCrossfadeSwapWorkItem = nil
             regularDetailsHideWorkItem?.cancel()
             regularDetailsHideWorkItem = nil
             regularPointerHovering = false
@@ -129,6 +127,11 @@ struct NowPlayingPopover: View {
                 isSearchFocused = false
             }
         )
+        .onAnimationCompleted(for: displayedMiniMode ? 1.0 : 0.0) {
+            guard modeTransitionActive else { return }
+            guard displayedMiniMode == model.miniMode else { return }
+            modeTransitionActive = false
+        }
     }
 
     @ViewBuilder
@@ -139,13 +142,16 @@ struct NowPlayingPopover: View {
                 artworkMorphNamespace: artworkMorphNamespace,
                 transitionActive: modeTransitionActive,
                 availableHeight: availableHeight,
+                resolvedHeight: renderedPopoverHeight,
+                primaryContentVisible: modePrimaryContentVisible,
+                secondaryContentVisible: modeSecondaryContentVisible,
                 startExpandedOnAppear: pendingMiniInitialExpand,
                 onInitialExpandConsumed: {
                     pendingMiniInitialExpand = false
                 },
                 onToggleMode: {
+                    prepareModeTransition(to: false)
                     withAnimation(modeMorphAnimation) {
-                        artworkMorphEnabled = false
                         if model.miniLyricsEnabled {
                             model.miniLyricsEnabled = false
                         }
@@ -160,9 +166,9 @@ struct NowPlayingPopover: View {
 
     private func regularContent(availableHeight: CGFloat) -> some View {
         let baseRegularHeight = model.estimatedRegularPopoverHeight
-        let resolvedRegularHeight = model.regularPopoverHeight
+        let resolvedRegularHeight = renderedPopoverHeight
         let liveRegularHeight = min(resolvedRegularHeight, max(baseRegularHeight, availableHeight))
-        let regularMarqueeLaneWidth = min(272, max(130, model.popoverWidth - model.artworkDisplaySize - 78))
+        let regularMarqueeLaneWidth = min(272, max(130, renderedPopoverWidth - regularArtworkSize - 78))
         let visibleRegularDetailsHeight = min(
             model.regularLyricsPaneHeight,
             max(0, liveRegularHeight - baseRegularHeight)
@@ -172,7 +178,8 @@ struct NowPlayingPopover: View {
         let searchTrailingAlignmentNudge: CGFloat = 4
         let regularDetachedTransparencyMultiplier: Double = model.surfaceMode == .detached ? 0.80 : 1.0
         let regularDetachedControlScale = model.detachedRegularControlScaleFactor
-        let regularTopControlsVisible = regularPointerHovering
+        let restingRegularDetailTab = model.selectedRegularDetailsTab
+        let restingRegularControlOpacity: Double = regularPointerHovering ? 1 : 0.44
 
         return VStack(spacing: 0) {
             LiquidGlassCard(
@@ -183,102 +190,87 @@ struct NowPlayingPopover: View {
             ) {
             VStack(spacing: 8) {
                 HStack(alignment: .center, spacing: 16) {
-                    Group {
-                        if artworkMorphEnabled {
-                            AnimatedArtworkView(
-                                image: model.artwork,
-                                tint: model.glassTint,
-                                isEnabled: false,
-                                seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
-                                style: model.artworkMotionStyle,
-                                animatedArtworkURL: model.effectiveAnimatedArtworkURL,
-                                animatedArtworkIsVisible: model.isPopoverVisible
-                            )
-                                .frame(width: model.artworkDisplaySize, height: model.artworkDisplaySize)
-                                .animatedArtworkMotion(
-                                    isEnabled: model.animatedArtworkEnabled,
-                                    seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
-                                    style: model.artworkMotionStyle,
-                                    isPlaying: model.isPlaying,
-                                    hasAnimatedStream: model.effectiveAnimatedArtworkURL != nil,
-                                    tint: model.glassTint,
-                                    artworkImage: model.artwork
-                                )
-                                .matchedGeometryEffect(id: "heroArtwork", in: artworkMorphNamespace)
-                        } else {
-                            AnimatedArtworkView(
-                                image: model.artwork,
-                                tint: model.glassTint,
-                                isEnabled: false,
-                                seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
-                                style: model.artworkMotionStyle,
-                                animatedArtworkURL: model.effectiveAnimatedArtworkURL,
-                                animatedArtworkIsVisible: model.isPopoverVisible
-                            )
-                                .frame(width: model.artworkDisplaySize, height: model.artworkDisplaySize)
-                                .animatedArtworkMotion(
-                                    isEnabled: model.animatedArtworkEnabled,
-                                    seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
-                                    style: model.artworkMotionStyle,
-                                    isPlaying: model.isPlaying,
-                                    hasAnimatedStream: model.effectiveAnimatedArtworkURL != nil,
-                                    tint: model.glassTint,
-                                    artworkImage: model.artwork
-                                )
-                                .opacity(regularArtworkOpacity)
-                        }
-                    }
+                    AnimatedArtworkView(
+                        image: model.artwork,
+                        tint: model.glassTint,
+                        isEnabled: false,
+                        seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
+                        style: model.artworkMotionStyle,
+                        animatedArtworkURL: model.effectiveAnimatedArtworkURL,
+                        animatedArtworkIsVisible: model.isPopoverVisible
+                    )
+                        .frame(width: regularArtworkSize, height: regularArtworkSize)
+                        .animatedArtworkMotion(
+                            isEnabled: model.animatedArtworkEnabled,
+                            seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
+                            style: model.artworkMotionStyle,
+                            isPlaying: model.isPlaying,
+                            hasAnimatedStream: model.effectiveAnimatedArtworkURL != nil,
+                            tint: model.glassTint,
+                            artworkImage: model.artwork
+                        )
+                        .matchedGeometryEffect(id: "heroArtwork", in: artworkMorphNamespace)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Button(action: { model.openProviderApp() }) {
-                            NowPlayingTitleMarquee(
-                                text: model.displayTitle,
+                        VStack(alignment: .leading, spacing: 6) {
+                            Button(action: { model.openProviderApp() }) {
+                                NowPlayingTitleMarquee(
+                                    text: model.displayTitle,
+                                    enabled: true,
+                                    isVisible: model.isPopoverVisible,
+                                    laneWidth: regularMarqueeLaneWidth
+                                )
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+
+                            NowPlayingSecondaryMarquee(
+                                text: model.artistAlbumLine,
                                 enabled: true,
                                 isVisible: model.isPopoverVisible,
-                                laneWidth: regularMarqueeLaneWidth
+                                laneWidth: regularMarqueeLaneWidth,
+                                usesSecondaryStyle: false
                             )
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
 
-                        NowPlayingSecondaryMarquee(
-                            text: model.artistAlbumLine,
-                            enabled: true,
-                            isVisible: model.isPopoverVisible,
-                            laneWidth: regularMarqueeLaneWidth,
-                            usesSecondaryStyle: false
-                        )
-
-                        PlaybackProgressBlock(
-                            contrastBoost: regularControlContrastBoost,
-                            onSeek: { model.seek(to: $0) }
-                        )
-
-                        HStack {
-                            Spacer(minLength: 0)
-                            ControlsRow(
-                                isPlaying: model.isPlaying,
-                                onPrev: { model.previousTrack() },
-                                onPlayPause: { model.playPause() },
-                                onNext: { model.nextTrack() },
+                            PlaybackProgressBlock(
                                 contrastBoost: regularControlContrastBoost,
-                                controlScale: regularDetachedControlScale
+                                onSeek: { model.seek(to: $0) }
                             )
-                            Spacer(minLength: 0)
                         }
-                        .padding(.top, 2)
+                        .opacity(modePrimaryContentVisible ? 1 : 0)
+                        .offset(y: modePrimaryContentVisible ? 0 : 8)
+                        .animation(modePrimaryRevealAnimation, value: modePrimaryContentVisible)
 
-                        OutputControlsRow(
-                            model: model,
-                            showDeviceName: true,
-                            contrastBoost: regularControlContrastBoost,
-                            controlScale: regularDetachedControlScale,
-                            showFavorite: model.canFavoriteCurrentTrack,
-                            favoriteIsActive: model.isCurrentTrackFavorited,
-                            favoritePulseToken: model.favoriteActionPulseToken,
-                            onFavorite: { _ = model.toggleCurrentTrackFavorite() }
-                        )
+                        VStack(spacing: 0) {
+                            HStack {
+                                Spacer(minLength: 0)
+                                ControlsRow(
+                                    isPlaying: model.isPlaying,
+                                    onPrev: { model.previousTrack() },
+                                    onPlayPause: { model.playPause() },
+                                    onNext: { model.nextTrack() },
+                                    contrastBoost: regularControlContrastBoost,
+                                    controlScale: regularDetachedControlScale
+                                )
+                                Spacer(minLength: 0)
+                            }
                             .padding(.top, 2)
+
+                            OutputControlsRow(
+                                model: model,
+                                showDeviceName: true,
+                                contrastBoost: regularControlContrastBoost,
+                                controlScale: regularDetachedControlScale,
+                                showFavorite: model.canFavoriteCurrentTrack,
+                                favoriteIsActive: model.isCurrentTrackFavorited,
+                                favoritePulseToken: model.favoriteActionPulseToken,
+                                onFavorite: { _ = model.toggleCurrentTrackFavorite() }
+                            )
+                            .padding(.top, 4)
+                        }
+                        .opacity(modeSecondaryContentVisible ? 1 : 0)
+                        .offset(y: modeSecondaryContentVisible ? 0 : 10)
+                        .animation(modeSecondaryRevealAnimation, value: modeSecondaryContentVisible)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -287,7 +279,7 @@ struct NowPlayingPopover: View {
                     HStack {
                         Spacer(minLength: 0)
                         searchSection(
-                            maxWidth: min(280, max(170, model.popoverWidth * 0.50)),
+                            maxWidth: min(280, max(170, renderedPopoverWidth * 0.50)),
                             contrastBoost: regularControlContrastBoost,
                             controlScale: regularDetachedControlScale
                         )
@@ -295,6 +287,9 @@ struct NowPlayingPopover: View {
                     .padding(.trailing, -searchTrailingAlignmentNudge)
                     .padding(.top, -24)
                     .padding(.bottom, -12)
+                    .opacity(modeSecondaryContentVisible ? 1 : 0)
+                    .offset(y: modeSecondaryContentVisible ? 0 : 10)
+                    .animation(modeSecondaryRevealAnimation, value: modeSecondaryContentVisible)
                 }
 
             }
@@ -308,83 +303,104 @@ struct NowPlayingPopover: View {
                         contrastBoost: regularControlContrastBoost,
                         sizeScale: regularDetachedControlScale
                     ) {
+                        prepareModeTransition(to: true)
                         withAnimation(modeMorphAnimation) {
-                            artworkMorphEnabled = true
                             pendingMiniInitialExpand = true
                             model.miniMode = true
                         }
                     }
+                    .opacity(restingRegularControlOpacity)
 
-                    DetachedSurfaceToggleControl(
-                        isDetachedMode: model.surfaceMode == .detached,
-                        transitionActive: modeTransitionActive,
-                        contrastBoost: regularControlContrastBoost,
-                        sizeScale: regularDetachedControlScale
-                    ) {
-                        model.requestToggleDetachedMode()
+                    if regularPointerHovering {
+                        DetachedSurfaceToggleControl(
+                            isDetachedMode: model.surfaceMode == .detached,
+                            transitionActive: modeTransitionActive,
+                            contrastBoost: regularControlContrastBoost,
+                            sizeScale: regularDetachedControlScale
+                        ) {
+                            model.requestToggleDetachedMode()
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
                     }
 
                     if model.surfaceMode == .detached {
-                        DetachedWindowPinControl(
-                            isPinned: model.detachedWindowAlwaysOnTop,
+                        if regularPointerHovering {
+                            DetachedWindowPinControl(
+                                isPinned: model.detachedWindowAlwaysOnTop,
+                                transitionActive: modeTransitionActive,
+                                contrastBoost: regularControlContrastBoost,
+                                sizeScale: regularDetachedControlScale
+                            ) {
+                                model.detachedWindowAlwaysOnTop.toggle()
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .trailing)))
+
+                            DetachedWindowCloseControl(
+                                transitionActive: modeTransitionActive,
+                                contrastBoost: regularControlContrastBoost,
+                                sizeScale: regularDetachedControlScale
+                            ) {
+                                model.requestCloseDetachedWindow()
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .trailing)))
+                        }
+                    }
+
+                    if regularPointerHovering || restingRegularDetailTab == .lyrics {
+                        RegularDetailToggleControl(
+                            isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .lyrics,
+                            systemName: model.selectedRegularDetailsTab == .lyrics && model.lyricsPanelExpanded ? "quote.bubble.fill" : "quote.bubble",
+                            helpText: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .lyrics ? "Hide lyrics" : "Show lyrics",
                             transitionActive: modeTransitionActive,
                             contrastBoost: regularControlContrastBoost,
                             sizeScale: regularDetachedControlScale
                         ) {
-                            model.detachedWindowAlwaysOnTop.toggle()
+                            toggleRegularDetails(tab: .lyrics)
                         }
+                        .opacity(regularPointerHovering ? 1 : restingRegularControlOpacity)
+                    }
 
-                        DetachedWindowCloseControl(
+                    if regularPointerHovering || restingRegularDetailTab == .credits {
+                        RegularDetailToggleControl(
+                            isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits,
+                            systemName: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits ? "info.circle.fill" : "info.circle",
+                            helpText: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits ? "Hide credits" : "Show credits",
                             transitionActive: modeTransitionActive,
                             contrastBoost: regularControlContrastBoost,
                             sizeScale: regularDetachedControlScale
                         ) {
-                            model.requestCloseDetachedWindow()
+                            toggleRegularDetails(tab: .credits)
                         }
+                        .opacity(regularPointerHovering ? 1 : restingRegularControlOpacity)
                     }
 
-                    RegularDetailToggleControl(
-                        isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .lyrics,
-                        systemName: model.selectedRegularDetailsTab == .lyrics && model.lyricsPanelExpanded ? "quote.bubble.fill" : "quote.bubble",
-                        helpText: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .lyrics ? "Hide lyrics" : "Show lyrics",
-                        contrastBoost: regularControlContrastBoost,
-                        sizeScale: regularDetachedControlScale
-                    ) {
-                        toggleRegularDetails(tab: .lyrics)
+                    if regularPointerHovering {
+                        SettingsOpenControl {
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: 16 * regularDetachedControlScale, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.94))
+                                .frame(
+                                    width: 24 * regularDetachedControlScale,
+                                    height: 24 * regularDetachedControlScale
+                                )
+                                .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * regularControlContrastBoost)))))
+                                .overlay(
+                                    Circle()
+                                        .stroke(.white.opacity(min(0.28, 0.16 + (0.08 * regularControlContrastBoost))), lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .hoverHint("Settings", enabled: !modeTransitionActive)
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
                     }
-
-                    RegularDetailToggleControl(
-                        isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits,
-                        systemName: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits ? "info.circle.fill" : "info.circle",
-                        helpText: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits ? "Hide credits" : "Show credits",
-                        contrastBoost: regularControlContrastBoost,
-                        sizeScale: regularDetachedControlScale
-                    ) {
-                        toggleRegularDetails(tab: .credits)
-                    }
-
-                    SettingsOpenControl {
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 16 * regularDetachedControlScale, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.94))
-                            .frame(
-                                width: 24 * regularDetachedControlScale,
-                                height: 24 * regularDetachedControlScale
-                            )
-                            .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * regularControlContrastBoost)))))
-                            .overlay(
-                                Circle()
-                                    .stroke(.white.opacity(min(0.28, 0.16 + (0.08 * regularControlContrastBoost))), lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .hoverHint("Settings", enabled: !modeTransitionActive)
                 }
                 .padding(.top, 8 * regularDetachedControlScale)
                 .padding(.trailing, 14 * regularDetachedControlScale)
-                .opacity(regularTopControlsVisible ? 1 : 0)
-                .allowsHitTesting(regularTopControlsVisible)
-                .animation(.easeInOut(duration: 0.16), value: regularTopControlsVisible)
+                .opacity(modeSecondaryContentVisible ? 1 : 0)
+                .offset(y: modeSecondaryContentVisible ? 0 : -8)
+                .allowsHitTesting(modeSecondaryContentVisible)
+                .animation(.easeInOut(duration: 0.16), value: regularPointerHovering)
+                .animation(modeSecondaryRevealAnimation, value: modeSecondaryContentVisible)
             }
 
             if shouldRenderRegularDetailsPane {
@@ -401,7 +417,7 @@ struct NowPlayingPopover: View {
                 .allowsHitTesting(regularDetailsRequested && visibleRegularDetailsHeight > 0.5)
             }
         }
-        .frame(width: model.popoverWidth, height: resolvedRegularHeight, alignment: .topLeading)
+        .frame(width: renderedPopoverWidth, height: resolvedRegularHeight, alignment: .topLeading)
         .background(
             ZStack {
                 LiquidGlassBackground(
@@ -592,14 +608,13 @@ struct NowPlayingPopover: View {
         searchText = ""
     }
 
-    private func beginModeTransition() {
-        modeTransitionResetWorkItem?.cancel()
+    private func prepareModeTransition(to targetMiniMode: Bool) {
+        guard targetMiniMode != model.miniMode else { return }
         modeTransitionActive = true
-        let reset = DispatchWorkItem {
-            modeTransitionActive = false
-        }
-        modeTransitionResetWorkItem = reset
-        DispatchQueue.main.asyncAfter(deadline: .now() + modeTransitionDuration + 0.06, execute: reset)
+    }
+
+    private func beginModeTransition() {
+        modeTransitionActive = true
     }
 
     private var regularDetailsRequested: Bool {
@@ -658,6 +673,97 @@ private extension View {
 
     func hoverHint(_ text: String, enabled: Bool = true) -> some View {
         modifier(HoverHintModifier(text: text, enabled: enabled))
+    }
+
+    func miniControlClusterBackground(
+        sizeScale: CGFloat,
+        neutralWashOpacity: Double,
+        blueFogOpacity: Double
+    ) -> some View {
+        let cornerRadius = 12 * sizeScale
+        let capsule = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
+        return self
+            .padding(.horizontal, 6 * sizeScale)
+            .padding(.vertical, 5 * sizeScale)
+            .background(
+                capsule
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        capsule.fill(Color.black.opacity(0.30))
+                    )
+                    .overlay(
+                        Color(red: 0.60, green: 0.66, blue: 0.74)
+                            .opacity(neutralWashOpacity * 0.62)
+                    )
+                    .overlay(
+                        Color(red: 0.52, green: 0.61, blue: 0.76)
+                            .opacity(blueFogOpacity * 0.58)
+                    )
+                    .overlay(
+                        capsule.fill(
+                            LinearGradient(
+                                colors: [
+                                    .black.opacity(0.12),
+                                    .black.opacity(0.03),
+                                    .clear
+                                ],
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
+                        )
+                    )
+                    .overlay(
+                        capsule
+                            .fill(
+                                LinearGradient(
+                                    colors: [.white.opacity(0.16), .white.opacity(0.03), .clear],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                    )
+                    .overlay(
+                        capsule
+                            .stroke(.white.opacity(0.18), lineWidth: 1)
+                    )
+            )
+            .shadow(color: .black.opacity(0.26), radius: 7 * sizeScale, x: 0, y: 2 * sizeScale)
+    }
+
+    func onAnimationCompleted<Value: VectorArithmetic>(
+        for value: Value,
+        perform action: @escaping () -> Void
+    ) -> some View {
+        modifier(AnimationCompletionObserverModifier(observedValue: value, completion: action))
+    }
+}
+
+private struct AnimationCompletionObserverModifier<Value>: AnimatableModifier where Value: VectorArithmetic {
+    var targetValue: Value
+    var completion: () -> Void
+
+    var animatableData: Value {
+        didSet {
+            notifyCompletionIfFinished()
+        }
+    }
+
+    init(observedValue: Value, completion: @escaping () -> Void) {
+        targetValue = observedValue
+        animatableData = observedValue
+        self.completion = completion
+    }
+
+    func body(content: Content) -> some View {
+        content
+    }
+
+    private func notifyCompletionIfFinished() {
+        guard animatableData == targetValue else { return }
+        DispatchQueue.main.async {
+            completion()
+        }
     }
 }
 
@@ -772,6 +878,9 @@ private struct MiniNowPlayingCard: View {
     let artworkMorphNamespace: Namespace.ID
     let transitionActive: Bool
     let availableHeight: CGFloat
+    let resolvedHeight: CGFloat
+    let primaryContentVisible: Bool
+    let secondaryContentVisible: Bool
     let startExpandedOnAppear: Bool
     let onInitialExpandConsumed: () -> Void
     let onToggleMode: () -> Void
@@ -785,8 +894,7 @@ private struct MiniNowPlayingCard: View {
         let lightArtworkBoost = max(0, (luminance - 0.54) / 0.46)
         let veryLightBoost = max(0, (luminance - 0.72) / 0.28)
         let darkArtworkBoost = max(0, (0.52 - luminance) / 0.52)
-        let effectiveHover = (pointerHovering || forceExpandedUntilPointerExit) && !transitionActive
-        let controlsVisible = effectiveHover
+        let effectiveHover = pointerHovering || forceExpandedUntilPointerExit
         let infoExpanded = effectiveHover
         let bottomShade = min(0.82, 0.34 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.18) + (effectiveHover ? 0.10 : 0.04))
         let topShade = min(0.34, 0.10 + (darkArtworkBoost * 0.14))
@@ -797,8 +905,7 @@ private struct MiniNowPlayingCard: View {
         let primaryShadowOpacity = min(0.94, 0.56 + (lightArtworkBoost * 0.22) + (darkArtworkBoost * 0.12))
         let secondaryShadowOpacity = min(0.84, 0.46 + (lightArtworkBoost * 0.18) + (darkArtworkBoost * 0.10))
         let infoBandHeight: CGFloat = infoExpanded ? 196 : 126
-        let blurFadeHeight: CGFloat = min(44, infoBandHeight * 0.34)
-        let resolvedCardHeight = model.miniPopoverHeight
+        let resolvedCardHeight = resolvedHeight
         let liveCardHeight = min(resolvedCardHeight, max(model.miniBaseHeight, availableHeight))
         let visibleLyricsHeight = min(
             model.miniLyricsPaneHeight,
@@ -806,9 +913,11 @@ private struct MiniNowPlayingCard: View {
         )
         let shouldRenderMiniLyricsPane = showMiniLyricsPane || visibleLyricsHeight > 0.5
         let seamOpacity = min(1, max(0, visibleLyricsHeight / max(1, model.miniLyricsPaneHeight)))
-        let miniMarqueeLaneWidth = max(120, model.popoverWidth - 64)
+        let miniMarqueeLaneWidth = max(120, model.miniPopoverWidth - 64)
         let miniTrackKey = "\(model.provider.rawValue)|\(model.artist)|\(model.album)|\(model.title)"
         let miniDetachedControlScale = model.detachedMiniControlScaleFactor
+        let showMiniControlRow = pointerHovering && primaryContentVisible
+        let showMiniSecondaryControls = showMiniControlRow && secondaryContentVisible
 
         return VStack(spacing: 0) {
             ZStack {
@@ -893,149 +1002,96 @@ private struct MiniNowPlayingCard: View {
                         action: onToggleMode
                     )
 
-                    DetachedSurfaceToggleControl(
-                        isDetachedMode: model.surfaceMode == .detached,
-                        transitionActive: transitionActive,
-                        sizeScale: miniDetachedControlScale
-                    ) {
-                        model.requestToggleDetachedMode()
-                    }
-
-                    if model.surfaceMode == .detached {
-                        DetachedWindowPinControl(
-                            isPinned: model.detachedWindowAlwaysOnTop,
+                    if showMiniSecondaryControls {
+                        DetachedSurfaceToggleControl(
+                            isDetachedMode: model.surfaceMode == .detached,
                             transitionActive: transitionActive,
                             sizeScale: miniDetachedControlScale
                         ) {
-                            model.detachedWindowAlwaysOnTop.toggle()
+                            model.requestToggleDetachedMode()
                         }
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
 
-                        DetachedWindowCloseControl(
-                            transitionActive: transitionActive,
-                            sizeScale: miniDetachedControlScale
-                        ) {
-                            model.requestCloseDetachedWindow()
-                        }
-                    }
-
-                    MiniDetailToggleControl(
-                        isOn: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics,
-                        systemName: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics ? "quote.bubble.fill" : "quote.bubble",
-                        helpText: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics ? "Hide lyrics" : "Show lyrics",
-                        transitionActive: transitionActive,
-                        sizeScale: miniDetachedControlScale
-                    ) {
-                        toggleMiniDetails(tab: .lyrics)
-                    }
-
-                    MiniDetailToggleControl(
-                        isOn: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits,
-                        systemName: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits ? "info.circle.fill" : "info.circle",
-                        helpText: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits ? "Hide credits" : "Show credits",
-                        transitionActive: transitionActive,
-                        sizeScale: miniDetachedControlScale
-                    ) {
-                        toggleMiniDetails(tab: .credits)
-                    }
-
-                    SettingsOpenControl {
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 16 * miniDetachedControlScale, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.94))
-                            .frame(
-                                width: 26 * miniDetachedControlScale,
-                                height: 26 * miniDetachedControlScale
-                            )
-                            .background(Circle().fill(Color.white.opacity(0.14)))
-                            .overlay(
-                                Circle().stroke(.white.opacity(0.18), lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .hoverHint("Settings", enabled: !transitionActive)
-                }
-                .padding(.horizontal, 6 * miniDetachedControlScale)
-                .padding(.vertical, 5 * miniDetachedControlScale)
-                .background(
-                    GeometryReader { geo in
-                        ZStack {
-                            // Faux backdrop blur constrained to the control capsule bounds.
-                            if let artwork = model.artwork {
-                                Image(nsImage: artwork)
-                                    .resizable()
-                                    .interpolation(.high)
-                                    .scaledToFill()
-                                    .frame(width: geo.size.width, height: geo.size.height)
-                                    .blur(radius: 14)
-                                    .scaleEffect(1.01)
-                                    .opacity(0.85)
+                        if model.surfaceMode == .detached {
+                            DetachedWindowPinControl(
+                                isPinned: model.detachedWindowAlwaysOnTop,
+                                transitionActive: transitionActive,
+                                sizeScale: miniDetachedControlScale
+                            ) {
+                                model.detachedWindowAlwaysOnTop.toggle()
                             }
+                            .transition(.opacity.combined(with: .move(edge: .trailing)))
 
-                            RoundedRectangle(cornerRadius: 12 * miniDetachedControlScale, style: .continuous)
-                                .fill(Color.black.opacity(0.30))
-                                .overlay(
-                                    Color(red: 0.60, green: 0.66, blue: 0.74)
-                                        .opacity(neutralWashOpacity * 0.65)
-                                )
-                                .overlay(
-                                    Color(red: 0.52, green: 0.61, blue: 0.76)
-                                        .opacity(blueFogOpacity * 0.65)
-                                )
-
-                            RoundedRectangle(cornerRadius: 12 * miniDetachedControlScale, style: .continuous)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [.white.opacity(0.10), .clear],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-
-                            RoundedRectangle(cornerRadius: 12 * miniDetachedControlScale, style: .continuous)
-                                .stroke(.white.opacity(0.18), lineWidth: 1)
+                            DetachedWindowCloseControl(
+                                transitionActive: transitionActive,
+                                sizeScale: miniDetachedControlScale
+                            ) {
+                                model.requestCloseDetachedWindow()
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .trailing)))
                         }
-                        .frame(width: geo.size.width, height: geo.size.height)
-                        .clipShape(RoundedRectangle(cornerRadius: 12 * miniDetachedControlScale, style: .continuous))
                     }
+
+                    if showMiniControlRow {
+                        MiniDetailToggleControl(
+                            isOn: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics,
+                            systemName: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics ? "quote.bubble.fill" : "quote.bubble",
+                            helpText: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics ? "Hide lyrics" : "Show lyrics",
+                            transitionActive: transitionActive,
+                            sizeScale: miniDetachedControlScale
+                        ) {
+                            toggleMiniDetails(tab: .lyrics)
+                        }
+                    }
+
+                    if showMiniControlRow {
+                        MiniDetailToggleControl(
+                            isOn: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits,
+                            systemName: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits ? "info.circle.fill" : "info.circle",
+                            helpText: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits ? "Hide credits" : "Show credits",
+                            transitionActive: transitionActive,
+                            sizeScale: miniDetachedControlScale
+                        ) {
+                            toggleMiniDetails(tab: .credits)
+                        }
+                    }
+
+                    if showMiniSecondaryControls {
+                        SettingsOpenControl {
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: 16 * miniDetachedControlScale, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.94))
+                                .frame(
+                                    width: 26 * miniDetachedControlScale,
+                                    height: 26 * miniDetachedControlScale
+                                )
+                                .background(Circle().fill(Color.white.opacity(0.14)))
+                                .overlay(
+                                    Circle().stroke(.white.opacity(0.18), lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .hoverHint("Settings", enabled: !transitionActive)
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                    }
+                }
+                .miniControlClusterBackground(
+                    sizeScale: miniDetachedControlScale,
+                    neutralWashOpacity: neutralWashOpacity * 0.65,
+                    blueFogOpacity: blueFogOpacity * 0.65
                 )
-                .shadow(color: .black.opacity(0.30), radius: 6 * miniDetachedControlScale, x: 0, y: 2 * miniDetachedControlScale)
+                .fixedSize(horizontal: true, vertical: false)
                 .padding(.top, 10 * miniDetachedControlScale)
                 .padding(.trailing, 10 * miniDetachedControlScale)
-                .opacity(controlsVisible ? 1 : 0)
-                .allowsHitTesting(controlsVisible)
+                .opacity(showMiniControlRow ? 1 : 0)
+                .offset(y: showMiniControlRow ? 0 : -6)
+                .allowsHitTesting(showMiniControlRow)
+                .animation(.easeInOut(duration: 0.16), value: pointerHovering)
+                .animation(modePrimaryRevealAnimation, value: primaryContentVisible)
+                .animation(modeSecondaryRevealAnimation, value: secondaryContentVisible)
             }
             .overlay(alignment: .bottom) {
                 ZStack(alignment: .bottom) {
-                    if effectiveHover, let artwork = model.artwork {
-                        Image(nsImage: artwork)
-                            .resizable()
-                            .interpolation(.high)
-                            .scaledToFill()
-                            .blur(radius: 14)
-                            .scaleEffect(1.01)
-                            .padding(8)
-                            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-                            .mask(
-                                VStack(spacing: 0) {
-                                    Spacer(minLength: 0)
-                                    VStack(spacing: 0) {
-                                        LinearGradient(
-                                            colors: [.clear, .white],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                        .frame(height: blurFadeHeight)
-
-                                        Rectangle()
-                                            .frame(height: max(0, infoBandHeight - 20 - blurFadeHeight))
-                                    }
-                                }
-                            )
-                            .opacity(0.85)
-                            .animation(.easeInOut(duration: 0.18), value: effectiveHover)
-                            .allowsHitTesting(false)
-                    }
-
                     Rectangle()
                         .fill(Color.black.opacity(0.30))
                         .overlay(
@@ -1079,56 +1135,66 @@ private struct MiniNowPlayingCard: View {
                         .allowsHitTesting(false)
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Button(action: { model.openProviderApp() }) {
-                            NowPlayingTitleMarquee(
-                                text: model.displayTitle,
+                        VStack(alignment: .leading, spacing: 8) {
+                            Button(action: { model.openProviderApp() }) {
+                                NowPlayingTitleMarquee(
+                                    text: model.displayTitle,
+                                    enabled: true,
+                                    isVisible: model.isPopoverVisible,
+                                    laneWidth: miniMarqueeLaneWidth
+                                )
+                                .foregroundStyle(.white.opacity(0.98))
+                                .shadow(color: .black.opacity(primaryShadowOpacity), radius: 2.5, x: 0, y: 1.2)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+
+                            NowPlayingSecondaryMarquee(
+                                text: model.artistAlbumLine,
                                 enabled: true,
                                 isVisible: model.isPopoverVisible,
-                                laneWidth: miniMarqueeLaneWidth
+                                laneWidth: miniMarqueeLaneWidth,
+                                usesSecondaryStyle: false
                             )
-                            .foregroundStyle(.white.opacity(0.98))
-                            .shadow(color: .black.opacity(primaryShadowOpacity), radius: 2.5, x: 0, y: 1.2)
-                            .contentShape(Rectangle())
+                            .foregroundStyle(.white.opacity(0.90))
+                            .shadow(color: .black.opacity(secondaryShadowOpacity), radius: 1.8, x: 0, y: 1)
                         }
-                        .buttonStyle(.plain)
-
-                        NowPlayingSecondaryMarquee(
-                            text: model.artistAlbumLine,
-                            enabled: true,
-                            isVisible: model.isPopoverVisible,
-                            laneWidth: miniMarqueeLaneWidth,
-                            usesSecondaryStyle: false
-                        )
-                        .foregroundStyle(.white.opacity(0.90))
-                        .shadow(color: .black.opacity(secondaryShadowOpacity), radius: 1.8, x: 0, y: 1)
+                        .opacity(primaryContentVisible ? 1 : 0)
+                        .offset(y: primaryContentVisible ? 0 : 8)
+                        .animation(modePrimaryRevealAnimation, value: primaryContentVisible)
 
                         if infoExpanded {
-                            PlaybackProgressBlock(onSeek: { model.seek(to: $0) })
-                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                            VStack(spacing: 8) {
+                                PlaybackProgressBlock(onSeek: { model.seek(to: $0) })
+                                    .transition(.opacity.combined(with: .move(edge: .bottom)))
 
-                            HStack {
-                                Spacer(minLength: 0)
-                                ControlsRow(
-                                    isPlaying: model.isPlaying,
-                                    onPrev: { model.previousTrack() },
-                                    onPlayPause: { model.playPause() },
-                                    onNext: { model.nextTrack() },
-                                    controlScale: miniDetachedControlScale
-                                )
-                                Spacer(minLength: 0)
-                            }
-                            .transition(.opacity.combined(with: .move(edge: .bottom)))
-
-                            OutputControlsRow(
-                                model: model,
-                                showDeviceName: false,
-                                controlScale: miniDetachedControlScale,
-                                showFavorite: model.canFavoriteCurrentTrack,
-                                favoriteIsActive: model.isCurrentTrackFavorited,
-                                favoritePulseToken: model.favoriteActionPulseToken,
-                                onFavorite: { _ = model.toggleCurrentTrackFavorite() }
-                            )
+                                HStack {
+                                    Spacer(minLength: 0)
+                                    ControlsRow(
+                                        isPlaying: model.isPlaying,
+                                        onPrev: { model.previousTrack() },
+                                        onPlayPause: { model.playPause() },
+                                        onNext: { model.nextTrack() },
+                                        controlScale: miniDetachedControlScale
+                                    )
+                                    Spacer(minLength: 0)
+                                }
                                 .transition(.opacity.combined(with: .move(edge: .bottom)))
+
+                                OutputControlsRow(
+                                    model: model,
+                                    showDeviceName: false,
+                                    controlScale: miniDetachedControlScale,
+                                    showFavorite: model.canFavoriteCurrentTrack,
+                                    favoriteIsActive: model.isCurrentTrackFavorited,
+                                    favoritePulseToken: model.favoriteActionPulseToken,
+                                    onFavorite: { _ = model.toggleCurrentTrackFavorite() }
+                                )
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                            }
+                            .opacity(secondaryContentVisible ? 1 : 0)
+                            .offset(y: secondaryContentVisible ? 0 : 10)
+                            .animation(modeSecondaryRevealAnimation, value: secondaryContentVisible)
                         }
                     }
                     .padding(.horizontal, 14)
@@ -1878,6 +1944,7 @@ private struct ModeToggleControl: View {
                 .scaleEffect(hovering ? 1.06 : 1.0)
         }
         .buttonStyle(.plain)
+        .disabled(transitionActive)
         .onHover { hovering in
             guard !transitionActive else {
                 if self.hovering {
@@ -1920,6 +1987,7 @@ private struct DetachedSurfaceToggleControl: View {
                 .scaleEffect(hovering ? 1.06 : 1.0)
         }
         .buttonStyle(.plain)
+        .disabled(transitionActive)
         .onHover { hovering in
             guard !transitionActive else {
                 if self.hovering { self.hovering = false }
@@ -1960,6 +2028,7 @@ private struct DetachedWindowPinControl: View {
                 .scaleEffect(hovering ? 1.06 : 1.0)
         }
         .buttonStyle(.plain)
+        .disabled(transitionActive)
         .onHover { hovering in
             guard !transitionActive else {
                 if self.hovering { self.hovering = false }
@@ -1999,6 +2068,7 @@ private struct DetachedWindowCloseControl: View {
                 .scaleEffect(hovering ? 1.06 : 1.0)
         }
         .buttonStyle(.plain)
+        .disabled(transitionActive)
         .onHover { hovering in
             guard !transitionActive else {
                 if self.hovering { self.hovering = false }
@@ -2040,6 +2110,7 @@ private struct MiniDetailToggleControl: View {
         }
         .contentShape(Rectangle())
         .buttonStyle(.plain)
+        .disabled(transitionActive)
         .onHover { hovering in
             guard !transitionActive else {
                 if self.hovering { self.hovering = false }
@@ -2136,6 +2207,7 @@ private struct RegularDetailToggleControl: View {
     let isOn: Bool
     let systemName: String
     let helpText: String
+    let transitionActive: Bool
     var contrastBoost: Double = 0
     var sizeScale: CGFloat = 1
     let action: () -> Void
@@ -2160,12 +2232,19 @@ private struct RegularDetailToggleControl: View {
                 .scaleEffect(hovering ? 1.06 : 1.0)
         }
         .buttonStyle(.plain)
+        .disabled(transitionActive)
         .onHover { h in
+            guard !transitionActive else {
+                if hovering {
+                    hovering = false
+                }
+                return
+            }
             withAnimation(.easeOut(duration: 0.16)) {
                 hovering = h
             }
         }
-        .hoverHint(helpText)
+        .hoverHint(helpText, enabled: !transitionActive)
         .animation(.easeInOut(duration: 0.18), value: isOn)
     }
 }

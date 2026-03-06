@@ -1,8 +1,8 @@
 import Foundation
 import AppKit
 
-let modeTransitionDuration: Double = 0.95
-let miniLyricsTransitionDuration: Double = 0.32
+let modeTransitionDuration: Double = 0.38
+let miniLyricsTransitionDuration: Double = 0.26
 
 enum NowPlayingSurfaceMode: String {
     case popover

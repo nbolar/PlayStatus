@@ -385,6 +385,11 @@ final class NowPlayingModel: ObservableObject {
         return base * scale
     }
 
+    var regularArtworkDisplaySize: CGFloat {
+        let base = CGFloat(min(max(artworkDisplaySizeStorage, 120), 260))
+        return base * detachedRegularScaleFactor
+    }
+
     var miniPopoverWidth: CGFloat { 380 * detachedMiniScaleFactor }
 
     var regularPopoverWidth: CGFloat {
