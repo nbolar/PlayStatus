@@ -744,7 +744,7 @@ struct PlayStatusSettingsView: View {
 
             SettingsSliderRow(
                 title: "Artwork Color Intensity",
-                caption: "Controls how strongly artwork colors tint the popover.",
+                caption: "Controls how strongly theme colors tint the popover and detached player.",
                 value: Binding(
                     get: { model.artworkColorIntensity },
                     set: { model.artworkColorIntensity = $0 }
@@ -752,6 +752,38 @@ struct PlayStatusSettingsView: View {
                 range: 0.5...1.8,
                 valueText: "\(Int(model.artworkColorIntensity * 100))%"
             )
+
+            Divider().padding(.vertical, 2)
+
+            SettingsControlRow(
+                title: "Theme",
+                caption: "Chooses the visual treatment used for the player surfaces."
+            ) {
+                Picker("Theme", selection: Binding(
+                    get: { model.themeStyle },
+                    set: { model.themeStyle = $0 }
+                )) {
+                    ForEach(ThemeStyle.allCases, id: \.self) { style in
+                        Text(style.displayName).tag(style)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(width: 220, alignment: .trailing)
+            }
+
+            if model.themeStyle != .artworkAdaptive {
+                SettingsSliderRow(
+                    title: "Album Color Blend",
+                    caption: "Mixes the current artwork colors into the selected theme preset.",
+                    value: Binding(
+                        get: { model.themeArtworkBlend },
+                        set: { model.themeArtworkBlend = $0 }
+                    ),
+                    range: 0...1,
+                    valueText: "\(Int(model.themeArtworkBlend * 100))%"
+                )
+            }
 
             Divider().padding(.vertical, 2)
 
@@ -1397,7 +1429,7 @@ private enum SettingsTab: String, CaseIterable {
     var preferredSize: CGSize {
         switch self {
         case .display:
-            return CGSize(width: 780, height: 640)
+            return CGSize(width: 780, height: 710)
         case .playback:
             return CGSize(width: 780, height: 560)
         case .hotkeys:

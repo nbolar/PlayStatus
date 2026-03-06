@@ -141,6 +141,26 @@ enum ArtworkMotionStyle: String, CaseIterable {
     }
 }
 
+enum ThemeStyle: String, CaseIterable {
+    case artworkAdaptive
+    case frosted
+    case midnight
+    case warmStudio
+    case highContrast
+    case graphite
+
+    var displayName: String {
+        switch self {
+        case .artworkAdaptive: return "Artwork Adaptive"
+        case .frosted: return "Frosted"
+        case .midnight: return "Midnight"
+        case .warmStudio: return "Warm Studio"
+        case .highContrast: return "High Contrast"
+        case .graphite: return "Graphite"
+        }
+    }
+}
+
 enum AnimatedArtworkQualityPolicy: String, CaseIterable {
     case adaptive1080
     case maxQuality
