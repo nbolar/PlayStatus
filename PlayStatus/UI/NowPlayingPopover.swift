@@ -661,6 +661,31 @@ private struct SearchSectionFramePreferenceKey: PreferenceKey {
     }
 }
 
+private struct TopRoundedBandShape: Shape {
+    let cornerRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let radius = min(cornerRadius, min(rect.width * 0.5, rect.height))
+        var path = Path()
+
+        path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + radius))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX + radius, y: rect.minY),
+            control: CGPoint(x: rect.minX, y: rect.minY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX - radius, y: rect.minY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.minY + radius),
+            control: CGPoint(x: rect.maxX, y: rect.minY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.closeSubpath()
+
+        return path
+    }
+}
+
 private extension View {
     @ViewBuilder
     func forceHideScrollIndicators() -> some View {
@@ -729,6 +754,68 @@ private extension View {
                     )
             )
             .shadow(color: .black.opacity(0.26), radius: 7 * sizeScale, x: 0, y: 2 * sizeScale)
+    }
+
+    func miniBottomPanelBackground(
+        sizeScale: CGFloat,
+        emphasis: Double,
+        neutralWashOpacity: Double,
+        blueFogOpacity: Double
+    ) -> some View {
+        let cornerRadius = 18 * sizeScale
+        let clampedEmphasis = min(max(emphasis, 0), 1)
+        let panel = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
+        return self
+            .padding(.horizontal, 12 * sizeScale)
+            .padding(.vertical, 10 * sizeScale)
+            .background(
+                panel
+                    .fill(Color.black.opacity(0.22 + (0.18 * clampedEmphasis)))
+                    .overlay(
+                        Color(red: 0.60, green: 0.66, blue: 0.74)
+                            .opacity(neutralWashOpacity * (0.42 - (0.10 * clampedEmphasis)))
+                    )
+                    .overlay(
+                        Color(red: 0.52, green: 0.61, blue: 0.76)
+                            .opacity(blueFogOpacity * (0.44 - (0.12 * clampedEmphasis)))
+                    )
+                    .overlay(
+                        panel.fill(
+                            LinearGradient(
+                                colors: [
+                                    .white.opacity(0.10),
+                                    .white.opacity(0.03),
+                                    .clear
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                    )
+                    .overlay(
+                        panel.fill(
+                            LinearGradient(
+                                colors: [
+                                    .clear,
+                                    .black.opacity(0.18 + (0.10 * clampedEmphasis))
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                    )
+                    .overlay(
+                        panel
+                            .stroke(.white.opacity(0.14 + (0.06 * clampedEmphasis)), lineWidth: 1)
+                    )
+            )
+            .shadow(
+                color: .black.opacity(0.18 + (0.16 * clampedEmphasis)),
+                radius: 10 * sizeScale,
+                x: 0,
+                y: 4 * sizeScale
+            )
     }
 
     func onAnimationCompleted<Value: VectorArithmetic>(
@@ -904,6 +991,15 @@ private struct MiniNowPlayingCard: View {
         let mistOpacity = min(0.60, 0.20 + (lightArtworkBoost * 0.18) + (veryLightBoost * 0.16))
         let primaryShadowOpacity = min(0.94, 0.56 + (lightArtworkBoost * 0.22) + (darkArtworkBoost * 0.12))
         let secondaryShadowOpacity = min(0.84, 0.46 + (lightArtworkBoost * 0.18) + (darkArtworkBoost * 0.10))
+        let miniInfoBandBaseOpacity = min(0.48, 0.29 + (lightArtworkBoost * 0.07) + (veryLightBoost * 0.07) + (pointerHovering ? 0.14 : 0))
+        let miniInfoBandReadabilityDarken = min(0.96, readabilityDarken + (pointerHovering ? 0.15 : 0))
+        let miniInfoBandNeutralWashOpacity = neutralWashOpacity * (pointerHovering ? 0.68 : 1.0)
+        let miniInfoBandBlueFogOpacity = blueFogOpacity * (pointerHovering ? 0.72 : 1.0)
+        let miniInfoBandMistOpacity = mistOpacity * (pointerHovering ? 0.60 : 1.0)
+        let miniInfoBandPrimaryShadowOpacity = min(0.98, primaryShadowOpacity + (pointerHovering ? 0.10 : 0))
+        let miniInfoBandSecondaryShadowOpacity = min(0.92, secondaryShadowOpacity + (pointerHovering ? 0.08 : 0))
+        let miniInfoBandContrastBoost = min(1, 0.14 + (lightArtworkBoost * 0.56) + (veryLightBoost * 0.20) + (pointerHovering ? 0.30 : 0.02))
+        let miniLowerPanelEmphasis = min(1, 0.50 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.12) + (pointerHovering ? 0.24 : 0.08))
         let infoBandHeight: CGFloat = infoExpanded ? 196 : 126
         let resolvedCardHeight = resolvedHeight
         let liveCardHeight = min(resolvedCardHeight, max(model.miniBaseHeight, availableHeight))
@@ -1093,20 +1189,20 @@ private struct MiniNowPlayingCard: View {
             .overlay(alignment: .bottom) {
                 ZStack(alignment: .bottom) {
                     Rectangle()
-                        .fill(Color.black.opacity(0.30))
+                        .fill(Color.black.opacity(miniInfoBandBaseOpacity))
                         .overlay(
                             Color(red: 0.60, green: 0.66, blue: 0.74)
-                                .opacity(neutralWashOpacity)
+                                .opacity(miniInfoBandNeutralWashOpacity)
                         )
                         .overlay(
                             Color(red: 0.52, green: 0.61, blue: 0.76)
-                                .opacity(blueFogOpacity)
+                                .opacity(miniInfoBandBlueFogOpacity)
                         )
                         .overlay(
                             LinearGradient(
                                 colors: [
-                                    .white.opacity(mistOpacity),
-                                    .white.opacity(mistOpacity * 0.22),
+                                    .white.opacity(miniInfoBandMistOpacity),
+                                    .white.opacity(miniInfoBandMistOpacity * 0.22),
                                     .clear
                                 ],
                                 startPoint: .top,
@@ -1124,8 +1220,8 @@ private struct MiniNowPlayingCard: View {
                             LinearGradient(
                                 colors: [
                                     .clear,
-                                    .black.opacity(readabilityDarken * 0.62),
-                                    .black.opacity(readabilityDarken)
+                                    .black.opacity(miniInfoBandReadabilityDarken * 0.62),
+                                    .black.opacity(miniInfoBandReadabilityDarken)
                                 ],
                                 startPoint: .top,
                                 endPoint: .bottom
@@ -1134,7 +1230,7 @@ private struct MiniNowPlayingCard: View {
                         .frame(height: infoBandHeight)
                         .allowsHitTesting(false)
 
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         VStack(alignment: .leading, spacing: 8) {
                             Button(action: { model.openProviderApp() }) {
                                 NowPlayingTitleMarquee(
@@ -1144,7 +1240,7 @@ private struct MiniNowPlayingCard: View {
                                     laneWidth: miniMarqueeLaneWidth
                                 )
                                 .foregroundStyle(.white.opacity(0.98))
-                                .shadow(color: .black.opacity(primaryShadowOpacity), radius: 2.5, x: 0, y: 1.2)
+                                .shadow(color: .black.opacity(miniInfoBandPrimaryShadowOpacity), radius: 2.5, x: 0, y: 1.2)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -1157,7 +1253,7 @@ private struct MiniNowPlayingCard: View {
                                 usesSecondaryStyle: false
                             )
                             .foregroundStyle(.white.opacity(0.90))
-                            .shadow(color: .black.opacity(secondaryShadowOpacity), radius: 1.8, x: 0, y: 1)
+                            .shadow(color: .black.opacity(miniInfoBandSecondaryShadowOpacity), radius: 1.8, x: 0, y: 1)
                         }
                         .opacity(primaryContentVisible ? 1 : 0)
                         .offset(y: primaryContentVisible ? 0 : 8)
@@ -1165,7 +1261,10 @@ private struct MiniNowPlayingCard: View {
 
                         if infoExpanded {
                             VStack(spacing: 8) {
-                                PlaybackProgressBlock(onSeek: { model.seek(to: $0) })
+                                PlaybackProgressBlock(
+                                    contrastBoost: miniInfoBandContrastBoost,
+                                    onSeek: { model.seek(to: $0) }
+                                )
                                     .transition(.opacity.combined(with: .move(edge: .bottom)))
 
                                 HStack {
@@ -1175,6 +1274,7 @@ private struct MiniNowPlayingCard: View {
                                         onPrev: { model.previousTrack() },
                                         onPlayPause: { model.playPause() },
                                         onNext: { model.nextTrack() },
+                                        contrastBoost: miniInfoBandContrastBoost,
                                         controlScale: miniDetachedControlScale
                                     )
                                     Spacer(minLength: 0)
@@ -1184,6 +1284,7 @@ private struct MiniNowPlayingCard: View {
                                 OutputControlsRow(
                                     model: model,
                                     showDeviceName: false,
+                                    contrastBoost: miniInfoBandContrastBoost,
                                     controlScale: miniDetachedControlScale,
                                     showFavorite: model.canFavoriteCurrentTrack,
                                     favoriteIsActive: model.isCurrentTrackFavorited,
@@ -1197,8 +1298,16 @@ private struct MiniNowPlayingCard: View {
                             .animation(modeSecondaryRevealAnimation, value: secondaryContentVisible)
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .miniBottomPanelBackground(
+                        sizeScale: miniDetachedControlScale,
+                        emphasis: miniLowerPanelEmphasis,
+                        neutralWashOpacity: miniInfoBandNeutralWashOpacity,
+                        blueFogOpacity: miniInfoBandBlueFogOpacity
+                    )
                     .padding(.horizontal, 14)
                     .padding(.bottom, 12)
+                    .animation(.easeInOut(duration: 0.16), value: pointerHovering)
                 }
             }
             // Re-clip after all overlays so bottom-band content cannot spill into the lyrics pane.
