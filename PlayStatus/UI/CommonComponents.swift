@@ -1434,6 +1434,8 @@ struct RegularPopoverBackdrop: View {
                     .blur(radius: 52)
                     .scaleEffect(1.10)
                     .opacity(0.14)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
             }
         }
     }

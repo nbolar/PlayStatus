@@ -83,6 +83,19 @@ final class NowPlayingModel: ObservableObject {
         let contrastBoost: Double
     }
 
+    private struct ResumeVolumeRampState {
+        let deviceID: AudioDeviceID
+        let targetVolume: Double
+    }
+
+    private enum ResumeVolumeRamp {
+        static let duration: TimeInterval = 0.35
+        static let steps: Int = 9
+        static let minimumTargetVolume: Double = 0.14
+        static let startFraction: Double = 0.18
+        static let floorVolume: Double = 0.025
+    }
+
     // User toggles (didSet is the AppStore-safe way to auto-refresh; avoids CombineLatest Binding errors)
     @AppStorage("enableMusic") var enableMusic: Bool = true { didSet { refresh() } }
     @AppStorage("enableSpotify") var enableSpotify: Bool = true { didSet { refresh() } }
@@ -257,6 +270,8 @@ final class NowPlayingModel: ObservableObject {
     private var lastAnimatedArtworkValidMusicSnapshotAt: Date = .distantPast
     private let animatedArtworkTransientClearGrace: TimeInterval = 2.0
     private var currentLyricsTrackKey: String = ""
+    private var resumeVolumeRampTask: Task<Void, Never>?
+    private var activeResumeVolumeRamp: ResumeVolumeRampState?
     #if DEBUG
     private var lyricsMetricMusicAppHits: Int = 0
     private var lyricsMetricLRCLIBHits: Int = 0
@@ -612,6 +627,7 @@ final class NowPlayingModel: ObservableObject {
     deinit {
         metadataRefreshTimer?.cancel()
         audioRefreshTimer?.cancel()
+        resumeVolumeRampTask?.cancel()
         #if DEBUG
         flushDebugPollMetricsIfNeeded(force: true)
         #endif
@@ -664,7 +680,7 @@ final class NowPlayingModel: ObservableObject {
                 snap.nativeArtworkState == .available &&
                 (last.nativeArtworkState != .available || last.artwork == nil)
 
-            if shouldPromoteNativeArtwork, let artwork = snap.artwork {
+            if shouldPromoteNativeArtwork, let artwork = snap.artwork?.normalizedArtworkForDisplay() {
                 DispatchQueue.main.async {
                     self.artwork = artwork
                     self.updateTint(from: artwork)
@@ -706,32 +722,35 @@ final class NowPlayingModel: ObservableObject {
     }
 
     private func apply(snapshot: NowPlayingSnapshot) {
+        var resolvedSnapshot = snapshot
+        resolvedSnapshot.artwork = snapshot.artwork?.normalizedArtworkForDisplay()
+
         let previousSnapshot = lastSnapshot
-        let trackChanged = !isSameTrack(previousSnapshot, snapshot)
-        lastSnapshot = snapshot
+        let trackChanged = !isSameTrack(previousSnapshot, resolvedSnapshot)
+        lastSnapshot = resolvedSnapshot
 
         DispatchQueue.main.async {
-            self.provider = snapshot.provider
-            self.isPlaying = snapshot.isPlaying
-            self.title = snapshot.title
-            self.artist = snapshot.artist
-            self.album = snapshot.album
-            self.isCurrentTrackFavorited = snapshot.provider == .music ? snapshot.isFavorited : false
-            self.creditsPayload = snapshot.credits
+            self.provider = resolvedSnapshot.provider
+            self.isPlaying = resolvedSnapshot.isPlaying
+            self.title = resolvedSnapshot.title
+            self.artist = resolvedSnapshot.artist
+            self.album = resolvedSnapshot.album
+            self.isCurrentTrackFavorited = resolvedSnapshot.provider == .music ? resolvedSnapshot.isFavorited : false
+            self.creditsPayload = resolvedSnapshot.credits
             PlaybackClock.shared.sync(
-                elapsed: snapshot.elapsed,
-                duration: snapshot.duration,
-                isPlaying: snapshot.isPlaying
+                elapsed: resolvedSnapshot.elapsed,
+                duration: resolvedSnapshot.duration,
+                isPlaying: resolvedSnapshot.isPlaying
             )
-            self.artwork = snapshot.artwork
-            self.updateTint(from: snapshot.artwork)
+            self.artwork = resolvedSnapshot.artwork
+            self.updateTint(from: resolvedSnapshot.artwork)
             self.configureMarquee()
-            self.updateMetadataPollingTimerIfNeeded(using: snapshot)
+            self.updateMetadataPollingTimerIfNeeded(using: resolvedSnapshot)
         }
 
-        if snapshot.provider != .none, !snapshot.title.isEmpty {
+        if resolvedSnapshot.provider != .none, !resolvedSnapshot.title.isEmpty {
             if trackChanged {
-                startLyricsFetch(for: snapshot, forceRefresh: false, resetState: true)
+                startLyricsFetch(for: resolvedSnapshot, forceRefresh: false, resetState: true)
             }
         } else {
             lyricsFetchTask?.cancel()
@@ -750,39 +769,39 @@ final class NowPlayingModel: ObservableObject {
         pendingFallbackWork?.cancel()
         pendingFallbackWork = nil
 
-        guard !snapshot.title.isEmpty else {
-            updateAnimatedArtwork(for: snapshot)
+        guard !resolvedSnapshot.title.isEmpty else {
+            updateAnimatedArtwork(for: resolvedSnapshot)
             return
         }
 
         if shouldReduceTransientMemoryWhileHidden {
-            updateAnimatedArtwork(for: snapshot)
+            updateAnimatedArtwork(for: resolvedSnapshot)
             return
         }
 
-        switch snapshot.nativeArtworkState {
+        switch resolvedSnapshot.nativeArtworkState {
         case .available:
-            updateAnimatedArtwork(for: snapshot)
+            updateAnimatedArtwork(for: resolvedSnapshot)
             return
         case .none:
-            fetchFallbackArtwork(for: snapshot)
+            fetchFallbackArtwork(for: resolvedSnapshot)
         case .pending:
             let work = DispatchWorkItem { [weak self] in
                 guard let self else { return }
                 guard let current = self.lastSnapshot,
-                      current.provider == snapshot.provider,
-                      current.title == snapshot.title,
-                      current.artist == snapshot.artist,
-                      current.album == snapshot.album else { return }
+                      current.provider == resolvedSnapshot.provider,
+                      current.title == resolvedSnapshot.title,
+                      current.artist == resolvedSnapshot.artist,
+                      current.album == resolvedSnapshot.album else { return }
                 if current.artwork == nil {
-                    self.fetchFallbackArtwork(for: snapshot)
+                    self.fetchFallbackArtwork(for: resolvedSnapshot)
                 }
             }
             pendingFallbackWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
         }
 
-        updateAnimatedArtwork(for: snapshot)
+        updateAnimatedArtwork(for: resolvedSnapshot)
     }
 
     private func isSameTrack(_ a: NowPlayingSnapshot?, _ b: NowPlayingSnapshot) -> Bool {
@@ -1293,17 +1312,42 @@ final class NowPlayingModel: ObservableObject {
     private func applyAudioState(_ state: AudioOutputState) {
         availableOutputDevices = state.devices
         selectedOutputDeviceID = state.selectedDeviceID
-        outputVolume = state.volume
         outputMuted = state.isMuted
+
+        if let ramp = activeResumeVolumeRamp {
+            guard ramp.deviceID == state.selectedDeviceID else {
+                cancelResumeVolumeRamp(restoreTargetVolume: false)
+                outputVolume = state.volume
+                return
+            }
+            outputVolume = ramp.targetVolume
+            if state.isMuted {
+                cancelResumeVolumeRamp(restoreTargetVolume: false)
+            }
+            return
+        }
+
+        outputVolume = state.volume
     }
 
     // MARK: - Controls
 
     func playPause() {
-        switch provider {
-        case .spotify: SpotifyProvider.playPause()
-        case .music, .none: MusicProvider.playPause()
+        if activeResumeVolumeRamp != nil {
+            cancelResumeVolumeRamp(restoreTargetVolume: true)
+            sendPlayPauseCommand()
+            return
         }
+
+        let audioState = AudioOutputController.currentState()
+        applyAudioState(audioState)
+
+        if shouldApplyResumeVolumeRamp(using: audioState) {
+            startResumeVolumeRamp(using: audioState)
+            return
+        }
+
+        sendPlayPauseCommand()
     }
 
     func nextTrack() {
@@ -1340,20 +1384,96 @@ final class NowPlayingModel: ObservableObject {
     }
 
     func setOutputDevice(_ id: AudioDeviceID) {
+        cancelResumeVolumeRamp(restoreTargetVolume: false)
         AudioOutputController.setDefaultOutputDevice(id)
         refreshAudioState()
     }
 
     func setOutputVolume(_ value: Double) {
+        cancelResumeVolumeRamp(restoreTargetVolume: false)
         let clamped = min(max(value, 0), 1)
         outputVolume = clamped
         AudioOutputController.setVolume(Float32(clamped), for: selectedOutputDeviceID == 0 ? nil : selectedOutputDeviceID)
     }
 
     func toggleOutputMute() {
+        cancelResumeVolumeRamp(restoreTargetVolume: false)
         let newMuted = !outputMuted
         outputMuted = newMuted
         AudioOutputController.setMuted(newMuted, for: selectedOutputDeviceID == 0 ? nil : selectedOutputDeviceID)
+    }
+
+    private func sendPlayPauseCommand() {
+        switch provider {
+        case .spotify:
+            SpotifyProvider.playPause()
+        case .music, .none:
+            MusicProvider.playPause()
+        }
+    }
+
+    private func shouldApplyResumeVolumeRamp(using audioState: AudioOutputState) -> Bool {
+        provider != .none &&
+        !isPlaying &&
+        !title.isEmpty &&
+        !audioState.isMuted &&
+        audioState.selectedDeviceID != 0 &&
+        audioState.volume >= ResumeVolumeRamp.minimumTargetVolume
+    }
+
+    private func startResumeVolumeRamp(using audioState: AudioOutputState) {
+        cancelResumeVolumeRamp(restoreTargetVolume: true)
+
+        let targetVolume = min(max(audioState.volume, 0), 1)
+        let deviceID = audioState.selectedDeviceID
+        let startingVolume = min(
+            targetVolume,
+            max(ResumeVolumeRamp.floorVolume, targetVolume * ResumeVolumeRamp.startFraction)
+        )
+
+        activeResumeVolumeRamp = ResumeVolumeRampState(deviceID: deviceID, targetVolume: targetVolume)
+
+        // Drop to a gentler level before resuming, then ease back to the user's chosen output volume.
+        AudioOutputController.setVolume(Float32(startingVolume), for: deviceID)
+        sendPlayPauseCommand()
+
+        let stepDelay = UInt64((ResumeVolumeRamp.duration / Double(ResumeVolumeRamp.steps)) * 1_000_000_000)
+        resumeVolumeRampTask = Task { [weak self] in
+            for step in 1...ResumeVolumeRamp.steps {
+                try? await Task.sleep(nanoseconds: stepDelay)
+                guard !Task.isCancelled else { return }
+
+                let progress = Double(step) / Double(ResumeVolumeRamp.steps)
+                let easedProgress = 1 - pow(1 - progress, 3)
+                let steppedVolume = startingVolume + ((targetVolume - startingVolume) * easedProgress)
+                AudioOutputController.setVolume(Float32(steppedVolume), for: deviceID)
+            }
+
+            guard !Task.isCancelled else { return }
+            self?.finishResumeVolumeRamp(deviceID: deviceID, targetVolume: targetVolume)
+        }
+    }
+
+    private func finishResumeVolumeRamp(deviceID: AudioDeviceID, targetVolume: Double) {
+        guard let ramp = activeResumeVolumeRamp,
+              ramp.deviceID == deviceID else {
+            return
+        }
+
+        activeResumeVolumeRamp = nil
+        resumeVolumeRampTask = nil
+        outputVolume = targetVolume
+    }
+
+    private func cancelResumeVolumeRamp(restoreTargetVolume: Bool) {
+        let ramp = activeResumeVolumeRamp
+        resumeVolumeRampTask?.cancel()
+        resumeVolumeRampTask = nil
+        activeResumeVolumeRamp = nil
+
+        guard restoreTargetVolume, let ramp else { return }
+        AudioOutputController.setVolume(Float32(ramp.targetVolume), for: ramp.deviceID)
+        outputVolume = ramp.targetVolume
     }
 
     func refreshPersistentCacheStats() {
@@ -1883,13 +2003,14 @@ final class NowPlayingModel: ObservableObject {
             trackDurationSeconds: snapshot.duration > 0 ? snapshot.duration : nil
         ) { [weak self] image in
             guard let self, let image else { return }
+            let resolvedImage = image.normalizedArtworkForDisplay()
             DispatchQueue.main.async {
                 guard self.provider == snapshot.provider,
                       self.title == snapshot.title,
                       self.artist == snapshot.artist,
                       self.album == snapshot.album else { return }
-                self.artwork = image
-                self.updateTint(from: image)
+                self.artwork = resolvedImage
+                self.updateTint(from: resolvedImage)
             }
         }
     }

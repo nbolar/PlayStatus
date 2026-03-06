@@ -20,6 +20,10 @@ private func estimatedImageMemoryCostBytes(_ image: NSImage) -> Int {
     return max(1, width * height * 4)
 }
 
+private func decodedArtworkImage(from data: Data) -> NSImage? {
+    NSImage(data: data)?.normalizedArtworkForDisplay()
+}
+
 private func creditsString(_ raw: String) -> String? {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed
@@ -182,7 +186,7 @@ enum MusicProvider {
                 """
                 if let desc = runAppleScriptDescriptor(artScript),
                    let data = desc.rawData, !data.isEmpty,
-                   let image = NSImage(data: data) {
+                   let image = decodedArtworkImage(from: data) {
                     artwork = image
                     cachedArtworkTrackKey = trackKey
                     cachedArtworkImage = image
@@ -480,7 +484,7 @@ final class ArtworkCache {
             defer { self.inflight.remove(url) }
 
             if let cachedData = await PersistentMediaCache.shared.fetchArtworkData(forKey: url.absoluteString),
-               let cachedImage = NSImage(data: cachedData) {
+               let cachedImage = decodedArtworkImage(from: cachedData) {
                 DispatchQueue.main.async {
                     self.cache.setObject(
                         cachedImage,
@@ -503,7 +507,7 @@ final class ArtworkCache {
 
             let req = URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 4)
             guard let (data, _) = try? await URLSession.shared.data(for: req),
-                  let image = NSImage(data: data) else {
+                  let image = decodedArtworkImage(from: data) else {
                 return
             }
 
@@ -582,7 +586,7 @@ final class ITunesArtworkLookup {
             defer { self.inflight.remove(key) }
 
             if let cachedData = await PersistentMediaCache.shared.fetchArtworkData(forKey: key),
-               let cachedImage = NSImage(data: cachedData) {
+               let cachedImage = decodedArtworkImage(from: cachedData) {
                 DispatchQueue.main.async {
                     self.imageCache.setObject(
                         cachedImage,
@@ -634,7 +638,7 @@ final class ITunesArtworkLookup {
             let highRes = bestCandidate.artwork100.replacingOccurrences(of: "100x100bb.jpg", with: "600x600bb.jpg")
             guard let imageURL = URL(string: highRes),
                   let (imageData, _) = try? await URLSession.shared.data(from: imageURL),
-                  let image = NSImage(data: imageData) else {
+                  let image = decodedArtworkImage(from: imageData) else {
                 completion(nil)
                 return
             }

@@ -29,6 +29,74 @@ extension NSAppleEventDescriptor {
 // MARK: - Average color for tint
 
 extension NSImage {
+    func normalizedArtworkForDisplay(maxPixelSize: Int = 1200) -> NSImage {
+        guard let cgImage = cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            let fallback = (copy() as? NSImage) ?? self
+            if !(fallback.size.width.isFinite && fallback.size.height.isFinite &&
+                 fallback.size.width > 0 && fallback.size.height > 0) {
+                fallback.size = NSSize(width: 1, height: 1)
+            }
+            return fallback
+        }
+
+        let pixelWidth = max(cgImage.width, 1)
+        let pixelHeight = max(cgImage.height, 1)
+        let normalizedLogicalSize = NSSize(width: pixelWidth, height: pixelHeight)
+        let hasValidLogicalSize =
+            size.width.isFinite &&
+            size.height.isFinite &&
+            size.width > 0 &&
+            size.height > 0
+        let logicalMatchesPixels =
+            hasValidLogicalSize &&
+            abs(size.width - normalizedLogicalSize.width) < 0.5 &&
+            abs(size.height - normalizedLogicalSize.height) < 0.5
+        let largestPixelSide = max(pixelWidth, pixelHeight)
+        let needsDownsample = largestPixelSide > maxPixelSize
+
+        if !needsDownsample && logicalMatchesPixels {
+            return self
+        }
+
+        let scale = min(1, CGFloat(maxPixelSize) / CGFloat(largestPixelSide))
+        let outputWidth = max(1, Int((CGFloat(pixelWidth) * scale).rounded()))
+        let outputHeight = max(1, Int((CGFloat(pixelHeight) * scale).rounded()))
+
+        guard let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: outputWidth,
+            pixelsHigh: outputHeight,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: outputWidth * 4,
+            bitsPerPixel: 32
+        ) else {
+            let fallback = NSImage(cgImage: cgImage, size: normalizedLogicalSize)
+            fallback.size = normalizedLogicalSize
+            return fallback
+        }
+
+        NSGraphicsContext.saveGraphicsState()
+        if let context = NSGraphicsContext(bitmapImageRep: bitmap) {
+            NSGraphicsContext.current = context
+            context.imageInterpolation = .high
+            context.cgContext.interpolationQuality = .high
+            context.cgContext.draw(
+                cgImage,
+                in: CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight)
+            )
+        }
+        NSGraphicsContext.restoreGraphicsState()
+
+        let normalized = NSImage(size: NSSize(width: outputWidth, height: outputHeight))
+        normalized.addRepresentation(bitmap)
+        normalized.size = NSSize(width: outputWidth, height: outputHeight)
+        return normalized
+    }
+
     func averageColor() -> NSColor? {
         let w = 32, h = 32
         guard let rep = NSBitmapImageRep(
