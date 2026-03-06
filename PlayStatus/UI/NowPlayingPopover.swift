@@ -764,15 +764,17 @@ private extension View {
         sizeScale: CGFloat,
         emphasis: Double,
         neutralWashOpacity: Double,
-        blueFogOpacity: Double
+        blueFogOpacity: Double,
+        contentHorizontalPadding: CGFloat,
+        contentVerticalPadding: CGFloat
     ) -> some View {
         let cornerRadius = 18 * sizeScale
         let clampedEmphasis = min(max(emphasis, 0), 1)
         let panel = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
         return self
-            .padding(.horizontal, 12 * sizeScale)
-            .padding(.vertical, 10 * sizeScale)
+            .padding(.horizontal, contentHorizontalPadding)
+            .padding(.vertical, contentVerticalPadding)
             .background(
                 panel
                     .fill(Color.black.opacity(0.22 + (0.18 * clampedEmphasis)))
@@ -991,6 +993,7 @@ private struct MiniNowPlayingCard: View {
         let darkArtworkBoost = max(0, (0.52 - luminance) / 0.52)
         let effectiveHover = pointerHovering || forceExpandedUntilPointerExit
         let infoExpanded = effectiveHover
+        let miniDetachedControlScale = model.detachedMiniControlScaleFactor
         let bottomShade = min(0.82, 0.34 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.18) + (effectiveHover ? 0.10 : 0.04))
         let topShade = min(0.34, 0.10 + (darkArtworkBoost * 0.14))
         let readabilityDarken = min(0.84, 0.42 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.24) + (effectiveHover ? 0.08 : 0.02))
@@ -1008,7 +1011,10 @@ private struct MiniNowPlayingCard: View {
         let miniInfoBandSecondaryShadowOpacity = min(0.92, secondaryShadowOpacity + (pointerHovering ? 0.08 : 0))
         let miniInfoBandContrastBoost = min(1, 0.14 + (lightArtworkBoost * 0.56) + (veryLightBoost * 0.20) + (pointerHovering ? 0.30 : 0.02))
         let miniLowerPanelEmphasis = min(1, 0.50 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.12) + (pointerHovering ? 0.24 : 0.08))
-        let infoBandHeight: CGFloat = infoExpanded ? 196 : 126
+        let miniMetadataSpacing = (pointerHovering ? 8.0 : 5.0) * miniDetachedControlScale
+        let miniLowerPanelContentHorizontalPadding = (pointerHovering ? 12.0 : 10.0) * miniDetachedControlScale
+        let miniLowerPanelContentVerticalPadding = (pointerHovering ? 10.0 : 5.5) * miniDetachedControlScale
+        let infoBandHeight: CGFloat = (infoExpanded ? 196.0 : 94.0) * miniDetachedControlScale
         let resolvedCardHeight = resolvedHeight
         let liveCardHeight = min(resolvedCardHeight, max(model.miniBaseHeight, availableHeight))
         let visibleLyricsHeight = min(
@@ -1019,7 +1025,9 @@ private struct MiniNowPlayingCard: View {
         let seamOpacity = min(1, max(0, visibleLyricsHeight / max(1, model.miniLyricsPaneHeight)))
         let miniMarqueeLaneWidth = max(120, model.miniPopoverWidth - 64)
         let miniTrackKey = "\(model.provider.rawValue)|\(model.artist)|\(model.album)|\(model.title)"
-        let miniDetachedControlScale = model.detachedMiniControlScaleFactor
+        let miniLowerPanelHorizontalInset = (pointerHovering ? 6.0 : 14.0) * miniDetachedControlScale
+        let miniLowerPanelBottomInset = (pointerHovering ? 15.0 : 8.0) * miniDetachedControlScale
+        let miniLowerPanelHoverLift = (pointerHovering ? 8.0 : 0) * miniDetachedControlScale
         let miniInfoBandTopCornerRadius = 24 * miniDetachedControlScale
         let showMiniControlRow = pointerHovering && primaryContentVisible
         let showMiniSecondaryControls = showMiniControlRow && secondaryContentVisible
@@ -1241,7 +1249,7 @@ private struct MiniNowPlayingCard: View {
                         .allowsHitTesting(false)
 
                     VStack(alignment: .leading, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: miniMetadataSpacing) {
                             Button(action: { model.openProviderApp() }) {
                                 NowPlayingTitleMarquee(
                                     text: model.displayTitle,
@@ -1313,11 +1321,14 @@ private struct MiniNowPlayingCard: View {
                         sizeScale: miniDetachedControlScale,
                         emphasis: miniLowerPanelEmphasis,
                         neutralWashOpacity: miniInfoBandNeutralWashOpacity,
-                        blueFogOpacity: miniInfoBandBlueFogOpacity
+                        blueFogOpacity: miniInfoBandBlueFogOpacity,
+                        contentHorizontalPadding: miniLowerPanelContentHorizontalPadding,
+                        contentVerticalPadding: miniLowerPanelContentVerticalPadding
                     )
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 12)
-                    .animation(.easeInOut(duration: 0.16), value: pointerHovering)
+                    .padding(.horizontal, miniLowerPanelHorizontalInset)
+                    .padding(.bottom, miniLowerPanelBottomInset)
+                    .offset(y: -miniLowerPanelHoverLift)
+                    .animation(.interactiveSpring(response: 0.30, dampingFraction: 0.86, blendDuration: 0.10), value: pointerHovering)
                 }
             }
             // Re-clip after all overlays so bottom-band content cannot spill into the lyrics pane.
