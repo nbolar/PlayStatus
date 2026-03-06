@@ -144,7 +144,6 @@ final class NowPlayingModel: ObservableObject {
     @AppStorage("showLyricsPanel") var showLyricsPanel: Bool = true { didSet { requestPopoverLayoutRefresh() } }
     @AppStorage("expandLyricsByDefault") var expandLyricsByDefault: Bool = false {
         didSet {
-            guard showLyricsPanel else { return }
             if expandLyricsByDefault {
                 lyricsPanelExpanded = true
             }
@@ -207,9 +206,17 @@ final class NowPlayingModel: ObservableObject {
     @Published var detachedModeToggleRequestToken: Int = 0
     @Published var detachedCloseRequestToken: Int = 0
     @Published var miniLyricsTransitionToken: Int = 0
+    @Published var selectedMiniDetailsTab: DetailsPaneTab = .lyrics
+    @Published var selectedRegularDetailsTab: DetailsPaneTab = .lyrics
     @Published var lyricsPayload: LyricsPayload? {
         didSet {
             guard lyricsPayload != oldValue else { return }
+            requestPopoverLayoutRefresh()
+        }
+    }
+    @Published var creditsPayload: CreditsPayload? {
+        didSet {
+            guard creditsPayload != oldValue else { return }
             requestPopoverLayoutRefresh()
         }
     }
@@ -409,7 +416,7 @@ final class NowPlayingModel: ObservableObject {
 
     var regularPopoverHeight: CGFloat {
         let base = estimatedRegularPopoverHeight
-        guard showLyricsPanel && lyricsPanelExpanded && !miniMode else { return base }
+        guard lyricsPanelExpanded && !miniMode else { return base }
         return base + regularLyricsPaneHeight
     }
 
@@ -705,6 +712,7 @@ final class NowPlayingModel: ObservableObject {
             self.artist = snapshot.artist
             self.album = snapshot.album
             self.isCurrentTrackFavorited = snapshot.provider == .music ? snapshot.isFavorited : false
+            self.creditsPayload = snapshot.credits
             PlaybackClock.shared.sync(
                 elapsed: snapshot.elapsed,
                 duration: snapshot.duration,
@@ -727,6 +735,7 @@ final class NowPlayingModel: ObservableObject {
             }
             currentLyricsTrackKey = ""
             DispatchQueue.main.async {
+                self.creditsPayload = nil
                 self.lyricsPayload = nil
                 self.lyricsState = .idle
                 self.lyricsLoadingProgress = nil
@@ -1240,6 +1249,40 @@ final class NowPlayingModel: ObservableObject {
         guard lyricsPanelExpanded != expanded else { return }
         lyricsPanelExpanded = expanded
         requestPopoverLayoutRefresh()
+    }
+
+    func selectRegularDetailsTab(_ tab: DetailsPaneTab) {
+        guard selectedRegularDetailsTab != tab else { return }
+        selectedRegularDetailsTab = tab
+    }
+
+    func selectMiniDetailsTab(_ tab: DetailsPaneTab) {
+        guard selectedMiniDetailsTab != tab else { return }
+        selectedMiniDetailsTab = tab
+    }
+
+    func toggleMiniDetailsTab(_ tab: DetailsPaneTab) {
+        if miniLyricsEnabled, selectedMiniDetailsTab == tab {
+            miniLyricsEnabled = false
+            return
+        }
+
+        selectMiniDetailsTab(tab)
+        if !miniLyricsEnabled {
+            miniLyricsEnabled = true
+        }
+    }
+
+    func toggleRegularDetailsTab(_ tab: DetailsPaneTab) {
+        if lyricsPanelExpanded, selectedRegularDetailsTab == tab {
+            setLyricsPanelExpanded(false)
+            return
+        }
+
+        selectRegularDetailsTab(tab)
+        if !lyricsPanelExpanded {
+            setLyricsPanelExpanded(true)
+        }
     }
 
     private func applyAudioState(_ state: AudioOutputState) {

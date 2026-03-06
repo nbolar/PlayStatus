@@ -20,6 +20,34 @@ private func estimatedImageMemoryCostBytes(_ image: NSImage) -> Int {
     return max(1, width * height * 4)
 }
 
+private func creditsString(_ raw: String) -> String? {
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
+}
+
+private func creditsRows(from entries: [(String, String?)]) -> [CreditsRow] {
+    entries.compactMap { label, value in
+        guard let value = creditsString(value ?? "") else { return nil }
+        return CreditsRow(label: label, value: value)
+    }
+}
+
+private func creditsPayload(
+    sourceName: String,
+    contributors: [(String, String?)],
+    release: [(String, String?)],
+    catalog: [(String, String?)]
+) -> CreditsPayload? {
+    let sections = [
+        CreditsSection(title: "Contributors", rows: creditsRows(from: contributors)),
+        CreditsSection(title: "Release", rows: creditsRows(from: release)),
+        CreditsSection(title: "Catalog", rows: creditsRows(from: catalog))
+    ].filter { !$0.rows.isEmpty }
+
+    guard !sections.isEmpty else { return nil }
+    return CreditsPayload(sourceName: sourceName, sections: sections)
+}
+
 #if DEBUG
 private final class MemoryCacheEvictionLogger: NSObject, NSCacheDelegate {
     private let cacheName: String
@@ -55,6 +83,30 @@ enum MusicProvider {
                     set tAlbum to album of current track
                     set tDur to duration of current track
                     set pPos to player position
+                    set tAlbumArtist to ""
+                    try
+                        set tAlbumArtist to album artist of current track
+                    end try
+                    set tComposer to ""
+                    try
+                        set tComposer to composer of current track
+                    end try
+                    set tGenre to ""
+                    try
+                        set tGenre to genre of current track
+                    end try
+                    set tDiscNumber to 0
+                    try
+                        set tDiscNumber to disc number of current track
+                    end try
+                    set tTrackNumber to 0
+                    try
+                        set tTrackNumber to track number of current track
+                    end try
+                    set tYear to 0
+                    try
+                        set tYear to year of current track
+                    end try
                     set tLoved to false
                     try
                         set tLoved to (favorited of current track as boolean)
@@ -63,12 +115,12 @@ enum MusicProvider {
                             set tLoved to (loved of current track as boolean)
                         end try
                     end try
-                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDur as string) & "||" & (pPos as string) & "||" & (tLoved as string)
+                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDur as string) & "||" & (pPos as string) & "||" & (tLoved as string) & "||" & tAlbumArtist & "||" & tComposer & "||" & tGenre & "||" & (tDiscNumber as string) & "||" & (tTrackNumber as string) & "||" & (tYear as string)
                 else
-                    return pState & "|||||||"
+                    return pState & "|||||||||||||"
                 end if
             else
-                return "stopped|||||||"
+                return "stopped|||||||||||||"
             end if
         end tell
         """
@@ -84,6 +136,29 @@ enum MusicProvider {
         let duration = Double(parts.count > 4 ? parts[4] : "") ?? 0
         let elapsed = Double(parts.count > 5 ? parts[5] : "") ?? 0
         let isFavorited = parseAppleScriptBoolean(parts.count > 6 ? parts[6] : "") ?? false
+        let albumArtist = parts.count > 7 ? parts[7] : ""
+        let composer = parts.count > 8 ? parts[8] : ""
+        let genre = parts.count > 9 ? parts[9] : ""
+        let discNumber = Int(parts.count > 10 ? parts[10] : "") ?? 0
+        let trackNumber = Int(parts.count > 11 ? parts[11] : "") ?? 0
+        let year = Int(parts.count > 12 ? parts[12] : "") ?? 0
+        let credits = creditsPayload(
+            sourceName: "Music app",
+            contributors: [
+                ("Artist", title.isEmpty ? nil : artist),
+                ("Album Artist", albumArtist == artist ? nil : albumArtist),
+                ("Composer", composer)
+            ],
+            release: [
+                ("Album", album),
+                ("Genre", genre),
+                ("Year", year > 0 ? String(year) : nil)
+            ],
+            catalog: [
+                ("Disc", discNumber > 0 ? String(discNumber) : nil),
+                ("Track", trackNumber > 0 ? String(trackNumber) : nil)
+            ]
+        )
 
         let trackKey = "\(title)|\(artist)|\(album)"
         var artwork: NSImage? = nil
@@ -129,6 +204,7 @@ enum MusicProvider {
             duration: duration,
             canSeek: duration > 0.5,
             isFavorited: isFavorited,
+            credits: credits,
             appleMusicAlbumURL: nil,
             animatedArtworkState: .none,
             animatedArtworkHLSURL: nil
@@ -294,12 +370,20 @@ enum SpotifyProvider {
                     set tDurMs to duration of current track
                     set pPos to player position
                     set artURL to artwork url of current track
-                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDurMs as string) & "||" & (pPos as string) & "||" & artURL
+                    set tAlbumArtist to ""
+                    try
+                        set tAlbumArtist to album artist of current track
+                    end try
+                    set tTrackNumber to 0
+                    try
+                        set tTrackNumber to track number of current track
+                    end try
+                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDurMs as string) & "||" & (pPos as string) & "||" & artURL & "||" & tAlbumArtist & "||" & (tTrackNumber as string)
                 else
-                    return pState & "|||||||"
+                    return pState & "|||||||||"
                 end if
             else
-                return "stopped|||||||"
+                return "stopped|||||||||"
             end if
         end tell
         """
@@ -317,6 +401,21 @@ enum SpotifyProvider {
         let duration = durMs / 1000.0
         let elapsed = Double(parts.count > 5 ? parts[5] : "") ?? 0
         let artURLString = parts.count > 6 ? parts[6] : ""
+        let albumArtist = parts.count > 7 ? parts[7] : ""
+        let trackNumber = Int(parts.count > 8 ? parts[8] : "") ?? 0
+        let credits = creditsPayload(
+            sourceName: "Spotify",
+            contributors: [
+                ("Artist", title.isEmpty ? nil : artist),
+                ("Album Artist", albumArtist == artist ? nil : albumArtist)
+            ],
+            release: [
+                ("Album", album)
+            ],
+            catalog: [
+                ("Track", trackNumber > 0 ? String(trackNumber) : nil)
+            ]
+        )
 
         var artwork: NSImage? = nil
         if includeArtwork, let url = URL(string: artURLString), !title.isEmpty {
@@ -336,6 +435,7 @@ enum SpotifyProvider {
             elapsed: elapsed,
             duration: duration,
             canSeek: duration > 0.5,
+            credits: credits,
             appleMusicAlbumURL: nil,
             animatedArtworkState: .none,
             animatedArtworkHLSURL: nil

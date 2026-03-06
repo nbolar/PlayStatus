@@ -197,6 +197,25 @@ enum LyricsState: Equatable {
     case failed
 }
 
+enum DetailsPaneTab: String, CaseIterable {
+    case lyrics
+    case credits
+
+    var displayName: String {
+        switch self {
+        case .lyrics: return "Lyrics"
+        case .credits: return "Credits"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .lyrics: return "quote.bubble"
+        case .credits: return "info.circle"
+        }
+    }
+}
+
 enum LyricsLoadingStage: Int, CaseIterable, Equatable {
     case starting = 1
     case lrclibExact
@@ -240,6 +259,29 @@ struct LyricsPayload: Equatable {
     let isTimed: Bool
 }
 
+struct CreditsRow: Equatable, Identifiable {
+    let label: String
+    let value: String
+
+    var id: String { "\(label)|\(value)" }
+}
+
+struct CreditsSection: Equatable, Identifiable {
+    let title: String
+    let rows: [CreditsRow]
+
+    var id: String { title }
+}
+
+struct CreditsPayload: Equatable {
+    let sourceName: String
+    let sections: [CreditsSection]
+
+    var hasContent: Bool {
+        sections.contains { !$0.rows.isEmpty }
+    }
+}
+
 struct NowPlayingSnapshot: Equatable {
     enum NativeArtworkState: Equatable {
         case available
@@ -260,6 +302,7 @@ struct NowPlayingSnapshot: Equatable {
     var isFavorited: Bool = false
     var lyrics: LyricsPayload? = nil
     var lyricsState: LyricsState = .idle
+    var credits: CreditsPayload? = nil
     var appleMusicAlbumURL: URL? = nil
     var animatedArtworkState: AnimatedArtworkState = .none
     var animatedArtworkHLSURL: URL? = nil

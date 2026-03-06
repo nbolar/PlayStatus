@@ -49,6 +49,30 @@ struct ProviderBadge: View {
     }
 }
 
+struct EmptyArtworkPlaceholderView: View {
+    var body: some View {
+        GeometryReader { geometry in
+            let side = min(geometry.size.width, geometry.size.height)
+
+            ZStack {
+                LinearGradient(
+                    colors: [.white.opacity(0.08), .black.opacity(0.08)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+
+                ProviderIconView(
+                    icon: .appleMusic,
+                    size: max(36, side * 0.20),
+                    weight: .semibold
+                )
+                .foregroundStyle(.secondary.opacity(0.95))
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+    }
+}
+
 // MARK: - Controls
 
 struct ControlsRow: View {
@@ -1068,16 +1092,8 @@ struct ArtworkView: View {
                 .frame(width: side, height: side)
                 .background(tint.opacity(0.12))
         } else {
-            ZStack {
-                LinearGradient(
-                    colors: [.white.opacity(0.08), .black.opacity(0.08)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                ProviderIconView(icon: .appleMusic, size: 36, weight: .semibold)
-                    .foregroundStyle(.secondary.opacity(0.95))
-            }
-            .frame(width: side, height: side)
+            EmptyArtworkPlaceholderView()
+                .frame(width: side, height: side)
         }
     }
 }

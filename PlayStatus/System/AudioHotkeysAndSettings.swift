@@ -958,8 +958,8 @@ struct PlayStatusSettingsView: View {
 //                isOn: $model.showLyricsPanel
 //            )
             SettingsToggleRow(
-                title: "Expand Lyrics by Default",
-                caption: "Opens the lyrics section automatically for new tracks.",
+                title: "Expand Details by Default",
+                caption: "Opens the lower details pane automatically for new tracks.",
                 isOn: $model.expandLyricsByDefault
             )
         }

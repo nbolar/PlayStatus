@@ -23,8 +23,8 @@ struct NowPlayingPopover: View {
     @State private var displayedMiniMode = false
     @State private var modeCrossfadeOpacity: Double = 1
     @State private var modeCrossfadeSequence: Int = 0
-    @State private var showRegularLyricsPane = false
-    @State private var regularLyricsHideWorkItem: DispatchWorkItem?
+    @State private var showRegularDetailsPane = false
+    @State private var regularDetailsHideWorkItem: DispatchWorkItem?
     @State private var regularPointerHovering = false
     private var resolvedPopoverHeight: CGFloat {
         model.miniMode ? model.miniPopoverHeight : model.regularPopoverHeight
@@ -92,7 +92,7 @@ struct NowPlayingPopover: View {
             }
             modeCrossfadeSwapWorkItem = swap
             DispatchQueue.main.asyncAfter(deadline: .now() + modeCrossfadeOutDuration, execute: swap)
-            syncRenderedRegularLyricsPane(for: regularLyricsRequested)
+            syncRenderedRegularDetailsPane(for: regularDetailsRequested)
 
             if miniMode {
                 regularPointerHovering = false
@@ -105,21 +105,18 @@ struct NowPlayingPopover: View {
             }
         }
         .onChange(of: model.lyricsPanelExpanded) { _ in
-            syncRenderedRegularLyricsPane(for: regularLyricsRequested)
-        }
-        .onChange(of: model.showLyricsPanel) { _ in
-            syncRenderedRegularLyricsPane(for: regularLyricsRequested)
+            syncRenderedRegularDetailsPane(for: regularDetailsRequested)
         }
         .onAppear {
             displayedMiniMode = model.miniMode
             modeCrossfadeOpacity = 1
-            syncRenderedRegularLyricsPaneImmediately()
+            syncRenderedRegularDetailsPaneImmediately()
         }
         .onDisappear {
             modeCrossfadeSwapWorkItem?.cancel()
             modeCrossfadeSwapWorkItem = nil
-            regularLyricsHideWorkItem?.cancel()
-            regularLyricsHideWorkItem = nil
+            regularDetailsHideWorkItem?.cancel()
+            regularDetailsHideWorkItem = nil
             regularPointerHovering = false
         }
         .simultaneousGesture(
@@ -166,11 +163,11 @@ struct NowPlayingPopover: View {
         let resolvedRegularHeight = model.regularPopoverHeight
         let liveRegularHeight = min(resolvedRegularHeight, max(baseRegularHeight, availableHeight))
         let regularMarqueeLaneWidth = min(272, max(130, model.popoverWidth - model.artworkDisplaySize - 78))
-        let visibleRegularLyricsHeight = min(
+        let visibleRegularDetailsHeight = min(
             model.regularLyricsPaneHeight,
             max(0, liveRegularHeight - baseRegularHeight)
         )
-        let shouldRenderRegularLyricsPane = showRegularLyricsPane || visibleRegularLyricsHeight > 0.5
+        let shouldRenderRegularDetailsPane = showRegularDetailsPane || visibleRegularDetailsHeight > 0.5
         let regularControlContrastBoost = model.regularControlsContrastBoost
         let searchTrailingAlignmentNudge: CGFloat = 4
         let regularDetachedTransparencyMultiplier: Double = model.surfaceMode == .detached ? 0.80 : 1.0
@@ -346,19 +343,24 @@ struct NowPlayingPopover: View {
                         }
                     }
 
-                    if model.showLyricsPanel {
-                        RegularLyricsToggleControl(
-                            isOn: model.lyricsPanelExpanded,
-                            lyricsState: model.lyricsState,
-                            contrastBoost: regularControlContrastBoost,
-                            sizeScale: regularDetachedControlScale
-                        ) {
-                            let targetExpanded = !model.lyricsPanelExpanded
-                            syncRenderedRegularLyricsPane(
-                                for: model.showLyricsPanel && targetExpanded && !model.miniMode
-                            )
-                            model.setLyricsPanelExpanded(targetExpanded)
-                        }
+                    RegularDetailToggleControl(
+                        isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .lyrics,
+                        systemName: model.selectedRegularDetailsTab == .lyrics && model.lyricsPanelExpanded ? "quote.bubble.fill" : "quote.bubble",
+                        helpText: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .lyrics ? "Hide lyrics" : "Show lyrics",
+                        contrastBoost: regularControlContrastBoost,
+                        sizeScale: regularDetachedControlScale
+                    ) {
+                        toggleRegularDetails(tab: .lyrics)
+                    }
+
+                    RegularDetailToggleControl(
+                        isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits,
+                        systemName: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits ? "info.circle.fill" : "info.circle",
+                        helpText: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits ? "Hide credits" : "Show credits",
+                        contrastBoost: regularControlContrastBoost,
+                        sizeScale: regularDetachedControlScale
+                    ) {
+                        toggleRegularDetails(tab: .credits)
                     }
 
                     SettingsOpenControl {
@@ -385,17 +387,18 @@ struct NowPlayingPopover: View {
                 .animation(.easeInOut(duration: 0.16), value: regularTopControlsVisible)
             }
 
-            if shouldRenderRegularLyricsPane {
-                RegularLyricsPane(
+            if shouldRenderRegularDetailsPane {
+                RegularDetailsPane(
                     model: model,
+                    selectedTab: model.selectedRegularDetailsTab,
                     lyricsState: model.lyricsState,
                     lyricsPayload: model.lyricsPayload,
                     lyricsLoadingProgress: model.lyricsLoadingProgress,
+                    creditsPayload: model.creditsPayload,
                     glassTint: model.glassTint,
-                    artwork: model.artwork,
-                    visibleHeight: visibleRegularLyricsHeight
+                    visibleHeight: visibleRegularDetailsHeight
                 )
-                .allowsHitTesting(regularLyricsRequested && visibleRegularLyricsHeight > 0.5)
+                .allowsHitTesting(regularDetailsRequested && visibleRegularDetailsHeight > 0.5)
             }
         }
         .frame(width: model.popoverWidth, height: resolvedRegularHeight, alignment: .topLeading)
@@ -599,32 +602,38 @@ struct NowPlayingPopover: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + modeTransitionDuration + 0.06, execute: reset)
     }
 
-    private var regularLyricsRequested: Bool {
-        !model.miniMode && model.showLyricsPanel && model.lyricsPanelExpanded
+    private var regularDetailsRequested: Bool {
+        !model.miniMode && model.lyricsPanelExpanded
     }
 
-    private func syncRenderedRegularLyricsPaneImmediately() {
-        regularLyricsHideWorkItem?.cancel()
-        regularLyricsHideWorkItem = nil
-        showRegularLyricsPane = regularLyricsRequested
+    private func syncRenderedRegularDetailsPaneImmediately() {
+        regularDetailsHideWorkItem?.cancel()
+        regularDetailsHideWorkItem = nil
+        showRegularDetailsPane = regularDetailsRequested
     }
 
-    private func syncRenderedRegularLyricsPane(for enabled: Bool) {
-        regularLyricsHideWorkItem?.cancel()
-        regularLyricsHideWorkItem = nil
+    private func syncRenderedRegularDetailsPane(for enabled: Bool) {
+        regularDetailsHideWorkItem?.cancel()
+        regularDetailsHideWorkItem = nil
 
         if enabled {
-            showRegularLyricsPane = true
+            showRegularDetailsPane = true
             return
         }
 
         let work = DispatchWorkItem {
-            guard !regularLyricsRequested else { return }
-            showRegularLyricsPane = false
-            regularLyricsHideWorkItem = nil
+            guard !regularDetailsRequested else { return }
+            showRegularDetailsPane = false
+            regularDetailsHideWorkItem = nil
         }
-        regularLyricsHideWorkItem = work
+        regularDetailsHideWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + miniLyricsTransitionDuration, execute: work)
+    }
+
+    private func toggleRegularDetails(tab: DetailsPaneTab) {
+        let willExpand = !(model.lyricsPanelExpanded && model.selectedRegularDetailsTab == tab)
+        model.toggleRegularDetailsTab(tab)
+        syncRenderedRegularDetailsPane(for: willExpand && !model.miniMode)
     }
 
 }
@@ -909,20 +918,24 @@ private struct MiniNowPlayingCard: View {
                         }
                     }
 
-                    MiniLyricsToggleControl(
-                        isOn: model.miniLyricsEnabled,
+                    MiniDetailToggleControl(
+                        isOn: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics,
+                        systemName: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics ? "quote.bubble.fill" : "quote.bubble",
+                        helpText: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics ? "Hide lyrics" : "Show lyrics",
                         transitionActive: transitionActive,
                         sizeScale: miniDetachedControlScale
                     ) {
-                        let targetEnabled = !model.miniLyricsEnabled
-                        syncRenderedMiniLyricsPane(for: targetEnabled)
-                        if model.miniLyricsEnabled {
-                            // Closing lyrics shrinks the card immediately; keep controls visible
-                            // until we receive a definitive pointer-exit event.
-                            pointerHovering = true
-                            forceExpandedUntilPointerExit = true
-                        }
-                        model.miniLyricsEnabled = targetEnabled
+                        toggleMiniDetails(tab: .lyrics)
+                    }
+
+                    MiniDetailToggleControl(
+                        isOn: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits,
+                        systemName: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits ? "info.circle.fill" : "info.circle",
+                        helpText: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits ? "Hide credits" : "Show credits",
+                        transitionActive: transitionActive,
+                        sizeScale: miniDetachedControlScale
+                    ) {
+                        toggleMiniDetails(tab: .credits)
                     }
 
                     SettingsOpenControl {
@@ -1197,8 +1210,9 @@ private struct MiniNowPlayingCard: View {
             }
 
             if shouldRenderMiniLyricsPane {
-                MiniExpandedLyricsPane(
+                MiniExpandedDetailsPane(
                     model: model,
+                    selectedTab: model.selectedMiniDetailsTab,
                     visibleHeight: visibleLyricsHeight
                 )
                 .allowsHitTesting(model.miniLyricsEnabled && visibleLyricsHeight > 0.5)
@@ -1235,6 +1249,20 @@ private struct MiniNowPlayingCard: View {
         }
         miniLyricsHideWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + miniLyricsTransitionDuration, execute: work)
+    }
+
+    private func toggleMiniDetails(tab: DetailsPaneTab) {
+        let willExpand = !(model.miniLyricsEnabled && model.selectedMiniDetailsTab == tab)
+        syncRenderedMiniLyricsPane(for: willExpand)
+
+        if !willExpand {
+            // Closing the pane shrinks the card immediately; keep controls visible
+            // until we receive a definitive pointer-exit event.
+            pointerHovering = true
+            forceExpandedUntilPointerExit = true
+        }
+
+        model.toggleMiniDetailsTab(tab)
     }
 
     private var artworkLuminance: CGFloat {
@@ -1325,11 +1353,7 @@ private struct MiniArtworkTransitionSurface: View {
                 .interpolation(.high)
                 .scaledToFill()
         } else {
-            LinearGradient(
-                colors: [tint.opacity(0.45), .black.opacity(0.55)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            EmptyArtworkPlaceholderView()
         }
     }
 
@@ -1480,8 +1504,9 @@ private func lyricsBleedOpacities(for artworkColorIntensity: Double) -> (top: Do
     )
 }
 
-private struct MiniExpandedLyricsPane: View {
+private struct MiniExpandedDetailsPane: View {
     @ObservedObject var model: NowPlayingModel
+    let selectedTab: DetailsPaneTab
     let visibleHeight: CGFloat
     @State private var activeLineID: UUID?
     @State private var coordinator = LyricsScrollCoordinator()
@@ -1503,7 +1528,7 @@ private struct MiniExpandedLyricsPane: View {
                     endPoint: .bottom
                 )
 
-                // Subtle tint bleed so the lyrics pane inherits current artwork mood.
+                // Subtle tint bleed so the details pane inherits current artwork mood.
                 LinearGradient(
                     colors: [
                         model.glassTint.opacity(bleed.top),
@@ -1568,57 +1593,37 @@ private struct MiniExpandedLyricsPane: View {
             )
 
             VStack(alignment: .leading, spacing: 8) {
-                switch model.lyricsState {
-                case .idle:
-                    stateRow("Start playback to load lyrics.", icon: "play.square")
-                case .loading:
-                    let progress = model.lyricsLoadingProgress
-                    LyricsLoadingPulseBlock(
-                        primaryFontSize: 12,
-                        secondaryText: miniLoadingMessage(progress: progress),
-                        secondaryFontSize: 11
-                    )
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                case .unavailable:
-                    stateRow("Lyrics unavailable for this track.", icon: "text.bubble")
-                case .failed:
-                    stateRow("Couldn't fetch lyrics right now.", icon: "exclamationmark.octagon")
-                case .available:
-                    lyricsScroll
+                HStack {
+                    miniDetailTabButton(.lyrics)
+                    miniDetailTabButton(.credits)
+
+                    Spacer(minLength: 0)
+                    miniDetailSourceBadge
+                }
+
+                switch selectedTab {
+                case .lyrics:
+                    lyricsPaneContent
+                case .credits:
+                    creditsPaneContent
                 }
             }
             .padding(.horizontal, 14)
             .padding(.top, 12)
             .padding(.bottom, 10)
-            .overlay(alignment: .topTrailing) {
-                miniLyricsSourceBadge
-                    .padding(.top, 5)
-                    .padding(.trailing, 10)
-            }
         }
         .frame(height: max(0, visibleHeight), alignment: .top)
         .onAppear {
-            // When lyrics are available, immediate active-line scroll + per-line animations
-            // can fight the pane expand transition and look jittery.
-            settleWorkItem?.cancel()
-            enableLyricLineAnimations = false
-            coordinator.allowsAnimatedScroll = false
-
-            let work = DispatchWorkItem {
-                enableLyricLineAnimations = true
-                coordinator.allowsAnimatedScroll = true
-                settleWorkItem = nil
-            }
-            settleWorkItem = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + miniLyricsTransitionDuration, execute: work)
+            updateLyricAnimationState(for: selectedTab)
         }
         .onDisappear {
-            settleWorkItem?.cancel()
-            settleWorkItem = nil
-            enableLyricLineAnimations = false
-            coordinator.allowsAnimatedScroll = false
+            cancelLyricAnimationState()
+        }
+        .onChange(of: selectedTab) { tab in
+            updateLyricAnimationState(for: tab)
         }
         .onChange(of: model.lyricsPayload?.lines.first?.id) { _ in
+            guard selectedTab == .lyrics else { return }
             // Track changed — restart the coordinator with fresh lines.
             let lines = model.lyricsPayload?.lines ?? []
             let isTimed = model.lyricsPayload?.isTimed ?? false
@@ -1646,41 +1651,120 @@ private struct MiniExpandedLyricsPane: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
+    private func miniDetailTabButton(_ tab: DetailsPaneTab) -> some View {
+        let isSelected = selectedTab == tab
+        return Button {
+            model.selectMiniDetailsTab(tab)
+        } label: {
+            Label(tab.displayName, systemImage: isSelected ? "\(tab.systemImage).fill" : tab.systemImage)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(isSelected ? 0.96 : 0.66))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(Color.white.opacity(isSelected ? 0.16 : 0.08)))
+                .overlay(
+                    Capsule()
+                        .stroke(.white.opacity(isSelected ? 0.18 : 0.10), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var lyricsPaneContent: some View {
+        switch model.lyricsState {
+        case .idle:
+            stateRow("Start playback to load lyrics.", icon: "play.square")
+        case .loading:
+            let progress = model.lyricsLoadingProgress
+            LyricsLoadingPulseBlock(
+                primaryFontSize: 12,
+                secondaryText: miniLoadingMessage(progress: progress),
+                secondaryFontSize: 11
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+        case .unavailable:
+            stateRow("Lyrics unavailable for this track.", icon: "text.bubble")
+        case .failed:
+            stateRow("Couldn't fetch lyrics right now.", icon: "exclamationmark.octagon")
+        case .available:
+            lyricsScroll
+        }
+    }
+
+    @ViewBuilder
+    private var creditsPaneContent: some View {
+        if model.provider == .none || model.title.isEmpty {
+            stateRow("Start playback to view credits.", icon: "info.circle")
+        } else if let creditsPayload = model.creditsPayload, creditsPayload.hasContent {
+            MiniCreditsSummaryContent(payload: creditsPayload)
+        } else {
+            stateRow("Credits unavailable for this track.", icon: "info.circle")
+        }
+    }
+
     private func miniLoadingMessage(progress: LyricsLoadingProgress?) -> String {
         guard let progress else { return "Preparing lyric request" }
         return "\(progress.stage.displayTitle) · Attempt \(progress.attempt) of \(progress.maxAttempts)"
     }
 
     @ViewBuilder
-    private var miniLyricsSourceBadge: some View {
-        if let source = model.lyricsPayload?.source, source != .none {
-            if source == .lrclib {
-                Button(action: openLRCLibWebsite) {
-                    Text("LRCLib")
-                        .font(.system(size: 9, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.58))
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(Color.white.opacity(0.10)))
-                        .overlay(Capsule().stroke(.white.opacity(0.14), lineWidth: 1))
+    private var miniDetailSourceBadge: some View {
+        switch selectedTab {
+        case .lyrics:
+            if let source = model.lyricsPayload?.source, source != .none {
+                if source == .lrclib {
+                    Button(action: openLRCLibWebsite) {
+                        sourceBadgeText("LRCLib", emphasized: true)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open LRCLIB website")
+                } else {
+                    sourceBadgeText("Apple Music")
                 }
-                .buttonStyle(.plain)
-                .help("Open LRCLIB website")
-            } else {
-                Text("Apple Music")
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.46))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(Color.white.opacity(0.08)))
-                    .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
+            }
+        case .credits:
+            if let sourceName = model.creditsPayload?.sourceName, !sourceName.isEmpty {
+                sourceBadgeText(sourceName)
             }
         }
+    }
+
+    private func sourceBadgeText(_ text: String, emphasized: Bool = false) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .medium, design: .rounded))
+            .foregroundStyle(.white.opacity(emphasized ? 0.58 : 0.46))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(Color.white.opacity(emphasized ? 0.10 : 0.08)))
+            .overlay(Capsule().stroke(.white.opacity(emphasized ? 0.14 : 0.10), lineWidth: 1))
     }
 
     private func openLRCLibWebsite() {
         guard let url = URL(string: "https://lrclib.net") else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    private func updateLyricAnimationState(for tab: DetailsPaneTab) {
+        cancelLyricAnimationState()
+        guard tab == .lyrics else { return }
+
+        // Immediate active-line scroll + per-line animations can fight the pane
+        // expand transition and look jittery, so we stage them in after the reveal.
+        let work = DispatchWorkItem {
+            enableLyricLineAnimations = true
+            coordinator.allowsAnimatedScroll = true
+            settleWorkItem = nil
+        }
+        settleWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + miniLyricsTransitionDuration, execute: work)
+    }
+
+    private func cancelLyricAnimationState() {
+        settleWorkItem?.cancel()
+        settleWorkItem = nil
+        enableLyricLineAnimations = false
+        coordinator.allowsAnimatedScroll = false
     }
 
     private var lyricsScroll: some View {
@@ -1720,6 +1804,50 @@ private struct MiniExpandedLyricsPane: View {
                 coordinator.scrollProxy = nil
             }
         }
+    }
+}
+
+private struct MiniCreditsSummaryContent: View {
+    let payload: CreditsPayload
+
+    private let maxVisibleRows = 5
+
+    private var allRows: [CreditsRow] {
+        payload.sections.flatMap(\.rows)
+    }
+
+    private var visibleRows: [CreditsRow] {
+        Array(allRows.prefix(maxVisibleRows))
+    }
+
+    var body: some View {
+        ScrollView(.vertical) {
+            LazyVStack(alignment: .leading, spacing: 8) {
+                ForEach(visibleRows) { row in
+                    HStack(alignment: .top, spacing: 10) {
+                        Text(row.label)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.60))
+                            .frame(width: 76, alignment: .leading)
+
+                        Text(row.value)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.90))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+                }
+
+                if allRows.count > maxVisibleRows {
+                    Text("More credits available in regular view.")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.46))
+                        .padding(.top, 2)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .scrollIndicators(.hidden)
     }
 }
 
@@ -1884,8 +2012,10 @@ private struct DetachedWindowCloseControl: View {
     }
 }
 
-private struct MiniLyricsToggleControl: View {
+private struct MiniDetailToggleControl: View {
     let isOn: Bool
+    let systemName: String
+    let helpText: String
     let transitionActive: Bool
     var sizeScale: CGFloat = 1
     let action: () -> Void
@@ -1897,7 +2027,7 @@ private struct MiniLyricsToggleControl: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: isOn ? "quote.bubble.fill" : "quote.bubble")
+            Image(systemName: systemName)
                 .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
                 .foregroundStyle(.primary.opacity(isOn ? 0.98 : 0.90))
                 .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
@@ -1919,7 +2049,8 @@ private struct MiniLyricsToggleControl: View {
                 self.hovering = hovering
             }
         }
-        .hoverHint(isOn ? "Hide lyrics" : "Show lyrics", enabled: !transitionActive)
+        .hoverHint(helpText, enabled: !transitionActive)
+        .animation(.easeInOut(duration: 0.18), value: isOn)
     }
 }
 
@@ -1999,11 +2130,12 @@ private final class LyricsScrollCoordinator {
     }
 }
 
-// MARK: - Regular view lyrics
+// MARK: - Regular view details
 
-private struct RegularLyricsToggleControl: View {
+private struct RegularDetailToggleControl: View {
     let isOn: Bool
-    let lyricsState: LyricsState
+    let systemName: String
+    let helpText: String
     var contrastBoost: Double = 0
     var sizeScale: CGFloat = 1
     let action: () -> Void
@@ -2016,26 +2148,16 @@ private struct RegularLyricsToggleControl: View {
     var body: some View {
         let clampedContrast = min(max(contrastBoost, 0), 1)
         Button(action: action) {
-            ZStack {
-                Image(systemName: isOn ? "quote.bubble.fill" : "quote.bubble")
-                    .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
-                    .foregroundStyle(.white.opacity(isOn ? 0.98 : 0.90))
-
-                // Subtle loading indicator dot
-//                if lyricsState == .loading && !isOn {
-//                    Circle()
-//                        .fill(Color.accentColor.opacity(0.72))
-//                        .frame(width: 5, height: 5)
-//                        .offset(x: 7, y: -7)
-//                }
-            }
-            .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
-            .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
-            .overlay(
-                Circle()
-                    .stroke(.white.opacity(min(0.32, (hovering ? 0.24 : 0.16) + (0.08 * clampedContrast))), lineWidth: 1)
-            )
-            .scaleEffect(hovering ? 1.06 : 1.0)
+            Image(systemName: systemName)
+                .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
+                .foregroundStyle(.white.opacity(isOn ? 0.98 : 0.90))
+                .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
+                .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
+                .overlay(
+                    Circle()
+                        .stroke(.white.opacity(min(0.32, (hovering ? 0.24 : 0.16) + (0.08 * clampedContrast))), lineWidth: 1)
+                )
+                .scaleEffect(hovering ? 1.06 : 1.0)
         }
         .buttonStyle(.plain)
         .onHover { h in
@@ -2043,22 +2165,23 @@ private struct RegularLyricsToggleControl: View {
                 hovering = h
             }
         }
-        .hoverHint(isOn ? "Hide lyrics" : "Show lyrics")
+        .hoverHint(helpText)
         .animation(.easeInOut(duration: 0.18), value: isOn)
     }
 }
 
-/// Value-type wrapper so SwiftUI only re-renders RegularLyricsPane when its
+/// Value-type wrapper so SwiftUI only re-renders RegularDetailsPane when its
 /// displayed properties actually change — not on every model.elapsed tick.
-private struct RegularLyricsPane: View {
+private struct RegularDetailsPane: View {
     // model is passed through only for child use (retryLyricsFetch, scroll content).
     // The pane itself reads only value-type arguments so @ObservedObject churn is avoided.
     let model: NowPlayingModel
+    let selectedTab: DetailsPaneTab
     let lyricsState: LyricsState
     let lyricsPayload: LyricsPayload?
     let lyricsLoadingProgress: LyricsLoadingProgress?
+    let creditsPayload: CreditsPayload?
     let glassTint: Color
-    let artwork: NSImage?
     let visibleHeight: CGFloat
 
     private var paneContentHeight: CGFloat {
@@ -2081,7 +2204,7 @@ private struct RegularLyricsPane: View {
                 ZStack {
                     // Pure gradient background — no blurred Image, no system materials.
                     // On macOS 26, scaledToFill+blur Image triggers DesignLibrary
-                    // glass compositor paths. Use gradients only, as MiniExpandedLyricsPane does.
+                    // glass compositor paths. Use gradients only, as MiniExpandedDetailsPane does.
                     LinearGradient(
                         colors: [
                             Color.black.opacity(0.56),
@@ -2118,70 +2241,25 @@ private struct RegularLyricsPane: View {
                     )
                 )
 
-                // Header label — plain color fill, no system material
+                // Header controls — plain color fill, no system material
                 HStack {
-                    Label("Lyrics", systemImage: "quote.bubble.fill")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.62))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color.white.opacity(0.10)))
-                        .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 1))
+                    detailTabButton(.lyrics)
+                    detailTabButton(.credits)
 
                     Spacer(minLength: 0)
 
-                    // Source badge — plain color fill, no system material
-                    if let source = lyricsPayload?.source, source != .none {
-                        if source == .lrclib {
-                            Button(action: openLRCLibWebsite) {
-                                Text("LRCLib")
-                                    .font(.system(size: 9, weight: .medium, design: .rounded))
-                                    .foregroundStyle(.white.opacity(0.58))
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 3)
-                                    .background(Capsule().fill(Color.white.opacity(0.10)))
-                                    .overlay(Capsule().stroke(.white.opacity(0.14), lineWidth: 1))
-                            }
-                            .buttonStyle(.plain)
-                            .help("Open LRCLIB website")
-                        } else {
-                            Text("Apple Music")
-                                .font(.system(size: 9, weight: .medium, design: .rounded))
-                                .foregroundStyle(.white.opacity(0.46))
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
-                                .background(Capsule().fill(Color.white.opacity(0.08)))
-                                .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
-                        }
-                    }
+                    detailSourceBadge
                 }
                 .padding(.horizontal, 14)
                 .padding(.top, 10)
 
-                // Content — switch on coarse state only; elapsed-driven scroll lives in child
+                // Content — switch on coarse state only; elapsed-driven scroll lives in child.
                 VStack(alignment: .leading, spacing: 0) {
-                    switch lyricsState {
-                    case .idle:
-                        stateView("Start playback to load lyrics.", icon: .provider(.appleMusic))
-                    case .loading:
-                        loadingProgressView(progress: lyricsLoadingProgress)
-                    case .unavailable:
-                        stateView("Lyrics unavailable for this track.", icon: .sfSymbol("text.bubble"))
-                    case .failed:
-                        VStack(spacing: 10) {
-                            stateView("Couldn't fetch lyrics right now.", icon: .sfSymbol("exclamationmark.bubble"))
-//                            Button("Retry") { model.retryLyricsFetch() }
-//                                .buttonStyle(.bordered)
-//                                .controlSize(.small)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    case .available:
-                        // Delegate elapsed-sensitive rendering to a dedicated child so that
-                        // the expensive background ZStack above is NOT re-evaluated every 0.5 s.
-                        RegularLyricsScrollContent(
-                            lines: lyricsPayload?.lines ?? [],
-                            isTimed: lyricsPayload?.isTimed ?? false
-                        )
+                    switch selectedTab {
+                    case .lyrics:
+                        lyricsTabContent
+                    case .credits:
+                        creditsTabContent
                     }
                 }
                 .padding(.top, 36)
@@ -2192,6 +2270,98 @@ private struct RegularLyricsPane: View {
         }
         .frame(height: max(0, visibleHeight), alignment: .top)
         .clipped()
+    }
+
+    @ViewBuilder
+    private var detailSourceBadge: some View {
+        switch selectedTab {
+        case .lyrics:
+            if let source = lyricsPayload?.source, source != .none {
+                if source == .lrclib {
+                    Button(action: openLRCLibWebsite) {
+                        Text("LRCLib")
+                            .font(.system(size: 9, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.58))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.white.opacity(0.10)))
+                            .overlay(Capsule().stroke(.white.opacity(0.14), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open LRCLIB website")
+                } else {
+                    sourceBadgeText("Apple Music")
+                }
+            }
+        case .credits:
+            if let sourceName = creditsPayload?.sourceName, !sourceName.isEmpty {
+                sourceBadgeText(sourceName)
+            }
+        }
+    }
+
+    private func detailTabButton(_ tab: DetailsPaneTab) -> some View {
+        let isSelected = selectedTab == tab
+        return Button {
+            model.selectRegularDetailsTab(tab)
+        } label: {
+            Label(tab.displayName, systemImage: isSelected ? "\(tab.systemImage).fill" : tab.systemImage)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(isSelected ? 0.96 : 0.66))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(Color.white.opacity(isSelected ? 0.16 : 0.08)))
+                .overlay(
+                    Capsule()
+                        .stroke(.white.opacity(isSelected ? 0.18 : 0.10), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func sourceBadgeText(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .medium, design: .rounded))
+            .foregroundStyle(.white.opacity(0.50))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(Color.white.opacity(0.08)))
+            .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private var lyricsTabContent: some View {
+        switch lyricsState {
+        case .idle:
+            stateView("Start playback to load lyrics.", icon: .provider(.appleMusic))
+        case .loading:
+            loadingProgressView(progress: lyricsLoadingProgress)
+        case .unavailable:
+            stateView("Lyrics unavailable for this track.", icon: .sfSymbol("text.bubble"))
+        case .failed:
+            VStack(spacing: 10) {
+                stateView("Couldn't fetch lyrics right now.", icon: .sfSymbol("exclamationmark.bubble"))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        case .available:
+            // Delegate elapsed-sensitive rendering to a dedicated child so that
+            // the expensive background ZStack above is NOT re-evaluated every 0.5 s.
+            RegularLyricsScrollContent(
+                lines: lyricsPayload?.lines ?? [],
+                isTimed: lyricsPayload?.isTimed ?? false
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var creditsTabContent: some View {
+        if model.provider == .none || model.title.isEmpty {
+            stateView("Start playback to view credits.", icon: .sfSymbol("info.circle"))
+        } else if let creditsPayload, creditsPayload.hasContent {
+            RegularCreditsScrollContent(payload: creditsPayload)
+        } else {
+            stateView("Credits unavailable for this track.", icon: .sfSymbol("info.circle"))
+        }
     }
 
     private enum LyricsStateIcon {
@@ -2237,6 +2407,44 @@ private struct RegularLyricsPane: View {
     private func openLRCLibWebsite() {
         guard let url = URL(string: "https://lrclib.net") else { return }
         NSWorkspace.shared.open(url)
+    }
+}
+
+private struct RegularCreditsScrollContent: View {
+    let payload: CreditsPayload
+
+    var body: some View {
+        ScrollView(.vertical) {
+            LazyVStack(alignment: .leading, spacing: 14) {
+                ForEach(payload.sections) { section in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(section.title)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.56))
+                            .textCase(.uppercase)
+
+                        VStack(alignment: .leading, spacing: 7) {
+                            ForEach(section.rows) { row in
+                                HStack(alignment: .top, spacing: 12) {
+                                    Text(row.label)
+                                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(.white.opacity(0.64))
+                                        .frame(width: 92, alignment: .leading)
+
+                                    Text(row.value)
+                                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                                        .foregroundStyle(.white.opacity(0.90))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .textSelection(.enabled)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 6)
+        }
+        .scrollIndicators(.hidden)
     }
 }
 
