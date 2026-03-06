@@ -748,6 +748,19 @@ enum LyricsNormalizer {
         let text = raw.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
         let pattern = #"\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let fullRange = NSRange(text.startIndex..<text.endIndex, in: text)
+        let offsetSeconds: Double = {
+            guard let offsetRegex = try? NSRegularExpression(
+                pattern: #"\[offset:\s*([+-]?\d+)\]"#,
+                options: [.caseInsensitive]
+            ),
+            let match = offsetRegex.matches(in: text, range: fullRange).last,
+            let range = Range(match.range(at: 1), in: text),
+            let milliseconds = Double(text[range]) else {
+                return 0
+            }
+            return milliseconds / 1000.0
+        }()
 
         var parsed: [LyricsLine] = []
         for line in text.components(separatedBy: "\n") {
@@ -775,7 +788,7 @@ enum LyricsNormalizer {
                 }
                 let minutes = Double(minString) ?? 0
                 let seconds = Double(secString) ?? 0
-                let startTime = (minutes * 60) + seconds + fractional
+                let startTime = (minutes * 60) + seconds + fractional + offsetSeconds
                 parsed.append(LyricsLine(text: lyricText, startTime: startTime))
             }
         }

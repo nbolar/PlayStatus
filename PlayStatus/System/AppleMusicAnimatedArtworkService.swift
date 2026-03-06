@@ -492,6 +492,11 @@ actor ITunesMetadataLookup {
         return resolved
     }
 
+    func clearInMemoryCache() {
+        cache.removeAll()
+        cacheRecencyOrder.removeAll(keepingCapacity: false)
+    }
+
     private static func resolveAlbumURL(
         artist: String,
         album: String,

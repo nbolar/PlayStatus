@@ -983,6 +983,18 @@ struct PlayStatusSettingsView: View {
                     }
                 }
             }
+
+            Divider().padding(.vertical, 2)
+
+            SettingsToggleRow(
+                title: "Reduce Hidden Memory Usage",
+                caption: "Releases artwork, animated streams, and transient image caches when all PlayStatus surfaces are closed.",
+                isOn: $model.reduceHiddenMemoryUsage
+            )
+
+            SettingsNoteCard(
+                text: "When enabled, reopening the popover or detached window can briefly show placeholder artwork while visuals reload. Animated artwork may take an extra moment to come back on paused or recently hidden tracks."
+            )
         }
         .onAppear {
             model.refreshPersistentCacheStats()
@@ -1391,7 +1403,7 @@ private enum SettingsTab: String, CaseIterable {
         case .hotkeys:
             return CGSize(width: 780, height: 520)
         case .system:
-            return CGSize(width: 780, height: 430)
+            return CGSize(width: 780, height: 520)
         case .license:
             return CGSize(width: 780, height: 620)
         }
@@ -1621,6 +1633,34 @@ private struct SettingsSliderRow: View {
 
             Slider(value: $value, in: range)
         }
+    }
+}
+
+private struct SettingsNoteCard: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "info.circle")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.top, 1)
+
+            Text(text)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(.white.opacity(0.10), lineWidth: 1)
+                )
+        )
     }
 }
 

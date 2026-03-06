@@ -15,11 +15,34 @@ final class PlaybackClock: ObservableObject {
     static let shared = PlaybackClock()
     @Published var elapsed: Double = 0
     @Published var duration: Double = 0
+    private var isAdvancing = false
+    private var lastSyncUptime: TimeInterval = ProcessInfo.processInfo.systemUptime
+
+    var liveElapsed: Double {
+        let upperBound = duration > 0 ? duration : .greatestFiniteMagnitude
+        let resolvedElapsed: Double
+        if isAdvancing {
+            let delta = max(0, ProcessInfo.processInfo.systemUptime - lastSyncUptime)
+            resolvedElapsed = elapsed + delta
+        } else {
+            resolvedElapsed = elapsed
+        }
+        return min(max(resolvedElapsed, 0), upperBound)
+    }
+
     var progress: Double {
         guard duration > 0 else { return 0 }
-        return min(max(elapsed / duration, 0), 1)
+        return min(max(liveElapsed / duration, 0), 1)
     }
     var canSeek: Bool { duration > 0.5 }
+
+    func sync(elapsed: Double, duration: Double, isPlaying: Bool) {
+        self.elapsed = max(0, elapsed)
+        self.duration = max(0, duration)
+        self.isAdvancing = isPlaying && duration > 0.5
+        self.lastSyncUptime = ProcessInfo.processInfo.systemUptime
+    }
+
     private init() {}
 }
 
@@ -85,6 +108,11 @@ final class NowPlayingModel: ObservableObject {
     @AppStorage("animatedArtworkStreamsEnabled") var animatedArtworkStreamsEnabled: Bool = true {
         didSet {
             handleAnimatedArtworkSettingChanged()
+        }
+    }
+    @AppStorage("reduceHiddenMemoryUsage") var reduceHiddenMemoryUsage: Bool = false {
+        didSet {
+            handleReducedMemoryUsageSettingChanged()
         }
     }
     @AppStorage("animatedArtworkQualityPolicy") private var animatedArtworkQualityPolicyRaw: String = AnimatedArtworkQualityPolicy.adaptive1080.rawValue {
@@ -365,8 +393,8 @@ final class NowPlayingModel: ObservableObject {
         animatedArtworkStatusMessage = "Ready"
         $isPopoverVisible
             .removeDuplicates()
-            .sink { [weak self] _ in
-                self?.updateAudioPollingTimerIfNeeded()
+            .sink { [weak self] isVisible in
+                self?.handleSurfaceVisibilityChanged(isVisible)
             }
             .store(in: &cancellables)
 
@@ -414,9 +442,12 @@ final class NowPlayingModel: ObservableObject {
     }
 
     var progress: Double { PlaybackClock.shared.progress }
-    var elapsed: Double { PlaybackClock.shared.elapsed }
+    var elapsed: Double { PlaybackClock.shared.liveElapsed }
     var duration: Double { PlaybackClock.shared.duration }
     var canSeek: Bool { PlaybackClock.shared.canSeek }
+    private var shouldReduceTransientMemoryWhileHidden: Bool {
+        reduceHiddenMemoryUsage && !isPopoverVisible
+    }
     var effectiveAnimatedArtworkURL: URL? {
         guard animatedArtworkEnabled,
               animatedArtworkStreamsEnabled else {
@@ -551,6 +582,7 @@ final class NowPlayingModel: ObservableObject {
     func refresh() {
         refreshQueue.async { [weak self] in
             guard let self else { return }
+            let includeArtwork = !self.shouldReduceTransientMemoryWhileHidden
 
             if self.refreshInFlight {
                 self.refreshPending = true
@@ -561,8 +593,8 @@ final class NowPlayingModel: ObservableObject {
             repeat {
                 self.refreshPending = false
 
-                let spotify = self.enableSpotify ? SpotifyProvider.fetch() : nil
-                let music = self.enableMusic ? MusicProvider.fetch() : nil
+                let spotify = self.enableSpotify ? SpotifyProvider.fetch(includeArtwork: includeArtwork) : nil
+                let music = self.enableMusic ? MusicProvider.fetch(includeArtwork: includeArtwork) : nil
 
                 DispatchQueue.main.async { [weak self] in
                     self?.applyFetchedSnapshots(music: music, spotify: spotify)
@@ -582,8 +614,11 @@ final class NowPlayingModel: ObservableObject {
 
         // Keep progress smooth without re-tinting unless track/provider changed
         if let last = lastSnapshot, snapshotsSimilar(last, snap) {
-            PlaybackClock.shared.elapsed = snap.elapsed
-            PlaybackClock.shared.duration = snap.duration
+            PlaybackClock.shared.sync(
+                elapsed: snap.elapsed,
+                duration: snap.duration,
+                isPlaying: snap.isPlaying
+            )
             lastSnapshot = snap
             // Same track: if native provider artwork arrives later (e.g. Spotify URL fetch),
             // promote it over any previously shown fallback art without forcing a full apply().
@@ -644,8 +679,11 @@ final class NowPlayingModel: ObservableObject {
             self.artist = snapshot.artist
             self.album = snapshot.album
             self.isCurrentTrackFavorited = snapshot.provider == .music ? snapshot.isFavorited : false
-            PlaybackClock.shared.elapsed = snapshot.elapsed
-            PlaybackClock.shared.duration = snapshot.duration
+            PlaybackClock.shared.sync(
+                elapsed: snapshot.elapsed,
+                duration: snapshot.duration,
+                isPlaying: snapshot.isPlaying
+            )
             self.artwork = snapshot.artwork
             self.updateTint(from: snapshot.artwork)
             self.configureMarquee()
@@ -673,6 +711,11 @@ final class NowPlayingModel: ObservableObject {
         pendingFallbackWork = nil
 
         guard !snapshot.title.isEmpty else {
+            updateAnimatedArtwork(for: snapshot)
+            return
+        }
+
+        if shouldReduceTransientMemoryWhileHidden {
             updateAnimatedArtwork(for: snapshot)
             return
         }
@@ -1254,6 +1297,58 @@ final class NowPlayingModel: ObservableObject {
         raw.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ""
     }
 
+    private func handleSurfaceVisibilityChanged(_ isVisible: Bool) {
+        updateAudioPollingTimerIfNeeded()
+        guard reduceHiddenMemoryUsage else { return }
+
+        if isVisible {
+            refresh()
+            refreshAnimatedArtworkForCurrentTrack(force: true)
+        } else {
+            releaseTransientMediaForHiddenSurface()
+        }
+    }
+
+    private func handleReducedMemoryUsageSettingChanged() {
+        guard reduceHiddenMemoryUsage else { return }
+        guard !isPopoverVisible else { return }
+        releaseTransientMediaForHiddenSurface()
+    }
+
+    private func releaseTransientMediaForHiddenSurface() {
+        pendingFallbackWork?.cancel()
+        pendingFallbackWork = nil
+        fallbackArtworkTaskKey = nil
+
+        animatedArtworkResolveTask?.cancel()
+        animatedArtworkResolveTask = nil
+        animatedArtworkResolveRequestID = nil
+        animatedArtworkHLSURL = nil
+        animatedArtworkStreamIdentity = ""
+        animatedArtworkState = .none
+        animatedArtworkStatusMessage = "Released while hidden to reduce memory"
+        animatedArtworkLastError = ""
+        animatedArtworkLookupKey = ""
+        lastAnimatedArtworkValidMusicSnapshotAt = .distantPast
+
+        if artwork != nil {
+            artwork = nil
+            updateTint(from: nil)
+        }
+
+        if var cachedSnapshot = lastSnapshot {
+            cachedSnapshot.artwork = nil
+            cachedSnapshot.nativeArtworkState = .none
+            lastSnapshot = cachedSnapshot
+        }
+
+        ArtworkCache.shared.clearMemory()
+        ITunesArtworkLookup.shared.clearMemory()
+        Task {
+            await ITunesMetadataLookup.shared.clearInMemoryCache()
+        }
+    }
+
     private func handleAnimatedArtworkSettingChanged() {
         if !animatedArtworkEnabled || !animatedArtworkStreamsEnabled {
             animatedArtworkResolveTask?.cancel()
@@ -1290,6 +1385,20 @@ final class NowPlayingModel: ObservableObject {
         let isMusicProvider = snapshot.provider == .music
         let isSpotifyProvider = snapshot.provider == .spotify
         let isSupportedProvider = isMusicProvider || isSpotifyProvider
+
+        if shouldReduceTransientMemoryWhileHidden {
+            animatedArtworkResolveTask?.cancel()
+            animatedArtworkResolveTask = nil
+            animatedArtworkResolveRequestID = nil
+            animatedArtworkHLSURL = nil
+            animatedArtworkStreamIdentity = ""
+            animatedArtworkState = .none
+            animatedArtworkStatusMessage = "Released while hidden to reduce memory"
+            animatedArtworkLastError = ""
+            animatedArtworkLookupKey = ""
+            lastAnimatedArtworkValidMusicSnapshotAt = .distantPast
+            return
+        }
 
         if isMusicProvider, !snapshot.title.isEmpty {
             lastAnimatedArtworkValidMusicSnapshotAt = now

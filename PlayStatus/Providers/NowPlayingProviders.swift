@@ -40,7 +40,7 @@ enum MusicProvider {
     private static var cachedArtworkTrackKey: String?
     private static var cachedArtworkImage: NSImage?
 
-    static func fetch() -> NowPlayingSnapshot? {
+    static func fetch(includeArtwork: Bool = true) -> NowPlayingSnapshot? {
         guard providerAppIsRunning(bundleIdentifier: "com.apple.Music") else {
             return nil
         }
@@ -87,7 +87,7 @@ enum MusicProvider {
 
         let trackKey = "\(title)|\(artist)|\(album)"
         var artwork: NSImage? = nil
-        if !title.isEmpty {
+        if includeArtwork, !title.isEmpty {
             if cachedArtworkTrackKey == trackKey, let cachedArtworkImage {
                 artwork = cachedArtworkImage
             } else if isPlaying {
@@ -278,7 +278,7 @@ enum MusicProvider {
 }
 
 enum SpotifyProvider {
-    static func fetch() -> NowPlayingSnapshot? {
+    static func fetch(includeArtwork: Bool = true) -> NowPlayingSnapshot? {
         guard providerAppIsRunning(bundleIdentifier: "com.spotify.client") else {
             return nil
         }
@@ -319,7 +319,7 @@ enum SpotifyProvider {
         let artURLString = parts.count > 6 ? parts[6] : ""
 
         var artwork: NSImage? = nil
-        if let url = URL(string: artURLString), !title.isEmpty {
+        if includeArtwork, let url = URL(string: artURLString), !title.isEmpty {
             artwork = ArtworkCache.shared.image(for: url)
         }
 
@@ -428,6 +428,10 @@ final class ArtworkCache {
         }
 
         return nil
+    }
+
+    func clearMemory() {
+        cache.removeAllObjects()
     }
 }
 
@@ -555,6 +559,10 @@ final class ITunesArtworkLookup {
             await PersistentMediaCache.shared.storeArtworkImage(image, forKey: key)
             completion(image)
         }
+    }
+
+    func clearMemory() {
+        imageCache.removeAllObjects()
     }
 
     private struct SearchCandidate {

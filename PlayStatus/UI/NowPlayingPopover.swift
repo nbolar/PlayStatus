@@ -749,7 +749,7 @@ private struct PlaybackProgressBlock: View {
     var body: some View {
         ProgressBlock(
             progress: clock.progress,
-            elapsed: clock.elapsed,
+            elapsed: clock.liveElapsed,
             duration: clock.duration,
             canSeek: clock.canSeek,
             contrastBoost: contrastBoost,
@@ -1928,15 +1928,15 @@ private struct MiniLyricsToggleControl: View {
 /// Drives lyric line highlight and scroll position from a plain NSTimer without
 /// going through SwiftUI's reactive system (no @Published / @ObservedObject).
 ///
-/// Every timer tick reads PlaybackClock.shared.elapsed directly and computes the
-/// active line. If the active line changed it:
+/// Every timer tick reads PlaybackClock.shared.liveElapsed directly and computes the
+/// active line. Sampling happens more frequently than provider polling, but the view
+/// only re-renders when the resolved active line changes. If the active line changed it:
 ///   1. Calls the onActiveLineChanged closure (which updates a @State var in the view)
 ///   2. Calls the scrollProxy to scroll to the new line
 ///
-/// Because the @State update only fires when the active LINE changes (not every 0.5 s),
-/// the SwiftUI re-render rate is bounded by song structure — typically a few times per
-/// minute, not 120 times per minute. This avoids triggering DesignLibrary's glass
-/// compositor on every tick on macOS 26.
+/// Because the @State update only fires when the active LINE changes, the SwiftUI
+/// re-render rate is bounded by song structure rather than the timer cadence. This
+/// avoids triggering DesignLibrary's glass compositor on every sample on macOS 26.
 private final class LyricsScrollCoordinator {
     var lines: [LyricsLine] = []
     var isTimed: Bool = false
@@ -1946,10 +1946,11 @@ private final class LyricsScrollCoordinator {
 
     private var timer: Timer?
     private var lastActiveLineID: UUID?
+    private let sampleInterval: TimeInterval = 1.0 / 15.0
 
     func start() {
         stop()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: sampleInterval, repeats: true) { [weak self] _ in
             self?.tick()
         }
         RunLoop.main.add(timer!, forMode: .common)
@@ -1962,7 +1963,7 @@ private final class LyricsScrollCoordinator {
     }
 
     private func tick() {
-        let elapsed = PlaybackClock.shared.elapsed
+        let elapsed = PlaybackClock.shared.liveElapsed
         let duration = PlaybackClock.shared.duration
         let newID = computeActiveLineID(elapsed: elapsed, duration: duration)
         guard newID != lastActiveLineID else { return }
