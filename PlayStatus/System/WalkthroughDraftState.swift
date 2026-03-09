@@ -85,9 +85,7 @@ final class WalkthroughPreviewAssets {
     private let imageSize = NSSize(width: 560, height: 560)
     private var cache: [WalkthroughPreviewArtworkKey: NSImage] = [:]
 
-    private init() {
-        prewarm()
-    }
+    private init() {}
 
     func image(for key: WalkthroughPreviewArtworkKey) -> NSImage {
         if let cached = cache[key] {
@@ -104,13 +102,19 @@ final class WalkthroughPreviewAssets {
         return image
     }
 
-    private func prewarm() {
+    func prewarm() {
         for provider in [NowPlayingProvider.music, .spotify] {
             for variant in 0..<4 {
                 let key = WalkthroughPreviewArtworkKey(provider: provider, variant: variant)
-                cache[key] = Self.makeArtwork(provider: provider, variant: variant, size: imageSize)
+                if cache[key] == nil {
+                    cache[key] = Self.makeArtwork(provider: provider, variant: variant, size: imageSize)
+                }
             }
         }
+    }
+
+    func clearMemory() {
+        cache.removeAll(keepingCapacity: false)
     }
 
     private static func makeArtwork(provider: NowPlayingProvider, variant: Int, size: NSSize) -> NSImage {

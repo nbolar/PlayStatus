@@ -1491,6 +1491,7 @@ final class NowPlayingModel: ObservableObject {
             lastSnapshot = cachedSnapshot
         }
 
+        MusicProvider.clearTransientArtworkCache()
         ArtworkCache.shared.clearMemory()
         ITunesArtworkLookup.shared.clearMemory()
         Task {

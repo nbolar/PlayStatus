@@ -8,8 +8,44 @@ struct PlayStatusSettingsView: View {
     @State private var tabDirection: SettingsTabDirection = .forward
     @State private var showAnimatedStreamPreview = false
     @State private var showHoverMotionStylePreview = false
+    @State private var settingsContentLoaded = false
 
     var body: some View {
+        Group {
+            if settingsContentLoaded {
+                settingsContent
+                    .sheet(isPresented: $showAnimatedStreamPreview) {
+                        AnimatedArtworkStreamPreviewSheet(
+                            model: model,
+                            demoStreamURL: defaultAnimatedArtworkDemoStreamURL
+                        )
+                    }
+                    .sheet(isPresented: $showHoverMotionStylePreview) {
+                        HoverMotionStylePreviewSheet(model: model)
+                    }
+            } else {
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(width: settingsWindowSize.width, height: settingsWindowSize.height)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .background(
+            SettingsSceneVisibilityBridge(
+                targetSize: settingsWindowSize,
+                isContentLoaded: $settingsContentLoaded
+            )
+        )
+        .onChange(of: settingsContentLoaded) { _, isLoaded in
+            guard !isLoaded else { return }
+            showAnimatedStreamPreview = false
+            showHoverMotionStylePreview = false
+        }
+        .environment(\.controlActiveState, .key)
+    }
+
+    private var settingsContent: some View {
         HStack(spacing: 0) {
             SettingsSidebar(selectedTab: tabSelection, onboarding: onboarding)
 
@@ -54,19 +90,6 @@ struct PlayStatusSettingsView: View {
                 )
             }
         }
-        .frame(width: settingsWindowSize.width, height: settingsWindowSize.height)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .background(SettingsWindowChromeConfigurator(targetSize: settingsWindowSize))
-        .sheet(isPresented: $showAnimatedStreamPreview) {
-            AnimatedArtworkStreamPreviewSheet(
-                model: model,
-                demoStreamURL: defaultAnimatedArtworkDemoStreamURL
-            )
-        }
-        .sheet(isPresented: $showHoverMotionStylePreview) {
-            HoverMotionStylePreviewSheet(model: model)
-        }
-        .environment(\.controlActiveState, .key)
     }
 
     private var tabSelection: Binding<SettingsTab> {
@@ -663,70 +686,162 @@ private struct HotkeyRecorderRow: View {
     }
 }
 
-private struct SettingsWindowChromeConfigurator: NSViewRepresentable {
+private struct SettingsSceneVisibilityBridge: NSViewRepresentable {
     let targetSize: CGSize
+    @Binding var isContentLoaded: Bool
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(isContentLoaded: $isContentLoaded)
     }
 
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
+    func makeNSView(context: Context) -> SettingsSceneBridgeView {
+        let view = SettingsSceneBridgeView(frame: .zero)
+        view.onWindowChanged = { window in
+            context.coordinator.attach(to: window, targetSize: targetSize)
+        }
         DispatchQueue.main.async {
-            applyConfiguration(from: view, coordinator: context.coordinator)
+            context.coordinator.refresh(targetSize: targetSize)
         }
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
+    func updateNSView(_ nsView: SettingsSceneBridgeView, context: Context) {
+        nsView.onWindowChanged = { window in
+            context.coordinator.attach(to: window, targetSize: targetSize)
+        }
         DispatchQueue.main.async {
-            applyConfiguration(from: nsView, coordinator: context.coordinator)
+            context.coordinator.refresh(targetSize: targetSize)
         }
-    }
-
-    private func applyConfiguration(from view: NSView, coordinator: Coordinator) {
-        guard let window = view.window else { return }
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.styleMask.remove(.fullSizeContentView)
-        window.isMovableByWindowBackground = false
-        window.standardWindowButton(.closeButton)?.isHidden = false
-        window.standardWindowButton(.miniaturizeButton)?.isHidden = false
-        window.standardWindowButton(.zoomButton)?.isHidden = false
-        resizeWindowIfNeeded(window: window, coordinator: coordinator)
-
-        if !coordinator.didActivateWindow {
-            coordinator.didActivateWindow = true
-            NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
-        } else if !window.isKeyWindow {
-            window.makeKeyAndOrderFront(nil)
-        }
-    }
-
-    private func resizeWindowIfNeeded(window: NSWindow, coordinator: Coordinator) {
-        guard coordinator.lastAppliedSize != targetSize else { return }
-
-        var frame = window.frame
-        let oldHeight = frame.height
-        frame.size = targetSize
-        frame.origin.y += oldHeight - targetSize.height
-
-        if coordinator.lastAppliedSize == nil {
-            window.setFrame(frame, display: true)
-        } else {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.24
-                context.allowsImplicitAnimation = true
-                window.animator().setFrame(frame, display: true)
-            }
-        }
-
-        coordinator.lastAppliedSize = targetSize
     }
 
     final class Coordinator {
-        var didActivateWindow = false
+        private var windowObservers: [NSObjectProtocol] = []
+        private weak var window: NSWindow?
+        private var isContentLoaded: Binding<Bool>
         var lastAppliedSize: CGSize?
+
+        init(isContentLoaded: Binding<Bool>) {
+            self.isContentLoaded = isContentLoaded
+        }
+
+        deinit {
+            removeObservers()
+        }
+
+        func attach(to newWindow: NSWindow?, targetSize: CGSize) {
+            guard window !== newWindow else {
+                refresh(targetSize: targetSize)
+                return
+            }
+
+            removeObservers()
+            window = newWindow
+            lastAppliedSize = nil
+
+            guard let newWindow else {
+                updateContentLoaded(false)
+                return
+            }
+
+            let center = NotificationCenter.default
+            windowObservers = [
+                center.addObserver(
+                    forName: NSWindow.didBecomeKeyNotification,
+                    object: newWindow,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.refresh(targetSize: targetSize)
+                },
+                center.addObserver(
+                    forName: NSWindow.didDeminiaturizeNotification,
+                    object: newWindow,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.refresh(targetSize: targetSize)
+                },
+                center.addObserver(
+                    forName: NSWindow.didMiniaturizeNotification,
+                    object: newWindow,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.refresh(targetSize: targetSize)
+                },
+                center.addObserver(
+                    forName: NSWindow.willCloseNotification,
+                    object: newWindow,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.updateContentLoaded(false)
+                }
+            ]
+
+            refresh(targetSize: targetSize)
+        }
+
+        func refresh(targetSize: CGSize) {
+            guard let window else {
+                updateContentLoaded(false)
+                return
+            }
+
+            applyConfiguration(to: window, targetSize: targetSize)
+            updateContentLoaded(window.isVisible && !window.isMiniaturized)
+        }
+
+        private func applyConfiguration(to window: NSWindow, targetSize: CGSize) {
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
+            window.styleMask.remove(.fullSizeContentView)
+            window.isMovableByWindowBackground = false
+            window.standardWindowButton(.closeButton)?.isHidden = false
+            window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+            window.standardWindowButton(.zoomButton)?.isHidden = false
+            resizeWindowIfNeeded(window: window, targetSize: targetSize)
+        }
+
+        private func resizeWindowIfNeeded(window: NSWindow, targetSize: CGSize) {
+            guard lastAppliedSize != targetSize else { return }
+
+            var frame = window.frame
+            let oldHeight = frame.height
+            frame.size = targetSize
+            frame.origin.y += oldHeight - targetSize.height
+
+            if lastAppliedSize == nil {
+                window.setFrame(frame, display: true)
+            } else {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.24
+                    context.allowsImplicitAnimation = true
+                    window.animator().setFrame(frame, display: true)
+                }
+            }
+
+            lastAppliedSize = targetSize
+        }
+
+        private func updateContentLoaded(_ newValue: Bool) {
+            guard isContentLoaded.wrappedValue != newValue else { return }
+            isContentLoaded.wrappedValue = newValue
+        }
+
+        private func removeObservers() {
+            let center = NotificationCenter.default
+            for observer in windowObservers {
+                center.removeObserver(observer)
+            }
+            windowObservers.removeAll(keepingCapacity: false)
+        }
+    }
+}
+
+private final class SettingsSceneBridgeView: NSView {
+    var onWindowChanged: ((NSWindow?) -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        DispatchQueue.main.async { [weak self] in
+            self?.onWindowChanged?(self?.window)
+        }
     }
 }

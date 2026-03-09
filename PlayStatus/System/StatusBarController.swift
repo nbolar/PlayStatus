@@ -24,6 +24,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private var lyricsResizeAnimationEndTime: CFAbsoluteTime = 0
     private var lastAppliedDetachedSize: NSSize = .zero
     private var popoverLayoutUpdateScheduled = false
+    private var surfaceContentLoaded = true
     private let detachedWindowOriginXKey = "detachedWindowOriginX"
     private let detachedWindowOriginYKey = "detachedWindowOriginY"
 
@@ -91,6 +92,14 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateStatusButton() }
+            .store(in: &cancellables)
+
+        model.$isPopoverVisible
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isVisible in
+                self?.handleSurfaceVisibilityStateChanged(isVisible)
+            }
             .store(in: &cancellables)
 
         model.$statusBarConfigRevision
@@ -195,6 +204,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
 
     private func showPopover() {
         guard let button = statusItem?.button else { return }
+        ensureSurfaceContentLoaded()
         hideDetachedWindow()
         updatePopoverLayout()
         model.isPopoverVisible = true
@@ -405,7 +415,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         // Only rebuild the root view when the popover is not yet shown (initial setup).
         // While shown, keep the existing SwiftUI tree and only adjust the outer window
         // frame to avoid transient intermediate layout states.
-        if !popover.isShown {
+        if !popover.isShown, surfaceContentLoaded {
             popoverHost.rootView = AnyView(NowPlayingPopover(model: model))
         }
 
@@ -599,6 +609,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         if popover.isShown {
             popover.performClose(nil)
         }
+        ensureSurfaceContentLoaded()
         let window = ensureDetachedWindow()
         updateDetachedWindowLevel()
         updateDetachedWindowLayout()
@@ -734,6 +745,31 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             return model.miniLyricsEnabled
         }
         return model.showLyricsPanel && model.lyricsPanelExpanded
+    }
+
+    private func handleSurfaceVisibilityStateChanged(_ isVisible: Bool) {
+        if isVisible {
+            ensureSurfaceContentLoaded()
+        } else {
+            unloadSurfaceContentIfPossible()
+        }
+    }
+
+    private func ensureSurfaceContentLoaded() {
+        guard !surfaceContentLoaded else { return }
+        popoverHost.rootView = AnyView(NowPlayingPopover(model: model))
+        detachedHost.rootView = AnyView(NowPlayingPopover(model: model))
+        surfaceContentLoaded = true
+    }
+
+    private func unloadSurfaceContentIfPossible() {
+        guard model.reduceHiddenMemoryUsage else { return }
+        guard !popover.isShown, detachedWindow?.isVisible != true else { return }
+        guard surfaceContentLoaded else { return }
+
+        popoverHost.rootView = AnyView(EmptyView())
+        detachedHost.rootView = AnyView(EmptyView())
+        surfaceContentLoaded = false
     }
 
 }

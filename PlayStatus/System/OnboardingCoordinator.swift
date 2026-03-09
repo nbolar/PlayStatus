@@ -146,8 +146,6 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
     private var isClosingWalkthroughWindow = false
     private var coachmarkAvailability: [CoachmarkID: Bool] = [:]
     private var dismissedCoachmarks = Set<CoachmarkID>()
-    private let walkthroughPreviewAssets = WalkthroughPreviewAssets.shared
-
     private override init() {
         super.init()
         loadDismissedCoachmarks()
@@ -174,7 +172,7 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
 
         presentedMode = resolvedMode
         walkthroughDraftState = WalkthroughDraftState(model: .shared)
-        _ = walkthroughPreviewAssets
+        WalkthroughPreviewAssets.shared.prewarm()
         let steps = resolvedMode.steps
         currentStep = preferredStep.flatMap { steps.contains($0) ? $0 : nil } ?? steps.first ?? .welcome
         activeCoachmark = nil
@@ -402,6 +400,7 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
         self.walkthroughWindow = nil
         walkthroughHost = nil
         walkthroughDraftState = nil
+        WalkthroughPreviewAssets.shared.clearMemory()
         presentedMode = nil
     }
 
@@ -469,6 +468,7 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
         walkthroughWindow = nil
         walkthroughHost = nil
         walkthroughDraftState = nil
+        WalkthroughPreviewAssets.shared.clearMemory()
         if !isClosingWalkthroughWindow {
             markExperienceSeen()
         }

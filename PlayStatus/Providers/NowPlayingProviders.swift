@@ -244,6 +244,11 @@ enum MusicProvider {
         _ = runAppleScript(#"tell application "Music" to set player position to "# + "\(s)")
     }
 
+    static func clearTransientArtworkCache() {
+        cachedArtworkTrackKey = nil
+        cachedArtworkImage = nil
+    }
+
     static func searchAndPlay(query: String) {
         let escaped = query
             .replacingOccurrences(of: "\\", with: "\\\\")
