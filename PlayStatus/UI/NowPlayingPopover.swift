@@ -72,7 +72,7 @@ struct NowPlayingPopover: View {
         .onPreferenceChange(SearchSectionFramePreferenceKey.self) { frame in
             updateSearchSectionFrame(frame)
         }
-        .onChange(of: model.provider) { _ in
+        .onChange(of: model.provider) { _, _ in
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 isSearchFocused = false
                 withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.86, blendDuration: 0.12)) {
@@ -80,7 +80,7 @@ struct NowPlayingPopover: View {
                 }
             }
         }
-        .onChange(of: model.miniMode) { miniMode in
+        .onChange(of: model.miniMode) { _, miniMode in
             beginModeTransition()
             withAnimation(modeMorphAnimation) {
                 displayedMiniMode = miniMode
@@ -105,7 +105,7 @@ struct NowPlayingPopover: View {
             }
             updateCoachmarkAvailability()
         }
-        .onChange(of: model.lyricsPanelExpanded) { _ in
+        .onChange(of: model.lyricsPanelExpanded) { _, _ in
             syncRenderedRegularDetailsPane(for: regularDetailsRequested)
         }
         .onAppear {
@@ -121,10 +121,10 @@ struct NowPlayingPopover: View {
             regularPointerHovering = false
             clearCoachmarkAvailability()
         }
-        .onChange(of: model.surfaceMode) { _ in
+        .onChange(of: model.surfaceMode) { _, _ in
             updateCoachmarkAvailability()
         }
-        .onChange(of: model.resolvedSearchProvider) { _ in
+        .onChange(of: model.resolvedSearchProvider) { _, _ in
             updateCoachmarkAvailability()
         }
         .simultaneousGesture(
@@ -197,259 +197,24 @@ struct NowPlayingPopover: View {
         let interactiveRegularControlsVisible = regularPointerHovering || forceCoachmarkControlsVisible
 
         return VStack(spacing: 0) {
-            LiquidGlassCard(
-                tint: model.glassTint,
-                palette: model.cardBackgroundPalette,
-                readabilityBoost: regularControlContrastBoost,
-                transparencyMultiplier: regularDetachedTransparencyMultiplier
-            ) {
-            VStack(spacing: 8) {
-                HStack(alignment: .center, spacing: 16) {
-                    AnimatedArtworkView(
-                        image: model.artwork,
-                        tint: model.glassTint,
-                        isEnabled: false,
-                        seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
-                        style: model.artworkMotionStyle,
-                        animatedArtworkURL: model.effectiveAnimatedArtworkURL,
-                        animatedArtworkIsVisible: model.isPopoverVisible,
-                        animateOnFirstAppear: !modeTransitionActive
-                    )
-                        .frame(width: regularArtworkSize, height: regularArtworkSize)
-                        .animatedArtworkMotion(
-                            isEnabled: model.animatedArtworkEnabled,
-                            seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
-                            style: model.artworkMotionStyle,
-                            isPlaying: model.isPlaying,
-                            hasAnimatedStream: model.effectiveAnimatedArtworkURL != nil,
-                            tint: model.glassTint,
-                            artworkImage: model.artwork
-                        )
-                        .matchedGeometryEffect(id: "heroArtwork", in: artworkMorphNamespace)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Button(action: { model.openProviderApp() }) {
-                                NowPlayingTitleMarquee(
-                                    text: model.displayTitle,
-                                    enabled: true,
-                                    isVisible: model.isPopoverVisible,
-                                    laneWidth: regularMarqueeLaneWidth
-                                )
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-
-                            NowPlayingSecondaryMarquee(
-                                text: model.artistAlbumLine,
-                                enabled: true,
-                                isVisible: model.isPopoverVisible,
-                                laneWidth: regularMarqueeLaneWidth,
-                                usesSecondaryStyle: false
-                            )
-
-                            PlaybackProgressBlock(
-                                contrastBoost: regularControlContrastBoost,
-                                onSeek: { model.seek(to: $0) }
-                            )
-                        }
-                        .opacity(modePrimaryContentVisible ? 1 : 0)
-                        .offset(y: modePrimaryContentVisible ? 0 : 8)
-                        .animation(modePrimaryRevealAnimation, value: modePrimaryContentVisible)
-
-                        VStack(spacing: 0) {
-                            HStack {
-                                Spacer(minLength: 0)
-                                ControlsRow(
-                                    isPlaying: model.isPlaying,
-                                    onPrev: { model.previousTrack() },
-                                    onPlayPause: { model.playPause() },
-                                    onNext: { model.nextTrack() },
-                                    contrastBoost: regularControlContrastBoost,
-                                    controlScale: regularDetachedControlScale
-                                )
-                                Spacer(minLength: 0)
-                            }
-                            .padding(.top, 2)
-
-                            OutputControlsRow(
-                                model: model,
-                                showDeviceName: true,
-                                contrastBoost: regularControlContrastBoost,
-                                controlScale: regularDetachedControlScale,
-                                showFavorite: model.canFavoriteCurrentTrack,
-                                favoriteIsActive: model.isCurrentTrackFavorited,
-                                favoritePulseToken: model.favoriteActionPulseToken,
-                                onFavorite: { _ = model.toggleCurrentTrackFavorite() }
-                            )
-                            .padding(.top, 4)
-                        }
-                        .opacity(modeSecondaryContentVisible ? 1 : 0)
-                        .offset(y: modeSecondaryContentVisible ? 0 : 10)
-                        .animation(modeSecondaryRevealAnimation, value: modeSecondaryContentVisible)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                if model.resolvedSearchProvider != .none {
-                    HStack {
-                        Spacer(minLength: 0)
-                        searchSection(
-                            maxWidth: min(280, max(170, renderedPopoverWidth * 0.50)),
-                            contrastBoost: regularControlContrastBoost,
-                            controlScale: regularDetachedControlScale
-                        )
-                    }
-                    .padding(.trailing, -searchTrailingAlignmentNudge)
-                    .padding(.top, -24)
-                    .padding(.bottom, -12)
-                    .opacity(modeSecondaryContentVisible ? 1 : 0)
-                    .offset(y: modeSecondaryContentVisible ? 0 : 10)
-                    .animation(modeSecondaryRevealAnimation, value: modeSecondaryContentVisible)
-                }
-
-            }
-            }
+            regularPrimaryCard(
+                regularMarqueeLaneWidth: regularMarqueeLaneWidth,
+                regularControlContrastBoost: regularControlContrastBoost,
+                regularDetachedControlScale: regularDetachedControlScale,
+                searchTrailingAlignmentNudge: searchTrailingAlignmentNudge
+            )
             .frame(height: baseRegularHeight, alignment: .top)
             .overlay(alignment: .topTrailing) {
-                HStack(spacing: 6 * regularDetachedControlScale) {
-                    ModeToggleControl(
-                        isMiniMode: false,
-                        transitionActive: modeTransitionActive,
-                        contrastBoost: regularControlContrastBoost,
-                        sizeScale: regularDetachedControlScale
-                    ) {
-                        prepareModeTransition(to: true)
-                        withAnimation(modeMorphAnimation) {
-                            pendingMiniInitialExpand = true
-                            model.miniMode = true
-                        }
-                    }
-                    .overlay(alignment: .bottomTrailing) {
-                        if showModeCoachmark {
-                            CoachmarkBubble(
-                                coachmark: .modeToggle,
-                                accent: Color(red: 0.44, green: 0.71, blue: 0.97)
-                            ) {
-                                onboarding.dismissCoachmark(.modeToggle)
-                            }
-                            .offset(x: 16, y: 42)
-                        }
-                    }
-                    .opacity(restingRegularControlOpacity)
-
-                    if regularPointerHovering || showDetachedCoachmark {
-                        DetachedSurfaceToggleControl(
-                            isDetachedMode: model.surfaceMode == .detached,
-                            transitionActive: modeTransitionActive,
-                            contrastBoost: regularControlContrastBoost,
-                            sizeScale: regularDetachedControlScale
-                        ) {
-                            model.requestToggleDetachedMode()
-                        }
-                        .transition(.opacity.combined(with: .move(edge: .trailing)))
-                    }
-
-                    if model.surfaceMode == .detached {
-                        if regularPointerHovering || showDetachedCoachmark {
-                            DetachedWindowPinControl(
-                                isPinned: model.detachedWindowAlwaysOnTop,
-                                transitionActive: modeTransitionActive,
-                                contrastBoost: regularControlContrastBoost,
-                                sizeScale: regularDetachedControlScale
-                            ) {
-                                model.detachedWindowAlwaysOnTop.toggle()
-                            }
-                            .overlay(alignment: .bottomTrailing) {
-                                if showDetachedCoachmark {
-                                    CoachmarkBubble(
-                                        coachmark: .detachedControls,
-                                        accent: Color(red: 0.53, green: 0.83, blue: 0.63)
-                                    ) {
-                                        onboarding.dismissCoachmark(.detachedControls)
-                                    }
-                                    .offset(x: 18, y: 42)
-                                }
-                            }
-                            .transition(.opacity.combined(with: .move(edge: .trailing)))
-
-                            DetachedWindowCloseControl(
-                                transitionActive: modeTransitionActive,
-                                contrastBoost: regularControlContrastBoost,
-                                sizeScale: regularDetachedControlScale
-                            ) {
-                                model.requestCloseDetachedWindow()
-                            }
-                            .transition(.opacity.combined(with: .move(edge: .trailing)))
-                        }
-                    }
-
-                    if regularPointerHovering || restingRegularDetailTab == .lyrics || showDetailsCoachmark {
-                        RegularDetailToggleControl(
-                            isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .lyrics,
-                            systemName: model.selectedRegularDetailsTab == .lyrics && model.lyricsPanelExpanded ? "quote.bubble.fill" : "quote.bubble",
-                            helpText: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .lyrics ? "Hide lyrics" : "Show lyrics",
-                            transitionActive: modeTransitionActive,
-                            contrastBoost: regularControlContrastBoost,
-                            sizeScale: regularDetachedControlScale
-                        ) {
-                            toggleRegularDetails(tab: .lyrics)
-                        }
-                        .overlay(alignment: .bottomTrailing) {
-                            if showDetailsCoachmark {
-                                CoachmarkBubble(
-                                    coachmark: .detailsToggle,
-                                    accent: Color(red: 0.87, green: 0.54, blue: 0.77)
-                                ) {
-                                    onboarding.dismissCoachmark(.detailsToggle)
-                                }
-                                .offset(x: 18, y: 42)
-                            }
-                        }
-                        .opacity(interactiveRegularControlsVisible ? 1 : restingRegularControlOpacity)
-                    }
-
-                    if regularPointerHovering || restingRegularDetailTab == .credits {
-                        RegularDetailToggleControl(
-                            isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits,
-                            systemName: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits ? "info.circle.fill" : "info.circle",
-                            helpText: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits ? "Hide credits" : "Show credits",
-                            transitionActive: modeTransitionActive,
-                            contrastBoost: regularControlContrastBoost,
-                            sizeScale: regularDetachedControlScale
-                        ) {
-                            toggleRegularDetails(tab: .credits)
-                        }
-                        .opacity(regularPointerHovering ? 1 : restingRegularControlOpacity)
-                    }
-
-                    if regularPointerHovering {
-                        SettingsOpenControl {
-                            Image(systemName: "gearshape.fill")
-                                .font(.system(size: 16 * regularDetachedControlScale, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.94))
-                                .frame(
-                                    width: 24 * regularDetachedControlScale,
-                                    height: 24 * regularDetachedControlScale
-                                )
-                                .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * regularControlContrastBoost)))))
-                                .overlay(
-                                    Circle()
-                                        .stroke(.white.opacity(min(0.28, 0.16 + (0.08 * regularControlContrastBoost))), lineWidth: 1)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .hoverHint("Settings", enabled: !modeTransitionActive)
-                        .transition(.opacity.combined(with: .move(edge: .trailing)))
-                    }
-                }
-                .padding(.top, 8 * regularDetachedControlScale)
-                .padding(.trailing, 14 * regularDetachedControlScale)
-                .opacity(modeSecondaryContentVisible ? 1 : 0)
-                .offset(y: modeSecondaryContentVisible ? 0 : -8)
-                .allowsHitTesting(modeSecondaryContentVisible)
-                .animation(.easeInOut(duration: 0.16), value: interactiveRegularControlsVisible)
-                .animation(modeSecondaryRevealAnimation, value: modeSecondaryContentVisible)
+                regularTrailingControls(
+                    contrastBoost: regularControlContrastBoost,
+                    controlScale: regularDetachedControlScale,
+                    restingRegularDetailTab: restingRegularDetailTab,
+                    restingRegularControlOpacity: restingRegularControlOpacity,
+                    interactiveRegularControlsVisible: interactiveRegularControlsVisible,
+                    showModeCoachmark: showModeCoachmark,
+                    showDetailsCoachmark: showDetailsCoachmark,
+                    showDetachedCoachmark: showDetachedCoachmark
+                )
             }
 
             if shouldRenderRegularDetailsPane {
@@ -477,38 +242,382 @@ struct NowPlayingPopover: View {
             }
         )
         .overlay {
-            MiniCardPointerTrackingOverlay(enabled: true) { hovering in
-                withAnimation(.easeInOut(duration: 0.16)) {
-                    regularPointerHovering = hovering
-                }
-            }
-            .allowsHitTesting(false)
+            regularPointerTrackingOverlay
         }
     }
 
-//    private var header: some View {
-//        HStack(alignment: .center, spacing: 10) {
-//            Text("Now Playing")
-//                .font(.system(size: 13, weight: .semibold, design: .rounded))
-//                .foregroundStyle(.primary.opacity(0.85))
-//
-//            Spacer()
-//
-//            HStack(spacing: 6) {
-//                Circle()
-//                    .frame(width: 6, height: 6)
-//                    .foregroundStyle(model.isPlaying ? .green : .secondary)
-//
-//                Text(model.statusLine)
-//                    .font(.system(size: 11, weight: .medium, design: .rounded))
-//                    .foregroundStyle(.secondary)
-//            }
-//            .padding(.horizontal, 10)
-//            .padding(.vertical, 6)
-//            .background(.ultraThinMaterial, in: Capsule())
-//            .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 1))
-//        }
-//    }
+    private func regularPrimaryCard(
+        regularMarqueeLaneWidth: CGFloat,
+        regularControlContrastBoost: Double,
+        regularDetachedControlScale: CGFloat,
+        searchTrailingAlignmentNudge: CGFloat
+    ) -> some View {
+        LiquidGlassCard(
+            tint: model.glassTint,
+            palette: model.cardBackgroundPalette,
+            readabilityBoost: regularControlContrastBoost,
+            transparencyMultiplier: model.surfaceMode == .detached ? 0.80 : 1.0
+        ) {
+            VStack(spacing: 8) {
+                regularHeroRow(
+                    regularMarqueeLaneWidth: regularMarqueeLaneWidth,
+                    regularControlContrastBoost: regularControlContrastBoost,
+                    regularDetachedControlScale: regularDetachedControlScale
+                )
+
+                regularSearchLane(
+                    contrastBoost: regularControlContrastBoost,
+                    controlScale: regularDetachedControlScale,
+                    searchTrailingAlignmentNudge: searchTrailingAlignmentNudge
+                )
+            }
+        }
+    }
+
+    private func regularHeroRow(
+        regularMarqueeLaneWidth: CGFloat,
+        regularControlContrastBoost: Double,
+        regularDetachedControlScale: CGFloat
+    ) -> some View {
+        HStack(alignment: .center, spacing: 16) {
+            regularArtworkTile
+
+            VStack(alignment: .leading, spacing: 6) {
+                regularMetadataColumn(
+                    regularMarqueeLaneWidth: regularMarqueeLaneWidth,
+                    regularControlContrastBoost: regularControlContrastBoost
+                )
+
+                regularControlsColumn(
+                    regularControlContrastBoost: regularControlContrastBoost,
+                    regularDetachedControlScale: regularDetachedControlScale
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var regularArtworkTile: some View {
+        AnimatedArtworkView(
+            image: model.artwork,
+            tint: model.glassTint,
+            isEnabled: false,
+            seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
+            style: model.artworkMotionStyle,
+            animatedArtworkURL: model.effectiveAnimatedArtworkURL,
+            animatedArtworkIsVisible: model.isPopoverVisible,
+            animateOnFirstAppear: !modeTransitionActive
+        )
+        .frame(width: regularArtworkSize, height: regularArtworkSize)
+        .animatedArtworkMotion(
+            isEnabled: model.animatedArtworkEnabled,
+            seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
+            style: model.artworkMotionStyle,
+            isPlaying: model.isPlaying,
+            hasAnimatedStream: model.effectiveAnimatedArtworkURL != nil,
+            tint: model.glassTint,
+            artworkImage: model.artwork
+        )
+        .matchedGeometryEffect(id: "heroArtwork", in: artworkMorphNamespace)
+    }
+
+    private func regularMetadataColumn(
+        regularMarqueeLaneWidth: CGFloat,
+        regularControlContrastBoost: Double
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button(action: { model.openProviderApp() }) {
+                NowPlayingTitleMarquee(
+                    text: model.displayTitle,
+                    enabled: true,
+                    isVisible: model.isPopoverVisible,
+                    laneWidth: regularMarqueeLaneWidth
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            NowPlayingSecondaryMarquee(
+                text: model.artistAlbumLine,
+                enabled: true,
+                isVisible: model.isPopoverVisible,
+                laneWidth: regularMarqueeLaneWidth,
+                usesSecondaryStyle: false
+            )
+
+            PlaybackProgressBlock(
+                contrastBoost: regularControlContrastBoost,
+                onSeek: { model.seek(to: $0) }
+            )
+        }
+        .opacity(modePrimaryContentVisible ? 1 : 0)
+        .offset(y: modePrimaryContentVisible ? 0 : 8)
+        .animation(modePrimaryRevealAnimation, value: modePrimaryContentVisible)
+    }
+
+    private func regularControlsColumn(
+        regularControlContrastBoost: Double,
+        regularDetachedControlScale: CGFloat
+    ) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer(minLength: 0)
+                ControlsRow(
+                    isPlaying: model.isPlaying,
+                    onPrev: { model.previousTrack() },
+                    onPlayPause: { model.playPause() },
+                    onNext: { model.nextTrack() },
+                    contrastBoost: regularControlContrastBoost,
+                    controlScale: regularDetachedControlScale
+                )
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 2)
+
+            OutputControlsRow(
+                model: model,
+                showDeviceName: true,
+                contrastBoost: regularControlContrastBoost,
+                controlScale: regularDetachedControlScale,
+                showFavorite: model.canFavoriteCurrentTrack,
+                favoriteIsActive: model.isCurrentTrackFavorited,
+                favoritePulseToken: model.favoriteActionPulseToken,
+                onFavorite: { _ = model.toggleCurrentTrackFavorite() }
+            )
+            .padding(.top, 4)
+        }
+        .opacity(modeSecondaryContentVisible ? 1 : 0)
+        .offset(y: modeSecondaryContentVisible ? 0 : 10)
+        .animation(modeSecondaryRevealAnimation, value: modeSecondaryContentVisible)
+    }
+
+    @ViewBuilder
+    private func regularSearchLane(
+        contrastBoost: Double,
+        controlScale: CGFloat,
+        searchTrailingAlignmentNudge: CGFloat
+    ) -> some View {
+        if model.resolvedSearchProvider != .none {
+            HStack {
+                Spacer(minLength: 0)
+                searchSection(
+                    maxWidth: min(280, max(170, renderedPopoverWidth * 0.50)),
+                    contrastBoost: contrastBoost,
+                    controlScale: controlScale
+                )
+            }
+            .padding(.trailing, -searchTrailingAlignmentNudge)
+            .padding(.top, -24)
+            .padding(.bottom, -12)
+            .opacity(modeSecondaryContentVisible ? 1 : 0)
+            .offset(y: modeSecondaryContentVisible ? 0 : 10)
+            .animation(modeSecondaryRevealAnimation, value: modeSecondaryContentVisible)
+        }
+    }
+
+    private func regularTrailingControls(
+        contrastBoost: Double,
+        controlScale: CGFloat,
+        restingRegularDetailTab: DetailsPaneTab,
+        restingRegularControlOpacity: Double,
+        interactiveRegularControlsVisible: Bool,
+        showModeCoachmark: Bool,
+        showDetailsCoachmark: Bool,
+        showDetachedCoachmark: Bool
+    ) -> some View {
+        HStack(spacing: 6 * controlScale) {
+            regularModeToggle(
+                contrastBoost: contrastBoost,
+                controlScale: controlScale,
+                restingRegularControlOpacity: restingRegularControlOpacity,
+                showModeCoachmark: showModeCoachmark
+            )
+
+            regularDetachedControls(
+                contrastBoost: contrastBoost,
+                controlScale: controlScale,
+                showDetachedCoachmark: showDetachedCoachmark
+            )
+
+            regularDetailControls(
+                contrastBoost: contrastBoost,
+                controlScale: controlScale,
+                restingRegularDetailTab: restingRegularDetailTab,
+                restingRegularControlOpacity: restingRegularControlOpacity,
+                interactiveRegularControlsVisible: interactiveRegularControlsVisible,
+                showDetailsCoachmark: showDetailsCoachmark
+            )
+
+            if regularPointerHovering {
+                regularSettingsControl(contrastBoost: contrastBoost, controlScale: controlScale)
+            }
+        }
+        .padding(.top, 8 * controlScale)
+        .padding(.trailing, 14 * controlScale)
+        .opacity(modeSecondaryContentVisible ? 1 : 0)
+        .offset(y: modeSecondaryContentVisible ? 0 : -8)
+        .allowsHitTesting(modeSecondaryContentVisible)
+        .animation(.easeInOut(duration: 0.16), value: interactiveRegularControlsVisible)
+        .animation(modeSecondaryRevealAnimation, value: modeSecondaryContentVisible)
+    }
+
+    private func regularModeToggle(
+        contrastBoost: Double,
+        controlScale: CGFloat,
+        restingRegularControlOpacity: Double,
+        showModeCoachmark: Bool
+    ) -> some View {
+        ModeToggleControl(
+            isMiniMode: false,
+            transitionActive: modeTransitionActive,
+            contrastBoost: contrastBoost,
+            sizeScale: controlScale
+        ) {
+            prepareModeTransition(to: true)
+            withAnimation(modeMorphAnimation) {
+                pendingMiniInitialExpand = true
+                model.miniMode = true
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if showModeCoachmark {
+                CoachmarkBubble(
+                    coachmark: .modeToggle,
+                    accent: Color(red: 0.44, green: 0.71, blue: 0.97)
+                ) {
+                    onboarding.dismissCoachmark(.modeToggle)
+                }
+                .offset(x: 16, y: 42)
+            }
+        }
+        .opacity(restingRegularControlOpacity)
+    }
+
+    @ViewBuilder
+    private func regularDetachedControls(
+        contrastBoost: Double,
+        controlScale: CGFloat,
+        showDetachedCoachmark: Bool
+    ) -> some View {
+        if regularPointerHovering || showDetachedCoachmark {
+            DetachedSurfaceToggleControl(
+                isDetachedMode: model.surfaceMode == .detached,
+                transitionActive: modeTransitionActive,
+                contrastBoost: contrastBoost,
+                sizeScale: controlScale
+            ) {
+                model.requestToggleDetachedMode()
+            }
+            .transition(.opacity.combined(with: .move(edge: .trailing)))
+        }
+
+        if model.surfaceMode == .detached && (regularPointerHovering || showDetachedCoachmark) {
+            DetachedWindowPinControl(
+                isPinned: model.detachedWindowAlwaysOnTop,
+                transitionActive: modeTransitionActive,
+                contrastBoost: contrastBoost,
+                sizeScale: controlScale
+            ) {
+                model.detachedWindowAlwaysOnTop.toggle()
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if showDetachedCoachmark {
+                    CoachmarkBubble(
+                        coachmark: .detachedControls,
+                        accent: Color(red: 0.53, green: 0.83, blue: 0.63)
+                    ) {
+                        onboarding.dismissCoachmark(.detachedControls)
+                    }
+                    .offset(x: 18, y: 42)
+                }
+            }
+            .transition(.opacity.combined(with: .move(edge: .trailing)))
+
+            DetachedWindowCloseControl(
+                transitionActive: modeTransitionActive,
+                contrastBoost: contrastBoost,
+                sizeScale: controlScale
+            ) {
+                model.requestCloseDetachedWindow()
+            }
+            .transition(.opacity.combined(with: .move(edge: .trailing)))
+        }
+    }
+
+    @ViewBuilder
+    private func regularDetailControls(
+        contrastBoost: Double,
+        controlScale: CGFloat,
+        restingRegularDetailTab: DetailsPaneTab,
+        restingRegularControlOpacity: Double,
+        interactiveRegularControlsVisible: Bool,
+        showDetailsCoachmark: Bool
+    ) -> some View {
+        if regularPointerHovering || restingRegularDetailTab == .lyrics || showDetailsCoachmark {
+            RegularDetailToggleControl(
+                isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .lyrics,
+                systemName: model.selectedRegularDetailsTab == .lyrics && model.lyricsPanelExpanded ? "quote.bubble.fill" : "quote.bubble",
+                helpText: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .lyrics ? "Hide lyrics" : "Show lyrics",
+                transitionActive: modeTransitionActive,
+                contrastBoost: contrastBoost,
+                sizeScale: controlScale
+            ) {
+                toggleRegularDetails(tab: .lyrics)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if showDetailsCoachmark {
+                    CoachmarkBubble(
+                        coachmark: .detailsToggle,
+                        accent: Color(red: 0.87, green: 0.54, blue: 0.77)
+                    ) {
+                        onboarding.dismissCoachmark(.detailsToggle)
+                    }
+                    .offset(x: 18, y: 42)
+                }
+            }
+            .opacity(interactiveRegularControlsVisible ? 1 : restingRegularControlOpacity)
+        }
+
+        if regularPointerHovering || restingRegularDetailTab == .credits {
+            RegularDetailToggleControl(
+                isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits,
+                systemName: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits ? "info.circle.fill" : "info.circle",
+                helpText: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits ? "Hide credits" : "Show credits",
+                transitionActive: modeTransitionActive,
+                contrastBoost: contrastBoost,
+                sizeScale: controlScale
+            ) {
+                toggleRegularDetails(tab: .credits)
+            }
+            .opacity(regularPointerHovering ? 1 : restingRegularControlOpacity)
+        }
+    }
+
+    private func regularSettingsControl(contrastBoost: Double, controlScale: CGFloat) -> some View {
+        SettingsOpenControl {
+            Image(systemName: "gearshape.fill")
+                .font(.system(size: 16 * controlScale, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.94))
+                .frame(width: 24 * controlScale, height: 24 * controlScale)
+                .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * contrastBoost)))))
+                .overlay(
+                    Circle()
+                        .stroke(.white.opacity(min(0.28, 0.16 + (0.08 * contrastBoost))), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .hoverHint("Settings", enabled: !modeTransitionActive)
+        .transition(.opacity.combined(with: .move(edge: .trailing)))
+    }
+
+    private var regularPointerTrackingOverlay: some View {
+        MiniCardPointerTrackingOverlay(enabled: true) { hovering in
+            withAnimation(.easeInOut(duration: 0.16)) {
+                regularPointerHovering = hovering
+            }
+        }
+        .allowsHitTesting(false)
+    }
 
     private func searchSection(maxWidth: CGFloat, contrastBoost: Double, controlScale: CGFloat = 1) -> some View {
         let searchProvider = model.resolvedSearchProvider
@@ -626,7 +735,7 @@ struct NowPlayingPopover: View {
                 )
             }
         )
-        .onChange(of: isSearchFocused) { focused in
+        .onChange(of: isSearchFocused) { _, focused in
             if !focused && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 withAnimation(spring) {
                     isSearchExpanded = false
@@ -761,6 +870,138 @@ private struct TopRoundedBandShape: Shape {
     }
 }
 
+private struct MiniControlClusterChrome: View {
+    let sizeScale: CGFloat
+    let neutralWashOpacity: Double
+    let blueFogOpacity: Double
+
+    private var capsule: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 12 * sizeScale, style: .continuous)
+    }
+
+    private var shadowWash: some View {
+        capsule.fill(Color.black.opacity(0.30))
+    }
+
+    private var neutralWash: some View {
+        capsule.fill(
+            Color(red: 0.60, green: 0.66, blue: 0.74)
+                .opacity(neutralWashOpacity * 0.62)
+        )
+    }
+
+    private var blueWash: some View {
+        capsule.fill(
+            Color(red: 0.52, green: 0.61, blue: 0.76)
+                .opacity(blueFogOpacity * 0.58)
+        )
+    }
+
+    private var lowerShade: some View {
+        capsule.fill(
+            LinearGradient(
+                colors: [
+                    .black.opacity(0.12),
+                    .black.opacity(0.03),
+                    .clear
+                ],
+                startPoint: .bottom,
+                endPoint: .top
+            )
+        )
+    }
+
+    private var upperGloss: some View {
+        capsule.fill(
+            LinearGradient(
+                colors: [.white.opacity(0.16), .white.opacity(0.03), .clear],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+
+    var body: some View {
+        capsule
+            .fill(.ultraThinMaterial)
+            .overlay(shadowWash)
+            .overlay(neutralWash)
+            .overlay(blueWash)
+            .overlay(lowerShade)
+            .overlay(upperGloss)
+            .overlay(capsule.stroke(.white.opacity(0.18), lineWidth: 1))
+    }
+}
+
+private struct MiniBottomPanelChrome: View {
+    let sizeScale: CGFloat
+    let emphasis: Double
+    let neutralWashOpacity: Double
+    let blueFogOpacity: Double
+
+    private var clampedEmphasis: Double {
+        min(max(emphasis, 0), 1)
+    }
+
+    private var panel: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 18 * sizeScale, style: .continuous)
+    }
+
+    private var baseFill: some View {
+        panel.fill(Color.black.opacity(0.22 + (0.18 * clampedEmphasis)))
+    }
+
+    private var neutralWash: some View {
+        panel.fill(
+            Color(red: 0.60, green: 0.66, blue: 0.74)
+                .opacity(neutralWashOpacity * (0.42 - (0.10 * clampedEmphasis)))
+        )
+    }
+
+    private var blueWash: some View {
+        panel.fill(
+            Color(red: 0.52, green: 0.61, blue: 0.76)
+                .opacity(blueFogOpacity * (0.44 - (0.12 * clampedEmphasis)))
+        )
+    }
+
+    private var topGloss: some View {
+        panel.fill(
+            LinearGradient(
+                colors: [
+                    .white.opacity(0.10),
+                    .white.opacity(0.03),
+                    .clear
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+
+    private var lowerShade: some View {
+        panel.fill(
+            LinearGradient(
+                colors: [
+                    .clear,
+                    .black.opacity(0.18 + (0.10 * clampedEmphasis))
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+
+    var body: some View {
+        baseFill
+            .overlay(neutralWash)
+            .overlay(blueWash)
+            .overlay(topGloss)
+            .overlay(lowerShade)
+            .overlay(panel.stroke(.white.opacity(0.14 + (0.06 * clampedEmphasis)), lineWidth: 1))
+    }
+}
+
 private extension View {
     @ViewBuilder
     func forceHideScrollIndicators() -> some View {
@@ -780,57 +1021,15 @@ private extension View {
         neutralWashOpacity: Double,
         blueFogOpacity: Double
     ) -> some View {
-        let cornerRadius = 12 * sizeScale
-        let capsule = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-
         return self
             .padding(.horizontal, 6 * sizeScale)
             .padding(.vertical, 5 * sizeScale)
             .background(
-                capsule
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        capsule.fill(Color.black.opacity(0.30))
-                    )
-                    .overlay(
-                        capsule.fill(
-                            Color(red: 0.60, green: 0.66, blue: 0.74)
-                                .opacity(neutralWashOpacity * 0.62)
-                        )
-                    )
-                    .overlay(
-                        capsule.fill(
-                            Color(red: 0.52, green: 0.61, blue: 0.76)
-                                .opacity(blueFogOpacity * 0.58)
-                        )
-                    )
-                    .overlay(
-                        capsule.fill(
-                            LinearGradient(
-                                colors: [
-                                    .black.opacity(0.12),
-                                    .black.opacity(0.03),
-                                    .clear
-                                ],
-                                startPoint: .bottom,
-                                endPoint: .top
-                            )
-                        )
-                    )
-                    .overlay(
-                        capsule
-                            .fill(
-                                LinearGradient(
-                                    colors: [.white.opacity(0.16), .white.opacity(0.03), .clear],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                    )
-                    .overlay(
-                        capsule
-                            .stroke(.white.opacity(0.18), lineWidth: 1)
-                    )
+                MiniControlClusterChrome(
+                    sizeScale: sizeScale,
+                    neutralWashOpacity: neutralWashOpacity,
+                    blueFogOpacity: blueFogOpacity
+                )
             )
             .shadow(color: .black.opacity(0.26), radius: 7 * sizeScale, x: 0, y: 2 * sizeScale)
     }
@@ -843,60 +1042,19 @@ private extension View {
         contentHorizontalPadding: CGFloat,
         contentVerticalPadding: CGFloat
     ) -> some View {
-        let cornerRadius = 18 * sizeScale
-        let clampedEmphasis = min(max(emphasis, 0), 1)
-        let panel = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-
         return self
             .padding(.horizontal, contentHorizontalPadding)
             .padding(.vertical, contentVerticalPadding)
             .background(
-                panel
-                    .fill(Color.black.opacity(0.22 + (0.18 * clampedEmphasis)))
-                    .overlay(
-                        panel.fill(
-                            Color(red: 0.60, green: 0.66, blue: 0.74)
-                                .opacity(neutralWashOpacity * (0.42 - (0.10 * clampedEmphasis)))
-                        )
-                    )
-                    .overlay(
-                        panel.fill(
-                            Color(red: 0.52, green: 0.61, blue: 0.76)
-                                .opacity(blueFogOpacity * (0.44 - (0.12 * clampedEmphasis)))
-                        )
-                    )
-                    .overlay(
-                        panel.fill(
-                            LinearGradient(
-                                colors: [
-                                    .white.opacity(0.10),
-                                    .white.opacity(0.03),
-                                    .clear
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                    )
-                    .overlay(
-                        panel.fill(
-                            LinearGradient(
-                                colors: [
-                                    .clear,
-                                    .black.opacity(0.18 + (0.10 * clampedEmphasis))
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                    )
-                    .overlay(
-                        panel
-                            .stroke(.white.opacity(0.14 + (0.06 * clampedEmphasis)), lineWidth: 1)
-                    )
+                MiniBottomPanelChrome(
+                    sizeScale: sizeScale,
+                    emphasis: emphasis,
+                    neutralWashOpacity: neutralWashOpacity,
+                    blueFogOpacity: blueFogOpacity
+                )
             )
             .shadow(
-                color: .black.opacity(0.18 + (0.16 * clampedEmphasis)),
+                color: .black.opacity(0.18 + (0.16 * min(max(emphasis, 0), 1))),
                 radius: 10 * sizeScale,
                 x: 0,
                 y: 4 * sizeScale
@@ -962,7 +1120,7 @@ private struct HoverHintModifier: ViewModifier {
                     hideHint()
                 }
             }
-            .onChange(of: enabled) { isEnabled in
+            .onChange(of: enabled) { _, isEnabled in
                 if !isEnabled {
                     resetState()
                 }
@@ -1264,14 +1422,14 @@ private struct MiniNowPlayingCard: View {
             miniLyricsHideWorkItem?.cancel()
             miniLyricsHideWorkItem = nil
         }
-        .onChange(of: transitionActive) { active in
+        .onChange(of: transitionActive) { _, active in
             if active {
                 withAnimation(.easeOut(duration: 0.08)) {
                     pointerHovering = false
                 }
             }
         }
-        .onChange(of: model.miniLyricsEnabled) { enabled in
+        .onChange(of: model.miniLyricsEnabled) { _, enabled in
             syncRenderedMiniLyricsPane(for: enabled)
         }
     }
@@ -1709,65 +1867,19 @@ private struct MiniArtworkTransitionSurface: View {
     let animatedArtworkURL: URL?
     let isPopoverVisible: Bool
 
-    @State private var streamReadyForDisplay: Bool = false
-    private let streamCrossfadeDuration: Double = 2.8
-
-    private var artworkTransitionKey: String {
-        if let artwork {
-            return "\(trackKey)|art:\(artwork.artworkTransitionIdentity)"
-        }
-        if let animatedArtworkURL {
-            return "\(trackKey)|animated:\(animatedArtworkURL.absoluteString)"
-        }
-        return "\(trackKey)|art:none"
-    }
-
-    private var hasArtworkContent: Bool {
-        artwork != nil || animatedArtworkURL != nil
-    }
-
-    private var streamCrossfadeAnimation: Animation {
-        .easeInOut(duration: streamCrossfadeDuration)
-    }
-
     var body: some View {
-        artworkLayer(for: artwork, animatedURL: animatedArtworkURL)
-            .artworkTransitionFade(
-                animationKey: artworkTransitionKey,
-                isEnabled: animationsEnabled && !transitionActive,
-                hasContent: hasArtworkContent,
-                animateOnFirstAppear: !transitionActive
-            )
+        ArtworkStreamTransitionSurface(
+            image: artwork,
+            animatedArtworkURL: animatedArtworkURL,
+            isActive: isPopoverVisible,
+            transitionKeyPrefix: trackKey,
+            transitionAnimationsEnabled: animationsEnabled && !transitionActive,
+            animateOnFirstAppear: !transitionActive
+        ) {
+            staticArtworkLayer(for: artwork)
+        }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
-        .onChange(of: animatedArtworkURL) { _ in
-            withAnimation(streamCrossfadeAnimation) {
-                streamReadyForDisplay = false
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func artworkLayer(for image: NSImage?, animatedURL: URL?) -> some View {
-        ZStack {
-            staticArtworkLayer(for: image)
-
-            if let animatedURL {
-                AnimatedArtworkPlayerView(
-                    streamURL: animatedURL,
-                    isActive: isPopoverVisible,
-                    onRenderReadinessChanged: { isReady in
-                        guard isReady != streamReadyForDisplay else { return }
-                        withAnimation(streamCrossfadeAnimation) {
-                            streamReadyForDisplay = isReady
-                        }
-                    }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .opacity(streamReadyForDisplay ? 1 : 0)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -1982,8 +2094,12 @@ private struct MiniExpandedDetailsPane: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    miniDetailTabButton(.lyrics)
-                    miniDetailTabButton(.credits)
+                    DetailPaneTabChip(tab: .lyrics, isSelected: selectedTab == .lyrics) {
+                        model.selectMiniDetailsTab(.lyrics)
+                    }
+                    DetailPaneTabChip(tab: .credits, isSelected: selectedTab == .credits) {
+                        model.selectMiniDetailsTab(.credits)
+                    }
 
                     Spacer(minLength: 0)
                     miniDetailSourceBadge
@@ -2007,10 +2123,10 @@ private struct MiniExpandedDetailsPane: View {
         .onDisappear {
             cancelLyricAnimationState()
         }
-        .onChange(of: selectedTab) { tab in
+        .onChange(of: selectedTab) { _, tab in
             updateLyricAnimationState(for: tab)
         }
-        .onChange(of: model.lyricsPayload?.lines.first?.id) { _ in
+        .onChange(of: model.lyricsPayload?.lines.first?.id) { _, _ in
             guard selectedTab == .lyrics else { return }
             // Track changed — restart the coordinator with fresh lines.
             let lines = model.lyricsPayload?.lines ?? []
@@ -2026,43 +2142,15 @@ private struct MiniExpandedDetailsPane: View {
         }
     }
 
-    private func stateRow(_ message: String, icon: String) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 22, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text(message)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.86))
-                .frame(maxWidth: .infinity, alignment: .center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-    }
-
-    private func miniDetailTabButton(_ tab: DetailsPaneTab) -> some View {
-        let isSelected = selectedTab == tab
-        return Button {
-            model.selectMiniDetailsTab(tab)
-        } label: {
-            Label(tab.displayName, systemImage: isSelected ? "\(tab.systemImage).fill" : tab.systemImage)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(isSelected ? 0.96 : 0.66))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Capsule().fill(Color.white.opacity(isSelected ? 0.16 : 0.08)))
-                .overlay(
-                    Capsule()
-                        .stroke(.white.opacity(isSelected ? 0.18 : 0.10), lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
     @ViewBuilder
     private var lyricsPaneContent: some View {
         switch model.lyricsState {
         case .idle:
-            stateRow("Start playback to load lyrics.", icon: "play.square")
+            DetailPaneStateMessage(
+                message: "Start playback to load lyrics.",
+                icon: .sfSymbol("play.square"),
+                style: .mini
+            )
         case .loading:
             let progress = model.lyricsLoadingProgress
             LyricsLoadingPulseBlock(
@@ -2072,9 +2160,17 @@ private struct MiniExpandedDetailsPane: View {
             )
             .frame(maxWidth: .infinity, alignment: .leading)
         case .unavailable:
-            stateRow("Lyrics unavailable for this track.", icon: "text.bubble")
+            DetailPaneStateMessage(
+                message: "Lyrics unavailable for this track.",
+                icon: .sfSymbol("text.bubble"),
+                style: .mini
+            )
         case .failed:
-            stateRow("Couldn't fetch lyrics right now.", icon: "exclamationmark.octagon")
+            DetailPaneStateMessage(
+                message: "Couldn't fetch lyrics right now.",
+                icon: .sfSymbol("exclamationmark.octagon"),
+                style: .mini
+            )
         case .available:
             lyricsScroll
         }
@@ -2083,11 +2179,19 @@ private struct MiniExpandedDetailsPane: View {
     @ViewBuilder
     private var creditsPaneContent: some View {
         if model.provider == .none || model.title.isEmpty {
-            stateRow("Start playback to view credits.", icon: "info.circle")
+            DetailPaneStateMessage(
+                message: "Start playback to view credits.",
+                icon: .sfSymbol("info.circle"),
+                style: .mini
+            )
         } else if let creditsPayload = model.creditsPayload, creditsPayload.hasContent {
-            MiniCreditsSummaryContent(payload: creditsPayload)
+            CreditsPaneContent(payload: creditsPayload, style: .compact(maxVisibleRows: 5))
         } else {
-            stateRow("Credits unavailable for this track.", icon: "info.circle")
+            DetailPaneStateMessage(
+                message: "Credits unavailable for this track.",
+                icon: .sfSymbol("info.circle"),
+                style: .mini
+            )
         }
     }
 
@@ -2103,34 +2207,19 @@ private struct MiniExpandedDetailsPane: View {
             if let source = model.lyricsPayload?.source, source != .none {
                 if source == .lrclib {
                     Button(action: openLRCLibWebsite) {
-                        sourceBadgeText("LRCLib", emphasized: true)
+                        DetailPaneSourceBadge(text: "LRCLib", emphasized: true, style: .mini)
                     }
                     .buttonStyle(.plain)
                     .help("Open LRCLIB website")
                 } else {
-                    sourceBadgeText("Apple Music")
+                    DetailPaneSourceBadge(text: "Apple Music", style: .mini)
                 }
             }
         case .credits:
             if let sourceName = model.creditsPayload?.sourceName, !sourceName.isEmpty {
-                sourceBadgeText(sourceName)
+                DetailPaneSourceBadge(text: sourceName, style: .mini)
             }
         }
-    }
-
-    private func sourceBadgeText(_ text: String, emphasized: Bool = false) -> some View {
-        Text(text)
-            .font(.system(size: 9, weight: .medium, design: .rounded))
-            .foregroundStyle(.white.opacity(emphasized ? 0.58 : 0.46))
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(Capsule().fill(Color.white.opacity(emphasized ? 0.10 : 0.08)))
-            .overlay(Capsule().stroke(.white.opacity(emphasized ? 0.14 : 0.10), lineWidth: 1))
-    }
-
-    private func openLRCLibWebsite() {
-        guard let url = URL(string: "https://lrclib.net") else { return }
-        NSWorkspace.shared.open(url)
     }
 
     private func updateLyricAnimationState(for tab: DetailsPaneTab) {
@@ -2210,50 +2299,6 @@ private struct MiniExpandedDetailsPane: View {
                 }
             }
         }
-    }
-}
-
-private struct MiniCreditsSummaryContent: View {
-    let payload: CreditsPayload
-
-    private let maxVisibleRows = 5
-
-    private var allRows: [CreditsRow] {
-        payload.sections.flatMap(\.rows)
-    }
-
-    private var visibleRows: [CreditsRow] {
-        Array(allRows.prefix(maxVisibleRows))
-    }
-
-    var body: some View {
-        ScrollView(.vertical) {
-            LazyVStack(alignment: .leading, spacing: 8) {
-                ForEach(visibleRows) { row in
-                    HStack(alignment: .top, spacing: 10) {
-                        Text(row.label)
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.60))
-                            .frame(width: 76, alignment: .leading)
-
-                        Text(row.value)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.90))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                    }
-                }
-
-                if allRows.count > maxVisibleRows {
-                    Text("More credits available in regular view.")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.46))
-                        .padding(.top, 2)
-                }
-            }
-            .padding(.vertical, 2)
-        }
-        .scrollIndicators(.hidden)
     }
 }
 
@@ -2662,8 +2707,12 @@ private struct RegularDetailsPane: View {
 
                 // Header controls — plain color fill, no system material
                 HStack {
-                    detailTabButton(.lyrics)
-                    detailTabButton(.credits)
+                    DetailPaneTabChip(tab: .lyrics, isSelected: selectedTab == .lyrics) {
+                        model.selectRegularDetailsTab(.lyrics)
+                    }
+                    DetailPaneTabChip(tab: .credits, isSelected: selectedTab == .credits) {
+                        model.selectRegularDetailsTab(.credits)
+                    }
 
                     Spacer(minLength: 0)
 
@@ -2698,68 +2747,42 @@ private struct RegularDetailsPane: View {
             if let source = lyricsPayload?.source, source != .none {
                 if source == .lrclib {
                     Button(action: openLRCLibWebsite) {
-                        Text("LRCLib")
-                            .font(.system(size: 9, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.58))
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(Capsule().fill(Color.white.opacity(0.10)))
-                            .overlay(Capsule().stroke(.white.opacity(0.14), lineWidth: 1))
+                        DetailPaneSourceBadge(text: "LRCLib", emphasized: true)
                     }
                     .buttonStyle(.plain)
                     .help("Open LRCLIB website")
                 } else {
-                    sourceBadgeText("Apple Music")
+                    DetailPaneSourceBadge(text: "Apple Music")
                 }
             }
         case .credits:
             if let sourceName = creditsPayload?.sourceName, !sourceName.isEmpty {
-                sourceBadgeText(sourceName)
+                DetailPaneSourceBadge(text: sourceName)
             }
         }
-    }
-
-    private func detailTabButton(_ tab: DetailsPaneTab) -> some View {
-        let isSelected = selectedTab == tab
-        return Button {
-            model.selectRegularDetailsTab(tab)
-        } label: {
-            Label(tab.displayName, systemImage: isSelected ? "\(tab.systemImage).fill" : tab.systemImage)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(isSelected ? 0.96 : 0.66))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Capsule().fill(Color.white.opacity(isSelected ? 0.16 : 0.08)))
-                .overlay(
-                    Capsule()
-                        .stroke(.white.opacity(isSelected ? 0.18 : 0.10), lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func sourceBadgeText(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 9, weight: .medium, design: .rounded))
-            .foregroundStyle(.white.opacity(0.50))
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(Capsule().fill(Color.white.opacity(0.08)))
-            .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
     }
 
     @ViewBuilder
     private var lyricsTabContent: some View {
         switch lyricsState {
         case .idle:
-            stateView("Start playback to load lyrics.", icon: .provider(.appleMusic))
+            DetailPaneStateMessage(
+                message: "Start playback to load lyrics.",
+                icon: .provider(.appleMusic)
+            )
         case .loading:
             loadingProgressView(progress: lyricsLoadingProgress)
         case .unavailable:
-            stateView("Lyrics unavailable for this track.", icon: .sfSymbol("text.bubble"))
+            DetailPaneStateMessage(
+                message: "Lyrics unavailable for this track.",
+                icon: .sfSymbol("text.bubble")
+            )
         case .failed:
             VStack(spacing: 10) {
-                stateView("Couldn't fetch lyrics right now.", icon: .sfSymbol("exclamationmark.bubble"))
+                DetailPaneStateMessage(
+                    message: "Couldn't fetch lyrics right now.",
+                    icon: .sfSymbol("exclamationmark.bubble")
+                )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         case .available:
@@ -2775,38 +2798,18 @@ private struct RegularDetailsPane: View {
     @ViewBuilder
     private var creditsTabContent: some View {
         if model.provider == .none || model.title.isEmpty {
-            stateView("Start playback to view credits.", icon: .sfSymbol("info.circle"))
+            DetailPaneStateMessage(
+                message: "Start playback to view credits.",
+                icon: .sfSymbol("info.circle")
+            )
         } else if let creditsPayload, creditsPayload.hasContent {
-            RegularCreditsScrollContent(payload: creditsPayload)
+            CreditsPaneContent(payload: creditsPayload, style: .regular)
         } else {
-            stateView("Credits unavailable for this track.", icon: .sfSymbol("info.circle"))
+            DetailPaneStateMessage(
+                message: "Credits unavailable for this track.",
+                icon: .sfSymbol("info.circle")
+            )
         }
-    }
-
-    private enum LyricsStateIcon {
-        case sfSymbol(String)
-        case provider(ProviderIconKind)
-    }
-
-    private func stateView(_ message: String, icon: LyricsStateIcon) -> some View {
-        VStack(spacing: 8) {
-            Group {
-                switch icon {
-                case .sfSymbol(let symbolName):
-                    Image(systemName: symbolName)
-                        .font(.system(size: 22, weight: .light))
-                        .symbolRenderingMode(.hierarchical)
-                case .provider(let providerIcon):
-                    ProviderIconView(icon: providerIcon, size: 22, weight: .regular)
-                }
-            }
-            .foregroundStyle(.tertiary)
-            Text(message)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
     @ViewBuilder
@@ -2821,49 +2824,6 @@ private struct RegularDetailsPane: View {
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .padding(.horizontal, 2)
-    }
-
-    private func openLRCLibWebsite() {
-        guard let url = URL(string: "https://lrclib.net") else { return }
-        NSWorkspace.shared.open(url)
-    }
-}
-
-private struct RegularCreditsScrollContent: View {
-    let payload: CreditsPayload
-
-    var body: some View {
-        ScrollView(.vertical) {
-            LazyVStack(alignment: .leading, spacing: 14) {
-                ForEach(payload.sections) { section in
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(section.title)
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.56))
-                            .textCase(.uppercase)
-
-                        VStack(alignment: .leading, spacing: 7) {
-                            ForEach(section.rows) { row in
-                                HStack(alignment: .top, spacing: 12) {
-                                    Text(row.label)
-                                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                        .foregroundStyle(.white.opacity(0.64))
-                                        .frame(width: 92, alignment: .leading)
-
-                                    Text(row.value)
-                                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                                        .foregroundStyle(.white.opacity(0.90))
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .textSelection(.enabled)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(.vertical, 6)
-        }
-        .scrollIndicators(.hidden)
     }
 }
 
@@ -2949,11 +2909,11 @@ private struct RegularLyricsScrollContent: View {
                 coordinator.stop()
                 coordinator.scrollProxy = nil
             }
-            .onChange(of: renderLines.first?.id) { _ in
+            .onChange(of: renderLines.first?.id) { _, _ in
                 coordinator.lines = renderLines
                 coordinator.isTimed = isTimed
             }
-            .onChange(of: isTimed) { timed in
+            .onChange(of: isTimed) { _, timed in
                 coordinator.isTimed = timed
             }
         }

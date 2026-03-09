@@ -69,7 +69,7 @@ struct NowPlayingTitleMarquee: View {
         .clipped()
         .modifier(ScrollingEdgeFade(enabled: shouldScroll))
         .onAppear { startDate = Date() }
-        .onChange(of: marqueeSignature) { _ in startDate = Date() }
+        .onChange(of: marqueeSignature) { _, _ in startDate = Date() }
         .onDisappear { startDate = Date() }
     }
 
@@ -142,7 +142,7 @@ struct NowPlayingSecondaryMarquee: View {
         .clipped()
         .modifier(ScrollingEdgeFade(enabled: shouldScroll))
         .onAppear { startDate = Date() }
-        .onChange(of: marqueeSignature) { _ in startDate = Date() }
+        .onChange(of: marqueeSignature) { _, _ in startDate = Date() }
         .onDisappear { startDate = Date() }
     }
 

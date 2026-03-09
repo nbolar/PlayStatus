@@ -618,69 +618,64 @@ private struct WalkthroughStepSidebarItem: View {
 
     @State private var isHovering = false
 
+    private var circleFill: Color {
+        if isSelected {
+            return accent.opacity(0.92)
+        }
+        if isHovering {
+            return accent.opacity(0.18)
+        }
+        return Color.secondary.opacity(0.12)
+    }
+
+    private var numberColor: Color {
+        if isSelected {
+            return .white
+        }
+        return isHovering ? accent : .secondary
+    }
+
+    private var trailingIconColor: Color {
+        if isSelected {
+            return accent
+        }
+        return isHovering ? accent.opacity(0.92) : Color.secondary.opacity(0.65)
+    }
+
+    private var backgroundFill: Color {
+        if isSelected {
+            return accent.opacity(0.12)
+        }
+        return isHovering ? Color.white.opacity(0.08) : .clear
+    }
+
+    private var borderColor: Color {
+        if isSelected {
+            return accent.opacity(0.24)
+        }
+        return isHovering ? Color.white.opacity(0.12) : .clear
+    }
+
     var body: some View {
         HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(
-                        isSelected
-                            ? accent.opacity(0.92)
-                            : isHovering
-                                ? accent.opacity(0.18)
-                                : Color.secondary.opacity(0.12)
-                    )
-                    .frame(width: 28, height: 28)
-
-                Text("\(index)")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(isSelected ? Color.white : isHovering ? accent : Color.secondary)
-            }
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(step.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(isSelected || isHovering ? Color.primary : Color.secondary)
-
-                Text(step.subtitle)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
+            indicator
+            copyBlock
 
             Spacer(minLength: 0)
 
             Image(systemName: isSelected ? "checkmark.circle.fill" : "chevron.right.circle.fill")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(
-                    isSelected
-                        ? accent
-                        : isHovering
-                            ? accent.opacity(0.92)
-                            : Color.secondary.opacity(0.65)
-                )
+                .foregroundStyle(trailingIconColor)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(
-                    isSelected
-                        ? accent.opacity(0.12)
-                        : isHovering
-                            ? Color.white.opacity(0.08)
-                            : Color.clear
-                )
+                .fill(backgroundFill)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(
-                    isSelected
-                        ? accent.opacity(0.24)
-                        : isHovering
-                            ? Color.white.opacity(0.12)
-                            : Color.clear,
-                    lineWidth: 1
-                )
+                .stroke(borderColor, lineWidth: 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .scaleEffect(isHovering ? 1.01 : 1.0)
@@ -691,6 +686,31 @@ private struct WalkthroughStepSidebarItem: View {
                 return
             }
             isHovering = hovering
+        }
+    }
+
+    private var indicator: some View {
+        ZStack {
+            Circle()
+                .fill(circleFill)
+                .frame(width: 28, height: 28)
+
+            Text("\(index)")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(numberColor)
+        }
+    }
+
+    private var copyBlock: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(step.title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(isSelected || isHovering ? Color.primary : Color.secondary)
+
+            Text(step.subtitle)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
         }
     }
 }
@@ -1402,17 +1422,14 @@ private struct WalkthroughLightweightSurfaceStack: View {
     let accent: Color
     let provider: NowPlayingProvider
 
+    private var providerLabel: String {
+        provider == .spotify ? "Spotify ready" : "Music ready"
+    }
+
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color.black.opacity(0.10))
-                .frame(width: 260, height: 164)
-                .offset(x: 34, y: 24)
-
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(accent.opacity(0.18))
-                .frame(width: 286, height: 176)
-                .offset(x: 10, y: 8)
+            WalkthroughBackdropCard(color: Color.black.opacity(0.10), size: CGSize(width: 260, height: 164), offset: CGSize(width: 34, height: 24))
+            WalkthroughBackdropCard(color: accent.opacity(0.18), size: CGSize(width: 286, height: 176), offset: CGSize(width: 10, height: 8))
 
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(Color.white.opacity(0.88))
@@ -1422,46 +1439,68 @@ private struct WalkthroughLightweightSurfaceStack: View {
                 )
                 .frame(width: 316, height: 188)
                 .overlay(alignment: .topLeading) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        MenuBarChip(
-                            text: provider == .spotify ? "Spotify ready" : "Music ready",
-                            provider: provider
-                        )
-
-                        HStack(spacing: 10) {
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .fill(accent.opacity(0.22))
-                                .frame(width: 96, height: 96)
-                                .overlay(
-                                    ProviderIconView(icon: provider.iconKind, size: 34, weight: .semibold)
-                                        .foregroundStyle(accent)
-                                )
-
-                            VStack(alignment: .leading, spacing: 8) {
-                                RoundedRectangle(cornerRadius: 999, style: .continuous)
-                                    .fill(Color.black.opacity(0.10))
-                                    .frame(width: 124, height: 14)
-
-                                RoundedRectangle(cornerRadius: 999, style: .continuous)
-                                    .fill(Color.black.opacity(0.08))
-                                    .frame(width: 168, height: 10)
-
-                                RoundedRectangle(cornerRadius: 999, style: .continuous)
-                                    .fill(accent.opacity(0.28))
-                                    .frame(width: 144, height: 8)
-
-                                HStack(spacing: 10) {
-                                    Circle().fill(Color.black.opacity(0.08)).frame(width: 26, height: 26)
-                                    Circle().fill(accent.opacity(0.82)).frame(width: 32, height: 32)
-                                    Circle().fill(Color.black.opacity(0.08)).frame(width: 26, height: 26)
-                                }
-                            }
-                        }
-                    }
-                    .padding(20)
+                    lightweightCardContent
                 }
         }
         .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private var lightweightCardContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            MenuBarChip(text: providerLabel, provider: provider)
+
+            HStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(accent.opacity(0.22))
+                    .frame(width: 96, height: 96)
+                    .overlay(
+                        ProviderIconView(icon: provider.iconKind, size: 34, weight: .semibold)
+                            .foregroundStyle(accent)
+                    )
+
+                WalkthroughSurfaceSummaryColumn(accent: accent)
+            }
+        }
+        .padding(20)
+    }
+}
+
+private struct WalkthroughBackdropCard: View {
+    let color: Color
+    let size: CGSize
+    let offset: CGSize
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 28, style: .continuous)
+            .fill(color)
+            .frame(width: size.width, height: size.height)
+            .offset(x: offset.width, y: offset.height)
+    }
+}
+
+private struct WalkthroughSurfaceSummaryColumn: View {
+    let accent: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            RoundedRectangle(cornerRadius: 999, style: .continuous)
+                .fill(Color.black.opacity(0.10))
+                .frame(width: 124, height: 14)
+
+            RoundedRectangle(cornerRadius: 999, style: .continuous)
+                .fill(Color.black.opacity(0.08))
+                .frame(width: 168, height: 10)
+
+            RoundedRectangle(cornerRadius: 999, style: .continuous)
+                .fill(accent.opacity(0.28))
+                .frame(width: 144, height: 8)
+
+            HStack(spacing: 10) {
+                Circle().fill(Color.black.opacity(0.08)).frame(width: 26, height: 26)
+                Circle().fill(accent.opacity(0.82)).frame(width: 32, height: 32)
+                Circle().fill(Color.black.opacity(0.08)).frame(width: 26, height: 26)
+            }
+        }
     }
 }
 
@@ -2099,60 +2138,70 @@ private struct PersonalizationThemeHero: View {
             .frame(height: 176)
             .overlay(alignment: .topLeading) {
                 HStack(alignment: .top, spacing: 16) {
-                    WalkthroughArtworkSnapshot(artworkKey: artworkKey, cornerRadius: 20)
-                        .frame(width: 108, height: 108)
-                        .shadow(color: .black.opacity(0.20), radius: 10, x: 0, y: 6)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 8) {
-                            ProviderIconView(icon: provider.iconKind, size: 13, weight: .bold)
-                                .frame(width: 16, height: 16)
-                            Text("Theme Preview")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white.opacity(0.92))
-                                .textCase(.uppercase)
-                        }
-
-                        Text(themeStyle.displayName)
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.98))
-
-                        Text(themeDescription)
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.82))
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        HStack(spacing: 10) {
-                            PreviewSmallControl(systemImage: "music.note")
-                            PreviewSmallControl(systemImage: "waveform")
-                            PreviewSmallControl(systemImage: "sparkles")
-                        }
-                    }
-
+                    artworkCard
+                    themeSummary
                     Spacer(minLength: 0)
                 }
                 .padding(18)
             }
             .overlay(alignment: .bottomTrailing) {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.white.opacity(0.18))
-                    .frame(width: 148, height: 64)
-                    .overlay(
-                        VStack(alignment: .leading, spacing: 6) {
-                            RoundedRectangle(cornerRadius: 999, style: .continuous)
-                                .fill(Color.white.opacity(0.82))
-                                .frame(width: 88, height: 8)
-                            RoundedRectangle(cornerRadius: 999, style: .continuous)
-                                .fill(Color.white.opacity(0.46))
-                                .frame(width: 120, height: 6)
-                            RoundedRectangle(cornerRadius: 999, style: .continuous)
-                                .fill(Color.white.opacity(0.28))
-                                .frame(width: 72, height: 6)
-                        }
-                        .padding(14)
-                    )
+                trailingThemeCard
                     .padding(16)
             }
+    }
+
+    private var artworkCard: some View {
+        WalkthroughArtworkSnapshot(artworkKey: artworkKey, cornerRadius: 20)
+            .frame(width: 108, height: 108)
+            .shadow(color: .black.opacity(0.20), radius: 10, x: 0, y: 6)
+    }
+
+    private var themeSummary: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                ProviderIconView(icon: provider.iconKind, size: 13, weight: .bold)
+                    .frame(width: 16, height: 16)
+                Text("Theme Preview")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.92))
+                    .textCase(.uppercase)
+            }
+
+            Text(themeStyle.displayName)
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.98))
+
+            Text(themeDescription)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.82))
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 10) {
+                PreviewSmallControl(systemImage: "music.note")
+                PreviewSmallControl(systemImage: "waveform")
+                PreviewSmallControl(systemImage: "sparkles")
+            }
+        }
+    }
+
+    private var trailingThemeCard: some View {
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill(Color.white.opacity(0.18))
+            .frame(width: 148, height: 64)
+            .overlay(
+                VStack(alignment: .leading, spacing: 6) {
+                    RoundedRectangle(cornerRadius: 999, style: .continuous)
+                        .fill(Color.white.opacity(0.82))
+                        .frame(width: 88, height: 8)
+                    RoundedRectangle(cornerRadius: 999, style: .continuous)
+                        .fill(Color.white.opacity(0.46))
+                        .frame(width: 120, height: 6)
+                    RoundedRectangle(cornerRadius: 999, style: .continuous)
+                        .fill(Color.white.opacity(0.28))
+                        .frame(width: 72, height: 6)
+                }
+                .padding(14)
+            )
     }
 }
 
@@ -2259,46 +2308,35 @@ private struct RegularPreviewCard: View, Equatable {
 
     var body: some View {
         VStack(spacing: 0) {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 18) {
-                    WalkthroughArtworkSnapshot(artworkKey: preview.artworkKey, cornerRadius: 20)
-                        .frame(width: 142, height: 142)
-
-                    previewMetadata
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                VStack(alignment: .leading, spacing: 16) {
-                    WalkthroughArtworkSnapshot(artworkKey: preview.artworkKey, cornerRadius: 20)
-                        .frame(width: 142, height: 142)
-
-                    previewMetadata
-                }
+            WalkthroughArtworkMetadataLayout(
+                artworkKey: preview.artworkKey,
+                artworkSize: 142,
+                cornerRadius: 20,
+                horizontalSpacing: 18
+            ) {
+                previewMetadata
             }
             .padding(20)
 
             Divider()
 
-            HStack {
-                SearchCapsulePreview(text: preview.provider == .spotify ? "Search Spotify" : "Search Music")
-                Spacer()
-                PreviewSmallControl(systemImage: "quote.bubble")
-                PreviewSmallControl(systemImage: "info.circle")
-                PreviewSmallControl(systemImage: "gearshape.fill")
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            previewToolbar
         }
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color.white.opacity(0.82))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.black.opacity(0.08), lineWidth: 1)
-                )
-        )
+        .background(RegularPreviewCardChrome())
         .clipShape(.rect(cornerRadius: 28))
         .shadow(color: .black.opacity(0.14), radius: 10, x: 0, y: 6)
+    }
+
+    private var previewToolbar: some View {
+        HStack {
+            SearchCapsulePreview(text: preview.provider == .spotify ? "Search Spotify" : "Search Music")
+            Spacer()
+            PreviewSmallControl(systemImage: "quote.bubble")
+            PreviewSmallControl(systemImage: "info.circle")
+            PreviewSmallControl(systemImage: "gearshape.fill")
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
     }
 
     private var previewMetadata: some View {
@@ -2333,6 +2371,17 @@ private struct RegularPreviewCard: View, Equatable {
                 PreviewTransportButton(systemImage: "forward.fill")
             }
         }
+    }
+}
+
+private struct RegularPreviewCardChrome: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 28, style: .continuous)
+            .fill(Color.white.opacity(0.82))
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(Color.black.opacity(0.08), lineWidth: 1)
+            )
     }
 }
 
@@ -2429,9 +2478,7 @@ private struct DetachedPreviewCard: View, Equatable {
 
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
-                    Circle().fill(Color.red.opacity(0.82)).frame(width: 10, height: 10)
-                    Circle().fill(Color.orange.opacity(0.86)).frame(width: 10, height: 10)
-                    Circle().fill(Color.green.opacity(0.82)).frame(width: 10, height: 10)
+                    WalkthroughTrafficLights()
                     Spacer()
                     Text("Detached Player")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -2444,21 +2491,13 @@ private struct DetachedPreviewCard: View, Equatable {
                 .padding(.vertical, 12)
                 .background(Color.white.opacity(0.74))
 
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .top, spacing: 16) {
-                        WalkthroughArtworkSnapshot(artworkKey: preview.artworkKey, cornerRadius: 20)
-                            .frame(width: 140, height: 140)
-
-                        detachedMetadata
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    VStack(alignment: .leading, spacing: 16) {
-                        WalkthroughArtworkSnapshot(artworkKey: preview.artworkKey, cornerRadius: 20)
-                            .frame(width: 140, height: 140)
-
-                        detachedMetadata
-                    }
+                WalkthroughArtworkMetadataLayout(
+                    artworkKey: preview.artworkKey,
+                    artworkSize: 140,
+                    cornerRadius: 20,
+                    horizontalSpacing: 16
+                ) {
+                    detachedMetadata
                 }
                 .padding(22)
                 .background(Color.white.opacity(0.80))
@@ -2493,6 +2532,44 @@ private struct DetachedPreviewCard: View, Equatable {
                 PreviewTransportButton(systemImage: preview.isPlaying ? "pause.fill" : "play.fill", prominence: .prominent)
                 PreviewTransportButton(systemImage: "forward.fill")
             }
+        }
+    }
+}
+
+private struct WalkthroughArtworkMetadataLayout<Metadata: View>: View {
+    let artworkKey: WalkthroughPreviewArtworkKey
+    let artworkSize: CGFloat
+    let cornerRadius: CGFloat
+    let horizontalSpacing: CGFloat
+    @ViewBuilder let metadata: () -> Metadata
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: horizontalSpacing) {
+                artwork
+                metadata()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            VStack(alignment: .leading, spacing: 16) {
+                artwork
+                metadata()
+            }
+        }
+    }
+
+    private var artwork: some View {
+        WalkthroughArtworkSnapshot(artworkKey: artworkKey, cornerRadius: cornerRadius)
+            .frame(width: artworkSize, height: artworkSize)
+    }
+}
+
+private struct WalkthroughTrafficLights: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle().fill(Color.red.opacity(0.82)).frame(width: 10, height: 10)
+            Circle().fill(Color.orange.opacity(0.86)).frame(width: 10, height: 10)
+            Circle().fill(Color.green.opacity(0.82)).frame(width: 10, height: 10)
         }
     }
 }

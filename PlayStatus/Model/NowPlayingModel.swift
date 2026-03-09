@@ -1646,16 +1646,11 @@ final class NowPlayingModel: ObservableObject {
         pendingFallbackWork = nil
         fallbackArtworkTaskKey = nil
 
-        animatedArtworkResolveTask?.cancel()
-        animatedArtworkResolveTask = nil
-        animatedArtworkResolveRequestID = nil
-        animatedArtworkHLSURL = nil
-        animatedArtworkStreamIdentity = ""
-        animatedArtworkState = .none
-        animatedArtworkStatusMessage = "Released while hidden to reduce memory"
-        animatedArtworkLastError = ""
-        animatedArtworkLookupKey = ""
-        lastAnimatedArtworkValidMusicSnapshotAt = .distantPast
+        resetAnimatedArtworkState(
+            statusMessage: "Released while hidden to reduce memory",
+            clearLookupKey: true,
+            resetLastValidMusicSnapshotAt: true
+        )
 
         if artwork != nil {
             artwork = nil
@@ -1675,16 +1670,37 @@ final class NowPlayingModel: ObservableObject {
         }
     }
 
+    private func resetAnimatedArtworkState(
+        statusMessage: String,
+        clearLookupKey: Bool = false,
+        resetLastValidMusicSnapshotAt: Bool = false
+    ) {
+        animatedArtworkResolveTask?.cancel()
+        animatedArtworkResolveTask = nil
+        animatedArtworkResolveRequestID = nil
+        animatedArtworkHLSURL = nil
+        animatedArtworkStreamIdentity = ""
+        animatedArtworkState = .none
+        animatedArtworkStatusMessage = statusMessage
+        animatedArtworkLastError = ""
+
+        if clearLookupKey {
+            animatedArtworkLookupKey = ""
+        }
+        if resetLastValidMusicSnapshotAt {
+            lastAnimatedArtworkValidMusicSnapshotAt = .distantPast
+        }
+    }
+
+    private func transitionAnimatedArtworkLoadingToIdleIfNeeded() {
+        guard animatedArtworkState == .loading, animatedArtworkHLSURL == nil else { return }
+        animatedArtworkState = .none
+        animatedArtworkStatusMessage = "Idle"
+    }
+
     private func handleAnimatedArtworkSettingChanged() {
         if !animatedArtworkEnabled || !animatedArtworkStreamsEnabled {
-            animatedArtworkResolveTask?.cancel()
-            animatedArtworkResolveTask = nil
-            animatedArtworkResolveRequestID = nil
-            animatedArtworkHLSURL = nil
-            animatedArtworkStreamIdentity = ""
-            animatedArtworkState = .none
-            animatedArtworkStatusMessage = "Animated streams disabled"
-            animatedArtworkLastError = ""
+            resetAnimatedArtworkState(statusMessage: "Animated streams disabled")
             return
         }
         refreshAnimatedArtworkForCurrentTrack(force: true)
@@ -1692,14 +1708,7 @@ final class NowPlayingModel: ObservableObject {
 
     private func refreshAnimatedArtworkForCurrentTrack(force: Bool) {
         guard let snapshot = lastSnapshot else {
-            animatedArtworkResolveTask?.cancel()
-            animatedArtworkResolveTask = nil
-            animatedArtworkResolveRequestID = nil
-            animatedArtworkHLSURL = nil
-            animatedArtworkStreamIdentity = ""
-            animatedArtworkState = .none
-            animatedArtworkStatusMessage = "Idle"
-            animatedArtworkLastError = ""
+            resetAnimatedArtworkState(statusMessage: "Idle")
             return
         }
 
@@ -1713,16 +1722,11 @@ final class NowPlayingModel: ObservableObject {
         let isSupportedProvider = isMusicProvider || isSpotifyProvider
 
         if shouldReduceTransientMemoryWhileHidden {
-            animatedArtworkResolveTask?.cancel()
-            animatedArtworkResolveTask = nil
-            animatedArtworkResolveRequestID = nil
-            animatedArtworkHLSURL = nil
-            animatedArtworkStreamIdentity = ""
-            animatedArtworkState = .none
-            animatedArtworkStatusMessage = "Released while hidden to reduce memory"
-            animatedArtworkLastError = ""
-            animatedArtworkLookupKey = ""
-            lastAnimatedArtworkValidMusicSnapshotAt = .distantPast
+            resetAnimatedArtworkState(
+                statusMessage: "Released while hidden to reduce memory",
+                clearLookupKey: true,
+                resetLastValidMusicSnapshotAt: true
+            )
             return
         }
 
@@ -1738,29 +1742,19 @@ final class NowPlayingModel: ObservableObject {
                now.timeIntervalSince(lastAnimatedArtworkValidMusicSnapshotAt) < animatedArtworkTransientClearGrace {
                 return
             }
-            animatedArtworkResolveTask?.cancel()
-            animatedArtworkResolveTask = nil
-            animatedArtworkResolveRequestID = nil
-            animatedArtworkHLSURL = nil
-            animatedArtworkStreamIdentity = ""
-            animatedArtworkState = .none
-            animatedArtworkStatusMessage = "Idle"
-            animatedArtworkLastError = ""
-            animatedArtworkLookupKey = ""
-            lastAnimatedArtworkValidMusicSnapshotAt = .distantPast
+            resetAnimatedArtworkState(
+                statusMessage: "Idle",
+                clearLookupKey: true,
+                resetLastValidMusicSnapshotAt: true
+            )
             return
         }
 
         guard animatedArtworkEnabled, animatedArtworkStreamsEnabled else {
-            animatedArtworkResolveTask?.cancel()
-            animatedArtworkResolveTask = nil
-            animatedArtworkResolveRequestID = nil
-            animatedArtworkHLSURL = nil
-            animatedArtworkStreamIdentity = ""
-            animatedArtworkState = .none
-            animatedArtworkStatusMessage = "Animated streams disabled"
-            animatedArtworkLastError = ""
-            lastAnimatedArtworkValidMusicSnapshotAt = .distantPast
+            resetAnimatedArtworkState(
+                statusMessage: "Animated streams disabled",
+                resetLastValidMusicSnapshotAt: true
+            )
             return
         }
 
@@ -1848,10 +1842,7 @@ final class NowPlayingModel: ObservableObject {
                 self.animatedArtworkResolveRequestID = nil
 
                 if wasCancelled {
-                    if self.animatedArtworkState == .loading, self.animatedArtworkHLSURL == nil {
-                        self.animatedArtworkState = .none
-                        self.animatedArtworkStatusMessage = "Idle"
-                    }
+                    self.transitionAnimatedArtworkLoadingToIdleIfNeeded()
                     return
                 }
 
@@ -1867,17 +1858,11 @@ final class NowPlayingModel: ObservableObject {
                     Date().timeIntervalSince(self.lastAnimatedArtworkValidMusicSnapshotAt) < self.animatedArtworkTransientClearGrace
 
                 guard isCurrentSnapshotMatch || isTransientMusicGap else {
-                    if self.animatedArtworkState == .loading, self.animatedArtworkHLSURL == nil {
-                        self.animatedArtworkState = .none
-                        self.animatedArtworkStatusMessage = "Idle"
-                    }
+                    self.transitionAnimatedArtworkLoadingToIdleIfNeeded()
                     return
                 }
                 guard self.animatedArtworkLookupKey == lookupKey else {
-                    if self.animatedArtworkState == .loading, self.animatedArtworkHLSURL == nil {
-                        self.animatedArtworkState = .none
-                        self.animatedArtworkStatusMessage = "Idle"
-                    }
+                    self.transitionAnimatedArtworkLoadingToIdleIfNeeded()
                     return
                 }
 

@@ -76,3 +76,25 @@
 - Verified the rewritten path builds successfully with `xcodebuild -project PlayStatus.xcodeproj -scheme PlayStatus -configuration Debug -sdk macosx -derivedDataPath /tmp/PlayStatusDerivedData CODE_SIGNING_ALLOWED=NO build` and relaunched `/tmp/PlayStatusDerivedData/Build/Products/Debug/PlayStatus.app`.
 - Verified with `xcodebuild -project PlayStatus.xcodeproj -scheme PlayStatus -configuration Debug -sdk macosx -derivedDataPath /tmp/PlayStatusDerivedData CODE_SIGNING_ALLOWED=NO build`.
 - Build succeeded and the debug app launched from `/tmp/PlayStatusDerivedData/Build/Products/Debug/PlayStatus.app`. Manual runtime QA of walkthrough responsiveness, permission prompts, and coachmark placement is still recommended.
+
+## Codebase Reduction And Efficiency Refactor
+
+- [x] Review the current popover, walkthrough, model, settings, and status-bar structure against the approved reduction plan
+- [x] Extract shared popover artwork/details primitives and delete duplicated mini/regular rendering logic
+- [x] Split `NowPlayingModel` theme, lyrics, animated-artwork, and audio-output responsibilities into focused helpers while preserving `NowPlayingModel.shared`
+- [x] Separate settings, hotkeys, previews, and row helpers into smaller units without changing the existing settings UI
+- [x] Refactor walkthrough sections into reusable, data-backed building blocks while preserving copy, visuals, and coachmark behavior
+- [x] Replace deprecated one-parameter `onChange` usages in touched code and remove dead scaffolding if it is truly unused
+- [x] Verify with clean build and diagnostic build, then document review notes and follow-up lessons
+
+## Review
+
+- Added shared popover/detail primitives in `PopoverSharedComponents.swift` and a shared animated artwork crossfade surface in `ArtworkStreamTransitionSurface.swift`, then rewired the mini and regular popover detail panes to use them instead of carrying parallel state/rendering code.
+- Broke the expensive `NowPlayingPopover` regular-mode composition and mini chrome backgrounds into smaller helpers so the previous long-body/type-check warnings no longer show up in the diagnostic build.
+- Split settings support out of `AudioHotkeysAndSettings.swift` into `AudioAndHotkeySupport.swift` and `SettingsSupportViews.swift`, leaving the main settings file as page composition while preserving the existing layout, preview sheets, and hotkey behavior.
+- Refactored walkthrough preview surfaces into smaller reusable cards/layout helpers, which removed the earlier `OnboardingWalkthrough.swift` diagnostic hotspot warnings without changing copy, animation, or coachmark flow.
+- Simplified `NowPlayingModel` by consolidating repeated animated-artwork reset/idle-transition logic into focused helpers while preserving `NowPlayingModel.shared` and the current published surface.
+- Replaced deprecated one-parameter `onChange` usages in the touched UI/settings files and deleted the unused comment-only `NowPlayingMenuBarApp.swift` scaffold.
+- Verified with `xcodebuild -project /Users/nikhilbolar/Documents/PlayStatus/PlayStatus.xcodeproj -scheme PlayStatus -configuration Debug -sdk macosx -derivedDataPath /tmp/PlayStatusDerivedData CODE_SIGNING_ALLOWED=NO build`.
+- Verified with `xcodebuild -project /Users/nikhilbolar/Documents/PlayStatus/PlayStatus.xcodeproj -scheme PlayStatus -configuration Debug -sdk macosx -derivedDataPath /tmp/PlayStatusDerivedData CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS='-Xfrontend -warn-long-function-bodies=200 -Xfrontend -warn-long-expression-type-checking=200' build`; the earlier long-body warnings in `NowPlayingPopover.swift`, `OnboardingWalkthrough.swift`, and `CommonComponents.swift` no longer appear.
+- Raw line-count note: the large monoliths are smaller and easier to reason about, but this first pass prioritised reuse and compile-shape cleanup over aggressive abstraction removal, so total touched production LOC ended roughly flat to slightly up because the deleted duplication was replaced with explicit shared helper files.

@@ -153,11 +153,6 @@ struct OutputControlsRow: View {
                 HStack(spacing: 5 * clampedControlScale) {
                     Image(systemName: "hifispeaker.fill")
                         .font(.system(size: 10 * clampedControlScale, weight: .semibold))
-//                    if showDeviceName {
-//                        Text(selectedDeviceName)
-//                            .lineLimit(1)
-//                            .truncationMode(.tail)
-//                    }
                 }
                 .font(.system(size: 10 * clampedControlScale, weight: .semibold, design: .rounded))
                 .foregroundStyle(controlForeground.opacity(0.90))
@@ -204,7 +199,7 @@ struct OutputControlsRow: View {
                     .foregroundStyle(favoriteIsActive ? Color.red.opacity(0.9) : controlForeground.opacity(0.94))
                     .scaleEffect(favoritePulseActive ? 1.16 : 1.0)
                     .animation(.spring(response: 0.22, dampingFraction: 0.70), value: favoritePulseActive)
-                    .onChange(of: favoritePulseToken) { _ in
+                    .onChange(of: favoritePulseToken) { _, _ in
                         favoritePulseActive = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
                             favoritePulseActive = false
@@ -614,184 +609,16 @@ private struct ArtworkMotionModifier: ViewModifier {
         .linear(duration: filmDriftDuration).repeatForever(autoreverses: true)
     }
 
+    private var shouldShowVinylOverlay: Bool {
+        style == .vinylSpin && isEnabled && !hasAnimatedStream && artworkSide > 1
+    }
+
+    private var shouldShowFilmOverlay: Bool {
+        style == .filmGrainDrift && isEnabled
+    }
+
     func body(content: Content) -> some View {
-        content
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .onAppear { viewSize = geo.size }
-                        .onChange(of: geo.size) { newSize in
-                            viewSize = newSize
-                        }
-                }
-            )
-            .scaleEffect(parallaxScale)
-            .offset(
-                x: parallaxOffset.width,
-                y: parallaxOffset.height
-            )
-            .rotation3DEffect(.degrees(parallaxTiltX), axis: (x: 1, y: 0, z: 0))
-            .rotation3DEffect(.degrees(parallaxTiltY), axis: (x: 0, y: 1, z: 0))
-            .overlay {
-                if style == .vinylSpin && isEnabled && !hasAnimatedStream && artworkSide > 1 {
-                    ZStack {
-                        // Translucent background (no artwork outside the disc)
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(Color.black.opacity(0.95))
-
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        tint.opacity(0.16),
-                                        .black.opacity(0.22),
-                                        .white.opacity(0.06)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .blendMode(.screen)
-                            .opacity(0.62)
-
-                        TimelineView(.periodic(from: Date(), by: 1.0 / 60.0)) { context in
-                            ZStack {
-                                Circle()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [
-                                                Color.black.opacity(0.94),
-                                                Color.black.opacity(0.74),
-                                                Color.black.opacity(0.92)
-                                            ],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-
-                                Circle()
-                                    .stroke(.white.opacity(0.14), lineWidth: 1.1)
-
-                                Circle()
-                                    .stroke(tint.opacity(0.18), lineWidth: 1.2)
-
-                                Circle()
-                                    .trim(from: 0.03, to: 0.97)
-                                    .stroke(
-                                        Color.black.opacity(0.38),
-                                        style: StrokeStyle(
-                                            lineWidth: vinylGrooveWidth,
-                                            lineCap: .round
-                                        )
-                                    )
-
-                                Circle()
-                                    .trim(from: 0.08, to: 0.92)
-                                    .stroke(
-                                        .white.opacity(0.08),
-                                        style: StrokeStyle(
-                                            lineWidth: vinylGrooveWidth * 0.42,
-                                            lineCap: .round
-                                        )
-                                    )
-
-                                Circle()
-                                    .fill(.white.opacity(0.08))
-                                    .blur(radius: vinylDiscDiameter * 0.10)
-                                    .scaleEffect(0.72)
-                                    .offset(x: -vinylDiscDiameter * 0.14, y: -vinylDiscDiameter * 0.14)
-                                    .blendMode(.screen)
-
-                                Group {
-                                    if let artworkImage {
-                                        Image(nsImage: artworkImage)
-                                            .resizable()
-                                            .interpolation(.high)
-                                            .scaledToFill()
-                                    } else {
-                                        LinearGradient(
-                                            colors: [tint.opacity(0.58), .black.opacity(0.50)],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    }
-                                }
-                                .frame(width: vinylCenterLabelDiameter, height: vinylCenterLabelDiameter)
-                                .clipShape(Circle())
-                                .overlay(
-                                    Circle()
-                                        .stroke(.white.opacity(0.26), lineWidth: 1.0)
-                                )
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.black.opacity(0.34), lineWidth: vinylLabelRingWidth)
-                                )
-
-                                Circle()
-                                    .fill(Color.black.opacity(0.92))
-                                    .frame(width: vinylHubHoleDiameter, height: vinylHubHoleDiameter)
-
-                                Circle()
-                                    .fill(.white.opacity(0.26))
-                                    .frame(width: vinylHubHoleDiameter * 0.42, height: vinylHubHoleDiameter * 0.42)
-                            }
-                            .frame(width: vinylDiscDiameter, height: vinylDiscDiameter)
-                            .rotationEffect(.degrees(vinylRotationDegrees(at: context.date)))
-                            .opacity(shouldSpinVinyl ? 0.99 : 0.94)
-                        }
-                        .frame(width: vinylDiscDiameter, height: vinylDiscDiameter)
-                    }
-                    .frame(width: artworkSide, height: artworkSide)
-                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    .allowsHitTesting(false)
-                }
-            }
-            .overlay {
-                if style == .filmGrainDrift && isEnabled {
-                    ZStack {
-                        Image(nsImage: FilmGrainTexture.image)
-                            .resizable()
-                            .interpolation(.none)
-                            .scaledToFill()
-                            .scaleEffect(filmDriftScale)
-                            .offset(filmDriftOffsetPrimary)
-                            .opacity(filmGrainOpacity)
-                            .blendMode(.overlay)
-
-                        Image(nsImage: FilmGrainTexture.image)
-                            .resizable()
-                            .interpolation(.none)
-                            .scaledToFill()
-                            .scaleEffect(filmDriftScale * 1.03)
-                            .offset(filmDriftOffsetSecondary)
-                            .opacity(filmGrainOpacity * 0.58)
-                            .blendMode(.softLight)
-
-                        LinearGradient(
-                            colors: [
-                                .white.opacity(filmDriftPhase ? 0.06 : 0.03),
-                                .clear,
-                                .black.opacity(filmDriftPhase ? 0.05 : 0.02)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .blendMode(.overlay)
-                        .opacity(reduceMotion ? 0.22 : 0.34)
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    .allowsHitTesting(false)
-                }
-            }
-            .animation(
-                .interactiveSpring(response: 0.28, dampingFraction: 0.84, blendDuration: 0.1),
-                value: pointerLocation
-            )
-            .animation(
-                .spring(response: 0.26, dampingFraction: 0.80, blendDuration: 0.1),
-                value: hovering
-            )
-            .animation(filmDriftAnimation, value: filmDriftPhase)
+        interactiveMotionContent(content)
             .onContinuousHover { phase in
                 switch phase {
                 case .active(let location):
@@ -811,29 +638,29 @@ private struct ArtworkMotionModifier: ViewModifier {
             .onDisappear {
                 stopVinylMotion(allowSettle: false)
             }
-            .onChange(of: style) { _ in
+            .onChange(of: style) { _, _ in
                 if style == .vinylSpin, vinylSpinStartDate == nil {
                     vinylSpinStartDate = Date()
                     wasVinylSpinning = true
                 }
                 synchronizeAnimationState(allowVinylSettle: false)
             }
-            .onChange(of: isEnabled) { enabled in
+            .onChange(of: isEnabled) { _, enabled in
                 if !enabled {
                     hovering = false
                 }
                 synchronizeAnimationState(allowVinylSettle: false)
             }
-            .onChange(of: isPlaying) { _ in
+            .onChange(of: isPlaying) { _, _ in
                 synchronizeAnimationState(allowVinylSettle: true)
             }
-            .onChange(of: hasAnimatedStream) { _ in
+            .onChange(of: hasAnimatedStream) { _, _ in
                 synchronizeAnimationState(allowVinylSettle: true)
             }
-            .onChange(of: reduceMotion) { _ in
+            .onChange(of: reduceMotion) { _, _ in
                 synchronizeAnimationState(allowVinylSettle: false)
             }
-            .onChange(of: shouldSpinVinyl) { shouldSpin in
+            .onChange(of: shouldSpinVinyl) { _, shouldSpin in
                 if shouldSpin {
                     if vinylSpinStartDate == nil {
                         vinylSpinStartDate = Date()
@@ -843,6 +670,58 @@ private struct ArtworkMotionModifier: ViewModifier {
                     stopVinylMotion(allowSettle: true)
                 }
             }
+    }
+
+    private func interactiveMotionContent(_ content: Content) -> some View {
+        content
+            .background(ArtworkSizeReader(size: $viewSize))
+            .scaleEffect(parallaxScale)
+            .offset(x: parallaxOffset.width, y: parallaxOffset.height)
+            .rotation3DEffect(.degrees(parallaxTiltX), axis: (x: 1, y: 0, z: 0))
+            .rotation3DEffect(.degrees(parallaxTiltY), axis: (x: 0, y: 1, z: 0))
+            .overlay { vinylOverlay }
+            .overlay { filmOverlay }
+            .animation(
+                .interactiveSpring(response: 0.28, dampingFraction: 0.84, blendDuration: 0.1),
+                value: pointerLocation
+            )
+            .animation(
+                .spring(response: 0.26, dampingFraction: 0.80, blendDuration: 0.1),
+                value: hovering
+            )
+            .animation(filmDriftAnimation, value: filmDriftPhase)
+    }
+
+    @ViewBuilder
+    private var vinylOverlay: some View {
+        if shouldShowVinylOverlay {
+            VinylPlaybackOverlay(
+                artworkSide: artworkSide,
+                tint: tint,
+                artworkImage: artworkImage,
+                vinylDiscDiameter: vinylDiscDiameter,
+                vinylCenterLabelDiameter: vinylCenterLabelDiameter,
+                vinylLabelRingWidth: vinylLabelRingWidth,
+                vinylHubHoleDiameter: vinylHubHoleDiameter,
+                vinylGrooveWidth: vinylGrooveWidth,
+                shouldSpinVinyl: shouldSpinVinyl,
+                rotationDegrees: vinylRotationDegrees(at:)
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var filmOverlay: some View {
+        if shouldShowFilmOverlay {
+            FilmGrainDriftOverlay(
+                filmDriftScale: filmDriftScale,
+                filmDriftOffsetPrimary: filmDriftOffsetPrimary,
+                filmDriftOffsetSecondary: filmDriftOffsetSecondary,
+                filmGrainOpacity: filmGrainOpacity,
+                filmDriftPhase: filmDriftPhase,
+                reduceMotion: reduceMotion
+            )
+        }
     }
 
     private func synchronizeAnimationState(allowVinylSettle: Bool) {
@@ -886,6 +765,188 @@ private struct ArtworkMotionModifier: ViewModifier {
             }
         }
         wasVinylSpinning = false
+    }
+}
+
+private struct ArtworkSizeReader: View {
+    @Binding var size: CGSize
+
+    var body: some View {
+        GeometryReader { geo in
+            Color.clear
+                .onAppear { size = geo.size }
+                .onChange(of: geo.size) { _, newSize in
+                    size = newSize
+                }
+        }
+    }
+}
+
+private struct VinylPlaybackOverlay: View {
+    let artworkSide: CGFloat
+    let tint: Color
+    let artworkImage: NSImage?
+    let vinylDiscDiameter: CGFloat
+    let vinylCenterLabelDiameter: CGFloat
+    let vinylLabelRingWidth: CGFloat
+    let vinylHubHoleDiameter: CGFloat
+    let vinylGrooveWidth: CGFloat
+    let shouldSpinVinyl: Bool
+    let rotationDegrees: (Date) -> Double
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.black.opacity(0.95))
+
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            tint.opacity(0.16),
+                            .black.opacity(0.22),
+                            .white.opacity(0.06)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .blendMode(.screen)
+                .opacity(0.62)
+
+            TimelineView(.periodic(from: Date(), by: 1.0 / 60.0)) { context in
+                vinylDisc(date: context.date)
+            }
+            .frame(width: vinylDiscDiameter, height: vinylDiscDiameter)
+        }
+        .frame(width: artworkSide, height: artworkSide)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .allowsHitTesting(false)
+    }
+
+    private func vinylDisc(date: Date) -> some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.black.opacity(0.94),
+                            Color.black.opacity(0.74),
+                            Color.black.opacity(0.92)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            Circle()
+                .stroke(.white.opacity(0.14), lineWidth: 1.1)
+
+            Circle()
+                .stroke(tint.opacity(0.18), lineWidth: 1.2)
+
+            Circle()
+                .trim(from: 0.03, to: 0.97)
+                .stroke(
+                    Color.black.opacity(0.38),
+                    style: StrokeStyle(lineWidth: vinylGrooveWidth, lineCap: .round)
+                )
+
+            Circle()
+                .trim(from: 0.08, to: 0.92)
+                .stroke(
+                    .white.opacity(0.08),
+                    style: StrokeStyle(lineWidth: vinylGrooveWidth * 0.42, lineCap: .round)
+                )
+
+            Circle()
+                .fill(.white.opacity(0.08))
+                .blur(radius: vinylDiscDiameter * 0.10)
+                .scaleEffect(0.72)
+                .offset(x: -vinylDiscDiameter * 0.14, y: -vinylDiscDiameter * 0.14)
+                .blendMode(.screen)
+
+            labelArtwork
+                .frame(width: vinylCenterLabelDiameter, height: vinylCenterLabelDiameter)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(.white.opacity(0.26), lineWidth: 1.0))
+                .overlay(
+                    Circle()
+                        .stroke(Color.black.opacity(0.34), lineWidth: vinylLabelRingWidth)
+                )
+
+            Circle()
+                .fill(Color.black.opacity(0.92))
+                .frame(width: vinylHubHoleDiameter, height: vinylHubHoleDiameter)
+
+            Circle()
+                .fill(.white.opacity(0.26))
+                .frame(width: vinylHubHoleDiameter * 0.42, height: vinylHubHoleDiameter * 0.42)
+        }
+        .frame(width: vinylDiscDiameter, height: vinylDiscDiameter)
+        .rotationEffect(.degrees(rotationDegrees(date)))
+        .opacity(shouldSpinVinyl ? 0.99 : 0.94)
+    }
+
+    @ViewBuilder
+    private var labelArtwork: some View {
+        if let artworkImage {
+            Image(nsImage: artworkImage)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFill()
+        } else {
+            LinearGradient(
+                colors: [tint.opacity(0.58), .black.opacity(0.50)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+}
+
+private struct FilmGrainDriftOverlay: View {
+    let filmDriftScale: CGFloat
+    let filmDriftOffsetPrimary: CGSize
+    let filmDriftOffsetSecondary: CGSize
+    let filmGrainOpacity: Double
+    let filmDriftPhase: Bool
+    let reduceMotion: Bool
+
+    var body: some View {
+        ZStack {
+            Image(nsImage: FilmGrainTexture.image)
+                .resizable()
+                .interpolation(.none)
+                .scaledToFill()
+                .scaleEffect(filmDriftScale)
+                .offset(filmDriftOffsetPrimary)
+                .opacity(filmGrainOpacity)
+                .blendMode(.overlay)
+
+            Image(nsImage: FilmGrainTexture.image)
+                .resizable()
+                .interpolation(.none)
+                .scaledToFill()
+                .scaleEffect(filmDriftScale * 1.03)
+                .offset(filmDriftOffsetSecondary)
+                .opacity(filmGrainOpacity * 0.58)
+                .blendMode(.softLight)
+
+            LinearGradient(
+                colors: [
+                    .white.opacity(filmDriftPhase ? 0.06 : 0.03),
+                    .clear,
+                    .black.opacity(filmDriftPhase ? 0.05 : 0.02)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .blendMode(.overlay)
+            .opacity(reduceMotion ? 0.22 : 0.34)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .allowsHitTesting(false)
     }
 }
 
@@ -967,10 +1028,10 @@ private struct ArtworkTransitionFadeModifier: ViewModifier {
                     seedPresentationState(for: animationKey)
                 }
             }
-            .onChange(of: animationKey) { _ in
+            .onChange(of: animationKey) { _, _ in
                 handlePresentationChange()
             }
-            .onChange(of: isEnabled) { enabled in
+            .onChange(of: isEnabled) { _, enabled in
                 if enabled {
                     guard pendingFadeWhenEnabled, hasContent else { return }
                     pendingFadeWhenEnabled = false
@@ -1077,10 +1138,10 @@ struct ArtworkBackdropCrossfadeView: View {
                 seedPresentationState(for: animationKey, image: image)
             }
         }
-        .onChange(of: animationKey) { _ in
+        .onChange(of: animationKey) { _, _ in
             handleBackdropChange()
         }
-        .onChange(of: isEnabled) { enabled in
+        .onChange(of: isEnabled) { _, enabled in
             guard !enabled else { return }
             seedPresentationState(for: animationKey, image: image)
         }
@@ -1256,29 +1317,9 @@ struct ArtworkView: View {
     let animatedArtworkURL: URL?
     let animatedArtworkIsVisible: Bool
     var animateOnFirstAppear: Bool = true
-    @State private var streamReadyForDisplay = false
-    private let streamCrossfadeDuration: Double = 2.8
-
-    private var artworkTransitionKey: String {
-        if let image {
-            return "art:\(image.artworkTransitionIdentity)"
-        }
-        if let animatedArtworkURL {
-            return "animated:\(animatedArtworkURL.absoluteString)"
-        }
-        return "art:none"
-    }
-
-    private var hasArtworkContent: Bool {
-        image != nil || animatedArtworkURL != nil
-    }
 
     private var artworkBackdropKey: String {
         image?.artworkTransitionIdentity ?? "art:none"
-    }
-
-    private var streamCrossfadeAnimation: Animation {
-        .easeInOut(duration: streamCrossfadeDuration)
     }
 
     var body: some View {
@@ -1331,25 +1372,13 @@ struct ArtworkView: View {
                     .overlay(outer.stroke(.white.opacity(0.22), lineWidth: 1.2))
                     .overlay(outer.stroke(tint.opacity(0.2), lineWidth: 1))
 
-                Group {
-                    ZStack {
-                        staticArtworkContent(side: contentSide)
-
-                        if let animatedArtworkURL {
-                            AnimatedArtworkPlayerView(
-                                streamURL: animatedArtworkURL,
-                                isActive: animatedArtworkIsVisible,
-                                onRenderReadinessChanged: { isReady in
-                                    guard isReady != streamReadyForDisplay else { return }
-                                    withAnimation(streamCrossfadeAnimation) {
-                                        streamReadyForDisplay = isReady
-                                    }
-                                }
-                            )
-                            .frame(width: contentSide, height: contentSide)
-                            .opacity(streamReadyForDisplay ? 1 : 0)
-                        }
-                    }
+                ArtworkStreamTransitionSurface(
+                    image: image,
+                    animatedArtworkURL: animatedArtworkURL,
+                    isActive: animatedArtworkIsVisible,
+                    animateOnFirstAppear: animateOnFirstAppear
+                ) {
+                    staticArtworkContent(side: contentSide)
                 }
                 .clipShape(inner, style: FillStyle(eoFill: false, antialiased: true))
                 .overlay(inner.stroke(.white.opacity(0.1), lineWidth: 1))
@@ -1364,20 +1393,10 @@ struct ArtworkView: View {
                         )
                         .blendMode(.screen)
                 )
-                .artworkTransitionFade(
-                    animationKey: artworkTransitionKey,
-                    hasContent: hasArtworkContent,
-                    animateOnFirstAppear: animateOnFirstAppear
-                )
             }
             .frame(width: side, height: side)
             .clipped()
             .compositingGroup()
-            .onChange(of: animatedArtworkURL) { _ in
-                withAnimation(streamCrossfadeAnimation) {
-                    streamReadyForDisplay = false
-                }
-            }
         }
         .shadow(color: .black.opacity(0.28), radius: 16, x: 0, y: 10)
     }
