@@ -89,7 +89,7 @@ final class NowPlayingModel: ObservableObject {
     }
 
     private enum ResumeVolumeRamp {
-        static let duration: TimeInterval = 1
+        static let duration: TimeInterval = 2
         static let steps: Int = 9
         static let minimumTargetVolume: Double = 0.14
         static let startFraction: Double = 0.18

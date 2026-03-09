@@ -549,6 +549,10 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             .toggleDetachedMode: { [weak self] in self?.toggleDetachedModeFromHotkey() }
         ])
         HotkeyManager.shared.registerAll()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            OnboardingCoordinator.shared.handleAppLaunch()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

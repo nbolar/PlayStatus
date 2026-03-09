@@ -934,7 +934,269 @@ private enum FilmGrainTexture {
     }()
 }
 
+private struct ArtworkTransitionFadeModifier: ViewModifier {
+    let animationKey: String
+    let isEnabled: Bool
+    let hasContent: Bool
+    let animateOnFirstAppear: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var lastAnimationKey: String = ""
+    @State private var pendingFadeWhenEnabled = false
+    @State private var incomingOpacity: Double = 1
+    @State private var incomingScale: CGFloat = 1
+    @State private var incomingBlur: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(incomingOpacity)
+            .scaleEffect(incomingScale)
+            .blur(radius: incomingBlur)
+            .onAppear {
+                if animateOnFirstAppear, hasContent {
+                    lastAnimationKey = animationKey
+                    if isEnabled {
+                        pendingFadeWhenEnabled = false
+                        runFadeIn()
+                    } else {
+                        pendingFadeWhenEnabled = true
+                        incomingOpacity = 1
+                        incomingScale = 1
+                        incomingBlur = 0
+                    }
+                } else {
+                    seedPresentationState(for: animationKey)
+                }
+            }
+            .onChange(of: animationKey) { _ in
+                handlePresentationChange()
+            }
+            .onChange(of: isEnabled) { enabled in
+                if enabled {
+                    guard pendingFadeWhenEnabled, hasContent else { return }
+                    pendingFadeWhenEnabled = false
+                    runFadeIn()
+                    return
+                }
+
+                seedPresentationState(for: animationKey)
+            }
+    }
+
+    private func seedPresentationState(for key: String) {
+        lastAnimationKey = key
+        pendingFadeWhenEnabled = false
+        incomingOpacity = 1
+        incomingScale = 1
+        incomingBlur = 0
+    }
+
+    private func handlePresentationChange() {
+        guard animationKey != lastAnimationKey else { return }
+        lastAnimationKey = animationKey
+
+        guard isEnabled else {
+            pendingFadeWhenEnabled = hasContent
+            incomingOpacity = 1
+            incomingScale = 1
+            incomingBlur = 0
+            return
+        }
+
+        guard hasContent else {
+            pendingFadeWhenEnabled = false
+            incomingOpacity = 1
+            incomingScale = 1
+            incomingBlur = 0
+            return
+        }
+
+        pendingFadeWhenEnabled = false
+        runFadeIn()
+    }
+
+    private func runFadeIn() {
+        let duration = reduceMotion ? 0.20 : 0.46
+        let startScale: CGFloat = reduceMotion ? 1.0 : 1.018
+        let startBlur: CGFloat = reduceMotion ? 0 : 8
+
+        var reset = Transaction(animation: nil)
+        reset.disablesAnimations = true
+        withTransaction(reset) {
+            incomingOpacity = 0
+            incomingScale = startScale
+            incomingBlur = startBlur
+        }
+
+        withAnimation(.easeInOut(duration: duration)) {
+            incomingOpacity = 1
+            incomingScale = 1
+            incomingBlur = 0
+        }
+    }
+}
+
+struct ArtworkBackdropCrossfadeView: View {
+    let image: NSImage?
+    let animationKey: String
+    var isEnabled: Bool = true
+    var animateOnFirstAppear: Bool = false
+    var maxOpacity: Double = 0.32
+    var blurRadius: CGFloat = 32
+    var scale: CGFloat = 1.08
+    var tint: Color = .white
+    var tintOpacity: Double = 0
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var lastAnimationKey: String = ""
+    @State private var currentImage: NSImage?
+    @State private var outgoingImage: NSImage?
+    @State private var currentOpacity: Double = 0
+    @State private var outgoingOpacity: Double = 0
+    @State private var cleanupWorkItem: DispatchWorkItem?
+
+    var body: some View {
+        ZStack {
+            if let outgoingImage {
+                backdropLayer(for: outgoingImage)
+                    .opacity(outgoingOpacity)
+            }
+
+            if let currentImage {
+                backdropLayer(for: currentImage)
+                    .opacity(currentOpacity)
+            }
+        }
+        .onAppear {
+            if animateOnFirstAppear, image != nil, isEnabled {
+                lastAnimationKey = animationKey
+                currentImage = image
+                outgoingImage = nil
+                outgoingOpacity = 0
+                runEntranceFade()
+            } else {
+                seedPresentationState(for: animationKey, image: image)
+            }
+        }
+        .onChange(of: animationKey) { _ in
+            handleBackdropChange()
+        }
+        .onChange(of: isEnabled) { enabled in
+            guard !enabled else { return }
+            seedPresentationState(for: animationKey, image: image)
+        }
+        .onDisappear {
+            cleanupWorkItem?.cancel()
+            cleanupWorkItem = nil
+        }
+    }
+
+    private var crossfadeDuration: Double {
+        reduceMotion ? 0.18 : 0.62
+    }
+
+    @ViewBuilder
+    private func backdropLayer(for image: NSImage) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFill()
+            .saturation(1.06)
+            .scaleEffect(scale)
+            .blur(radius: blurRadius)
+            .overlay {
+                if tintOpacity > 0 {
+                    tint
+                        .opacity(tintOpacity)
+                        .blendMode(.screen)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+    }
+
+    private func seedPresentationState(for key: String, image: NSImage?) {
+        cleanupWorkItem?.cancel()
+        cleanupWorkItem = nil
+        lastAnimationKey = key
+        currentImage = image
+        outgoingImage = nil
+        currentOpacity = image == nil ? 0 : maxOpacity
+        outgoingOpacity = 0
+    }
+
+    private func handleBackdropChange() {
+        guard animationKey != lastAnimationKey else { return }
+        lastAnimationKey = animationKey
+
+        guard isEnabled else {
+            seedPresentationState(for: animationKey, image: image)
+            return
+        }
+
+        runCrossfade(to: image)
+    }
+
+    private func runEntranceFade() {
+        cleanupWorkItem?.cancel()
+        cleanupWorkItem = nil
+
+        var reset = Transaction(animation: nil)
+        reset.disablesAnimations = true
+        withTransaction(reset) {
+            currentOpacity = 0
+        }
+
+        withAnimation(.timingCurve(0.20, 0.78, 0.16, 1.0, duration: crossfadeDuration)) {
+            currentOpacity = maxOpacity
+        }
+    }
+
+    private func runCrossfade(to nextImage: NSImage?) {
+        cleanupWorkItem?.cancel()
+        cleanupWorkItem = nil
+
+        let previousImage = currentImage
+        currentImage = nextImage
+        outgoingImage = previousImage
+
+        var reset = Transaction(animation: nil)
+        reset.disablesAnimations = true
+        withTransaction(reset) {
+            currentOpacity = nextImage == nil ? 0 : 0
+            outgoingOpacity = previousImage == nil ? 0 : maxOpacity
+        }
+
+        withAnimation(.timingCurve(0.20, 0.78, 0.16, 1.0, duration: crossfadeDuration)) {
+            currentOpacity = nextImage == nil ? 0 : maxOpacity
+            outgoingOpacity = 0
+        }
+
+        let work = DispatchWorkItem {
+            outgoingImage = nil
+            cleanupWorkItem = nil
+        }
+        cleanupWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + crossfadeDuration, execute: work)
+    }
+}
+
 extension View {
+    func artworkTransitionFade(
+        animationKey: String,
+        isEnabled: Bool = true,
+        hasContent: Bool = true,
+        animateOnFirstAppear: Bool = false
+    ) -> some View {
+        modifier(
+            ArtworkTransitionFadeModifier(
+                animationKey: animationKey,
+                isEnabled: isEnabled,
+                hasContent: hasContent,
+                animateOnFirstAppear: animateOnFirstAppear
+            )
+        )
+    }
+
     func animatedArtworkMotion(
         isEnabled: Bool,
         seed: String,
@@ -967,12 +1229,14 @@ struct AnimatedArtworkView: View {
     let style: ArtworkMotionStyle
     let animatedArtworkURL: URL?
     let animatedArtworkIsVisible: Bool
+    var animateOnFirstAppear: Bool = true
     var body: some View {
         ArtworkView(
             image: image,
             tint: tint,
             animatedArtworkURL: animatedArtworkURL,
-            animatedArtworkIsVisible: animatedArtworkIsVisible
+            animatedArtworkIsVisible: animatedArtworkIsVisible,
+            animateOnFirstAppear: animateOnFirstAppear
         )
             .animatedArtworkMotion(
                 isEnabled: isEnabled,
@@ -991,8 +1255,27 @@ struct ArtworkView: View {
     let tint: Color
     let animatedArtworkURL: URL?
     let animatedArtworkIsVisible: Bool
+    var animateOnFirstAppear: Bool = true
     @State private var streamReadyForDisplay = false
     private let streamCrossfadeDuration: Double = 2.8
+
+    private var artworkTransitionKey: String {
+        if let image {
+            return "art:\(image.artworkTransitionIdentity)"
+        }
+        if let animatedArtworkURL {
+            return "animated:\(animatedArtworkURL.absoluteString)"
+        }
+        return "art:none"
+    }
+
+    private var hasArtworkContent: Bool {
+        image != nil || animatedArtworkURL != nil
+    }
+
+    private var artworkBackdropKey: String {
+        image?.artworkTransitionIdentity ?? "art:none"
+    }
 
     private var streamCrossfadeAnimation: Animation {
         .easeInOut(duration: streamCrossfadeDuration)
@@ -1017,6 +1300,18 @@ struct ArtworkView: View {
                     .blur(radius: 14)
                     .scaleEffect(0.92)
                     .opacity(0.9)
+
+                ArtworkBackdropCrossfadeView(
+                    image: image,
+                    animationKey: artworkBackdropKey,
+                    animateOnFirstAppear: animateOnFirstAppear,
+                    maxOpacity: 0.24,
+                    blurRadius: 26,
+                    scale: 1.12,
+                    tint: tint,
+                    tintOpacity: 0.06
+                )
+                .clipShape(outer, style: FillStyle(eoFill: false, antialiased: true))
 
                 // macOS 26: .ultraThinMaterial triggers DesignLibrary glass compositor
                 // on every SwiftUI re-render, causing recursive stack overflow.
@@ -1068,6 +1363,11 @@ struct ArtworkView: View {
                             )
                         )
                         .blendMode(.screen)
+                )
+                .artworkTransitionFade(
+                    animationKey: artworkTransitionKey,
+                    hasContent: hasArtworkContent,
+                    animateOnFirstAppear: animateOnFirstAppear
                 )
             }
             .frame(width: side, height: side)

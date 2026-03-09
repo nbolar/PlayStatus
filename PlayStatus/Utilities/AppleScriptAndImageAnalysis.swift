@@ -1,4 +1,5 @@
 import AppKit
+import ObjectiveC.runtime
 
 @discardableResult
 func runAppleScript(_ source: String) -> String? {
@@ -29,6 +30,24 @@ extension NSAppleEventDescriptor {
 // MARK: - Average color for tint
 
 extension NSImage {
+    var artworkTransitionIdentity: String {
+        if let cachedIdentity = objc_getAssociatedObject(
+            self,
+            &ArtworkTransitionIdentityAssociation.key
+        ) as? NSString {
+            return cachedIdentity as String
+        }
+
+        let identity = makeArtworkTransitionIdentity()
+        objc_setAssociatedObject(
+            self,
+            &ArtworkTransitionIdentityAssociation.key,
+            identity as NSString,
+            .OBJC_ASSOCIATION_COPY_NONATOMIC
+        )
+        return identity
+    }
+
     func normalizedArtworkForDisplay(maxPixelSize: Int = 1200) -> NSImage {
         guard let cgImage = cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             let fallback = (copy() as? NSImage) ?? self
@@ -285,5 +304,66 @@ extension NSImage {
             brightness: min(max(b * bright, 0), 1),
             alpha: 1
         )
+    }
+}
+
+private enum ArtworkTransitionIdentityAssociation {
+    static var key: UInt8 = 0
+}
+
+private func artworkFingerprintHash<S: Sequence>(_ bytes: S) -> String where S.Element == UInt8 {
+    var hash: UInt64 = 1469598103934665603
+    for byte in bytes {
+        hash ^= UInt64(byte)
+        hash = hash &* 1099511628211
+    }
+    return String(hash, radix: 16)
+}
+
+private extension NSImage {
+    func makeArtworkTransitionIdentity() -> String {
+        if let cgImage = cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            let sampleSide = 12
+            if let bitmap = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: sampleSide,
+                pixelsHigh: sampleSide,
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: sampleSide * 4,
+                bitsPerPixel: 32
+            ), let bytes = bitmap.bitmapData {
+                NSGraphicsContext.saveGraphicsState()
+                if let context = NSGraphicsContext(bitmapImageRep: bitmap) {
+                    NSGraphicsContext.current = context
+                    context.imageInterpolation = .high
+                    context.cgContext.interpolationQuality = .high
+                    context.cgContext.draw(
+                        cgImage,
+                        in: CGRect(x: 0, y: 0, width: sampleSide, height: sampleSide)
+                    )
+                }
+                NSGraphicsContext.restoreGraphicsState()
+
+                let byteCount = sampleSide * sampleSide * 4
+                let hash = artworkFingerprintHash(
+                    UnsafeBufferPointer(start: bytes, count: byteCount)
+                )
+                return "\(cgImage.width)x\(cgImage.height)|\(hash)"
+            }
+
+            return "\(cgImage.width)x\(cgImage.height)"
+        }
+
+        if let data = tiffRepresentation {
+            return "tiff|\(data.count)|\(artworkFingerprintHash(data.prefix(4096)))"
+        }
+
+        let width = Int(size.width.rounded())
+        let height = Int(size.height.rounded())
+        return "size|\(width)x\(height)"
     }
 }

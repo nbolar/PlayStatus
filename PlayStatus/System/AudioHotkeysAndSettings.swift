@@ -561,6 +561,7 @@ struct SettingsOpenControl<Label: View>: View {
 
 struct PlayStatusSettingsView: View {
     @ObservedObject var model: NowPlayingModel
+    @ObservedObject var onboarding: OnboardingCoordinator
     @State private var selectedTab: SettingsTab = .display
     @State private var tabDirection: SettingsTabDirection = .forward
     @State private var showAnimatedStreamPreview = false
@@ -568,7 +569,7 @@ struct PlayStatusSettingsView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            SettingsSidebar(selectedTab: tabSelection)
+            SettingsSidebar(selectedTab: tabSelection, onboarding: onboarding)
 
             Divider()
 
@@ -967,6 +968,31 @@ struct PlayStatusSettingsView: View {
 
     private var systemContent: some View {
         VStack(alignment: .leading, spacing: 10) {
+            SettingsControlRow(
+                title: "Walkthrough",
+                caption: "Replay the relaunch setup tour or re-open the shorter update tour."
+            ) {
+                HStack(spacing: 8) {
+                    Button {
+                        onboarding.replayFullWalkthrough()
+                    } label: {
+                        Label("Replay Full Tour", systemImage: "sparkles.rectangle.stack")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Button {
+                        onboarding.presentUpgradeWalkthrough()
+                    } label: {
+                        Label("What’s New", systemImage: "arrow.clockwise.circle")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+
+            Divider().padding(.vertical, 2)
+
             SettingsToggleRow(
                 title: "Launch at login",
                 caption: "Start PlayStatus automatically when you sign in.",
@@ -1449,6 +1475,7 @@ private enum SettingsTabDirection {
 
 private struct SettingsSidebar: View {
     @Binding var selectedTab: SettingsTab
+    @ObservedObject var onboarding: OnboardingCoordinator
 
     private var versionText: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
@@ -1485,10 +1512,53 @@ private struct SettingsSidebar: View {
                 }
             }
             .padding(10)
+            .onAppear {
+                onboarding.registerCoachmark(.settingsNavigation, available: true)
+            }
+            .onDisappear {
+                onboarding.registerCoachmark(.settingsNavigation, available: false)
+            }
+
+            if onboarding.isCoachmarkActive(.settingsNavigation) {
+                CoachmarkBubble(
+                    coachmark: .settingsNavigation,
+                    accent: Color.accentColor
+                ) {
+                    onboarding.dismissCoachmark(.settingsNavigation)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
 
             Spacer(minLength: 10)
 
             Divider()
+
+            Button {
+                onboarding.replayFullWalkthrough()
+            } label: {
+                Label("Replay Walkthrough", systemImage: "sparkles")
+                    .foregroundStyle(.primary)
+                    .font(.system(size: 12,weight: .semibold,design: .rounded))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.white.opacity(0.42))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(Color.white.opacity(0.34), lineWidth: 1)
+                            )
+                    )
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
 
             Button {
                 NSApp.terminate(nil)

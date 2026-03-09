@@ -9,6 +9,7 @@ private let miniSeamBlurRadius: CGFloat = 10
 
 struct NowPlayingPopover: View {
     @ObservedObject var model: NowPlayingModel
+    @ObservedObject private var onboarding = OnboardingCoordinator.shared
     @Namespace private var artworkMorphNamespace
     @State private var searchText = ""
     @State private var isSearchExpanded = false
@@ -102,6 +103,7 @@ struct NowPlayingPopover: View {
             withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.90, blendDuration: 0.12)) {
                 isSearchExpanded = false
             }
+            updateCoachmarkAvailability()
         }
         .onChange(of: model.lyricsPanelExpanded) { _ in
             syncRenderedRegularDetailsPane(for: regularDetailsRequested)
@@ -111,11 +113,19 @@ struct NowPlayingPopover: View {
             modePrimaryContentVisible = true
             modeSecondaryContentVisible = true
             syncRenderedRegularDetailsPaneImmediately()
+            updateCoachmarkAvailability()
         }
         .onDisappear {
             regularDetailsHideWorkItem?.cancel()
             regularDetailsHideWorkItem = nil
             regularPointerHovering = false
+            clearCoachmarkAvailability()
+        }
+        .onChange(of: model.surfaceMode) { _ in
+            updateCoachmarkAvailability()
+        }
+        .onChange(of: model.resolvedSearchProvider) { _ in
+            updateCoachmarkAvailability()
         }
         .simultaneousGesture(
             SpatialTapGesture().onEnded { value in
@@ -180,6 +190,11 @@ struct NowPlayingPopover: View {
         let regularDetachedControlScale = model.detachedRegularControlScaleFactor
         let restingRegularDetailTab = model.selectedRegularDetailsTab
         let restingRegularControlOpacity: Double = regularPointerHovering ? 1 : 0.44
+        let showModeCoachmark = onboarding.isCoachmarkActive(.modeToggle)
+        let showDetailsCoachmark = onboarding.isCoachmarkActive(.detailsToggle)
+        let showDetachedCoachmark = onboarding.isCoachmarkActive(.detachedControls)
+        let forceCoachmarkControlsVisible = onboarding.shouldForceModeCoachmarkControls()
+        let interactiveRegularControlsVisible = regularPointerHovering || forceCoachmarkControlsVisible
 
         return VStack(spacing: 0) {
             LiquidGlassCard(
@@ -197,7 +212,8 @@ struct NowPlayingPopover: View {
                         seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
                         style: model.artworkMotionStyle,
                         animatedArtworkURL: model.effectiveAnimatedArtworkURL,
-                        animatedArtworkIsVisible: model.isPopoverVisible
+                        animatedArtworkIsVisible: model.isPopoverVisible,
+                        animateOnFirstAppear: !modeTransitionActive
                     )
                         .frame(width: regularArtworkSize, height: regularArtworkSize)
                         .animatedArtworkMotion(
@@ -309,9 +325,20 @@ struct NowPlayingPopover: View {
                             model.miniMode = true
                         }
                     }
+                    .overlay(alignment: .bottomTrailing) {
+                        if showModeCoachmark {
+                            CoachmarkBubble(
+                                coachmark: .modeToggle,
+                                accent: Color(red: 0.44, green: 0.71, blue: 0.97)
+                            ) {
+                                onboarding.dismissCoachmark(.modeToggle)
+                            }
+                            .offset(x: 16, y: 42)
+                        }
+                    }
                     .opacity(restingRegularControlOpacity)
 
-                    if regularPointerHovering {
+                    if regularPointerHovering || showDetachedCoachmark {
                         DetachedSurfaceToggleControl(
                             isDetachedMode: model.surfaceMode == .detached,
                             transitionActive: modeTransitionActive,
@@ -324,7 +351,7 @@ struct NowPlayingPopover: View {
                     }
 
                     if model.surfaceMode == .detached {
-                        if regularPointerHovering {
+                        if regularPointerHovering || showDetachedCoachmark {
                             DetachedWindowPinControl(
                                 isPinned: model.detachedWindowAlwaysOnTop,
                                 transitionActive: modeTransitionActive,
@@ -332,6 +359,17 @@ struct NowPlayingPopover: View {
                                 sizeScale: regularDetachedControlScale
                             ) {
                                 model.detachedWindowAlwaysOnTop.toggle()
+                            }
+                            .overlay(alignment: .bottomTrailing) {
+                                if showDetachedCoachmark {
+                                    CoachmarkBubble(
+                                        coachmark: .detachedControls,
+                                        accent: Color(red: 0.53, green: 0.83, blue: 0.63)
+                                    ) {
+                                        onboarding.dismissCoachmark(.detachedControls)
+                                    }
+                                    .offset(x: 18, y: 42)
+                                }
                             }
                             .transition(.opacity.combined(with: .move(edge: .trailing)))
 
@@ -346,7 +384,7 @@ struct NowPlayingPopover: View {
                         }
                     }
 
-                    if regularPointerHovering || restingRegularDetailTab == .lyrics {
+                    if regularPointerHovering || restingRegularDetailTab == .lyrics || showDetailsCoachmark {
                         RegularDetailToggleControl(
                             isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .lyrics,
                             systemName: model.selectedRegularDetailsTab == .lyrics && model.lyricsPanelExpanded ? "quote.bubble.fill" : "quote.bubble",
@@ -357,7 +395,18 @@ struct NowPlayingPopover: View {
                         ) {
                             toggleRegularDetails(tab: .lyrics)
                         }
-                        .opacity(regularPointerHovering ? 1 : restingRegularControlOpacity)
+                        .overlay(alignment: .bottomTrailing) {
+                            if showDetailsCoachmark {
+                                CoachmarkBubble(
+                                    coachmark: .detailsToggle,
+                                    accent: Color(red: 0.87, green: 0.54, blue: 0.77)
+                                ) {
+                                    onboarding.dismissCoachmark(.detailsToggle)
+                                }
+                                .offset(x: 18, y: 42)
+                            }
+                        }
+                        .opacity(interactiveRegularControlsVisible ? 1 : restingRegularControlOpacity)
                     }
 
                     if regularPointerHovering || restingRegularDetailTab == .credits {
@@ -399,7 +448,7 @@ struct NowPlayingPopover: View {
                 .opacity(modeSecondaryContentVisible ? 1 : 0)
                 .offset(y: modeSecondaryContentVisible ? 0 : -8)
                 .allowsHitTesting(modeSecondaryContentVisible)
-                .animation(.easeInOut(duration: 0.16), value: regularPointerHovering)
+                .animation(.easeInOut(duration: 0.16), value: interactiveRegularControlsVisible)
                 .animation(modeSecondaryRevealAnimation, value: modeSecondaryContentVisible)
             }
 
@@ -558,6 +607,17 @@ struct NowPlayingPopover: View {
 
         }
         .frame(height: 44 * clampedControlScale)
+        .overlay(alignment: .bottomTrailing) {
+            if onboarding.isCoachmarkActive(.search) {
+                CoachmarkBubble(
+                    coachmark: .search,
+                    accent: Color(red: 0.98, green: 0.72, blue: 0.35)
+                ) {
+                    onboarding.dismissCoachmark(.search)
+                }
+                .offset(x: 10, y: 42)
+            }
+        }
         .background(
             GeometryReader { proxy in
                 Color.clear.preference(
@@ -649,6 +709,21 @@ struct NowPlayingPopover: View {
         let willExpand = !(model.lyricsPanelExpanded && model.selectedRegularDetailsTab == tab)
         model.toggleRegularDetailsTab(tab)
         syncRenderedRegularDetailsPane(for: willExpand && !model.miniMode)
+    }
+
+    private func updateCoachmarkAvailability() {
+        let regularSurface = !displayedMiniMode
+        onboarding.registerCoachmark(.modeToggle, available: regularSurface)
+        onboarding.registerCoachmark(.search, available: regularSurface && model.resolvedSearchProvider != .none)
+        onboarding.registerCoachmark(.detailsToggle, available: regularSurface)
+        onboarding.registerCoachmark(.detachedControls, available: regularSurface && model.surfaceMode == .detached)
+    }
+
+    private func clearCoachmarkAvailability() {
+        onboarding.registerCoachmark(.modeToggle, available: false)
+        onboarding.registerCoachmark(.search, available: false)
+        onboarding.registerCoachmark(.detailsToggle, available: false)
+        onboarding.registerCoachmark(.detachedControls, available: false)
     }
 
 }
@@ -1217,17 +1292,17 @@ private struct MiniNowPlayingCard: View {
             .blendMode(.screen)
             .opacity(0.82)
 
-            if let artwork = model.artwork {
-                Image(nsImage: artwork)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFill()
-                    .blur(radius: 32)
-                    .scaleEffect(1.08)
-                    .opacity(0.32)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-            }
+            ArtworkBackdropCrossfadeView(
+                image: model.artwork,
+                animationKey: model.artwork?.artworkTransitionIdentity ?? "art:none",
+                isEnabled: model.animatedArtworkEnabled,
+                animateOnFirstAppear: !transitionActive,
+                maxOpacity: 0.34,
+                blurRadius: 34,
+                scale: 1.10,
+                tint: model.glassTint,
+                tintOpacity: 0.05
+            )
         }
         .overlay(
             LinearGradient(
@@ -1399,7 +1474,10 @@ private struct MiniNowPlayingCard: View {
         miniLowerPanelHoverLift: CGFloat,
         miniInfoBandTopCornerRadius: CGFloat
     ) -> some View {
-        ZStack(alignment: .bottom) {
+        let restingPanelOpacity: Double = infoExpanded ? 1 : 0.72
+        let restingPanelSaturation: Double = infoExpanded ? 1 : 0.90
+
+        return ZStack(alignment: .bottom) {
             Rectangle()
                 .fill(Color.black.opacity(miniInfoBandBaseOpacity))
                 .overlay(
@@ -1523,24 +1601,29 @@ private struct MiniNowPlayingCard: View {
             .padding(.horizontal, miniLowerPanelHorizontalInset)
             .padding(.bottom, miniLowerPanelBottomInset)
             .offset(y: -miniLowerPanelHoverLift)
+            .opacity(restingPanelOpacity)
+            .saturation(restingPanelSaturation)
             .animation(.interactiveSpring(response: 0.30, dampingFraction: 0.86, blendDuration: 0.10), value: pointerHovering)
         }
     }
 
     private func miniCardSeamOverlay(seamOpacity: Double) -> some View {
         ZStack(alignment: .bottom) {
-            if let artwork = model.artwork {
-                Image(nsImage: artwork)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFill()
-                    .blur(radius: miniSeamBlurRadius)
-                    .opacity(0.28)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: miniSeamBlendHeight * 2.2)
-                    .offset(y: 2)
-                    .clipped()
-            }
+            ArtworkBackdropCrossfadeView(
+                image: model.artwork,
+                animationKey: model.artwork?.artworkTransitionIdentity ?? "art:none",
+                isEnabled: model.animatedArtworkEnabled,
+                animateOnFirstAppear: !transitionActive,
+                maxOpacity: 0.28,
+                blurRadius: miniSeamBlurRadius,
+                scale: 1.04,
+                tint: model.glassTint,
+                tintOpacity: 0.03
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: miniSeamBlendHeight * 2.2)
+            .offset(y: 2)
+            .clipped()
 
             LinearGradient(
                 colors: [
@@ -1626,13 +1709,22 @@ private struct MiniArtworkTransitionSurface: View {
     let animatedArtworkURL: URL?
     let isPopoverVisible: Bool
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var lastTrackKey: String = ""
-    @State private var incomingOpacity: Double = 1
-    @State private var incomingScale: CGFloat = 1
-    @State private var incomingBlur: CGFloat = 0
     @State private var streamReadyForDisplay: Bool = false
     private let streamCrossfadeDuration: Double = 2.8
+
+    private var artworkTransitionKey: String {
+        if let artwork {
+            return "\(trackKey)|art:\(artwork.artworkTransitionIdentity)"
+        }
+        if let animatedArtworkURL {
+            return "\(trackKey)|animated:\(animatedArtworkURL.absoluteString)"
+        }
+        return "\(trackKey)|art:none"
+    }
+
+    private var hasArtworkContent: Bool {
+        artwork != nil || animatedArtworkURL != nil
+    }
 
     private var streamCrossfadeAnimation: Animation {
         .easeInOut(duration: streamCrossfadeDuration)
@@ -1640,29 +1732,18 @@ private struct MiniArtworkTransitionSurface: View {
 
     var body: some View {
         artworkLayer(for: artwork, animatedURL: animatedArtworkURL)
-            .opacity(incomingOpacity)
-            .scaleEffect(incomingScale)
-            .blur(radius: incomingBlur)
+            .artworkTransitionFade(
+                animationKey: artworkTransitionKey,
+                isEnabled: animationsEnabled && !transitionActive,
+                hasContent: hasArtworkContent,
+                animateOnFirstAppear: !transitionActive
+            )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
-        .onAppear {
-            seedPresentationState()
-        }
         .onChange(of: animatedArtworkURL) { _ in
             withAnimation(streamCrossfadeAnimation) {
                 streamReadyForDisplay = false
             }
-        }
-        .onChange(of: trackKey) { _ in
-            handleArtworkStateChange()
-        }
-        .onChange(of: animationsEnabled) { enabled in
-            guard !enabled else { return }
-            seedPresentationState()
-        }
-        .onChange(of: transitionActive) { active in
-            guard active else { return }
-            seedPresentationState()
         }
     }
 
@@ -1701,46 +1782,6 @@ private struct MiniArtworkTransitionSurface: View {
         } else {
             EmptyArtworkPlaceholderView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-
-    private func seedPresentationState() {
-        incomingOpacity = 1
-        incomingScale = 1
-        incomingBlur = 0
-        lastTrackKey = trackKey
-    }
-
-    private func handleArtworkStateChange() {
-        let trackChanged = trackKey != lastTrackKey
-        guard trackChanged else { return }
-        lastTrackKey = trackKey
-
-        guard animationsEnabled, !transitionActive else {
-            seedPresentationState()
-            return
-        }
-
-        if reduceMotion {
-            runFadeIn(duration: 0.18)
-            return
-        }
-
-        runFadeIn(duration: 0.48, startScale: 1.02, startBlur: 6)
-    }
-
-    private func runFadeIn(duration: Double, startScale: CGFloat = 1, startBlur: CGFloat = 0) {
-        var reset = Transaction(animation: nil)
-        reset.disablesAnimations = true
-        withTransaction(reset) {
-            incomingOpacity = 0
-            incomingScale = startScale
-            incomingBlur = startBlur
-        }
-        withAnimation(.easeInOut(duration: duration)) {
-            incomingOpacity = 1
-            incomingScale = 1
-            incomingBlur = 0
         }
     }
 }
