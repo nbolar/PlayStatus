@@ -77,12 +77,6 @@ final class NowPlayingModel: ObservableObject {
         }
     }
 
-    private struct ThemeSpec {
-        let tint: NSColor
-        let palette: [NSColor]
-        let contrastBoost: Double
-    }
-
     private struct ResumeVolumeRampState {
         let deviceID: AudioDeviceID
         let targetVolume: Double
@@ -1057,182 +1051,16 @@ final class NowPlayingModel: ObservableObject {
     }
 
     private func updateTint(from image: NSImage?) {
-        let adaptiveSpec = adaptiveThemeSpec(from: image)
-        let resolvedSpec: ThemeSpec
-        switch themeStyle {
-        case .artworkAdaptive:
-            resolvedSpec = adaptiveSpec
-        case .frosted, .midnight, .warmStudio, .highContrast, .graphite:
-            let presetSpec = presetThemeSpec(for: themeStyle)
-            if image != nil, themeArtworkBlend > 0 {
-                resolvedSpec = blendedThemeSpec(
-                    base: presetSpec,
-                    artwork: adaptiveSpec,
-                    amount: themeArtworkBlend
-                )
-            } else {
-                resolvedSpec = presetSpec
-            }
-        }
+        let resolvedSpec = NowPlayingThemeEngine.resolveTheme(
+            style: themeStyle,
+            image: image,
+            artworkColorIntensity: artworkColorIntensity,
+            artworkBlend: themeArtworkBlend
+        )
 
         glassTint = Color(resolvedSpec.tint)
         regularControlsContrastBoost = resolvedSpec.contrastBoost
         cardBackgroundPalette = resolvedSpec.palette.map { Color($0) } + [Color.clear]
-    }
-
-    private func controlContrastBoost(for color: NSColor) -> Double {
-        let rgb = color.usingColorSpace(.deviceRGB) ?? color
-        let luminance = (0.2126 * Double(rgb.redComponent))
-            + (0.7152 * Double(rgb.greenComponent))
-            + (0.0722 * Double(rgb.blueComponent))
-        return min(max((luminance - 0.56) / 0.30, 0), 1)
-    }
-
-    private func adaptiveThemeSpec(from image: NSImage?) -> ThemeSpec {
-        guard let image else {
-            let neutral = NSColor.white
-            return ThemeSpec(
-                tint: neutral,
-                palette: [
-                    themedColor(neutral, alpha: 0.24),
-                    themedColor(neutral, alpha: 0.20),
-                    themedColor(neutral, alpha: 0.16),
-                    themedColor(neutral, alpha: 0.10)
-                ],
-                contrastBoost: controlContrastBoost(for: neutral)
-            )
-        }
-
-        let average = image.averageColor() ?? NSColor.white
-        if let palette = image.artworkPalette() {
-            let opacities: [Double] = [0.62, 0.56, 0.48, 0.40, 0.32, 0.24, 0.18]
-            return ThemeSpec(
-                tint: average,
-                palette: zip(palette, opacities).map { color, alpha in
-                    themedColor(color, alpha: alpha)
-                },
-                contrastBoost: controlContrastBoost(for: average)
-            )
-        }
-
-        return ThemeSpec(
-            tint: average,
-            palette: [
-                themedColor(average, alpha: 0.55),
-                themedColor(average, alpha: 0.45),
-                themedColor(average, alpha: 0.34),
-                themedColor(average, alpha: 0.24)
-            ],
-            contrastBoost: controlContrastBoost(for: average)
-        )
-    }
-
-    private func presetThemeSpec(for style: ThemeStyle) -> ThemeSpec {
-        switch style {
-        case .artworkAdaptive:
-            return adaptiveThemeSpec(from: artwork)
-        case .frosted:
-            return ThemeSpec(
-                tint: nsColor(red: 0.90, green: 0.95, blue: 1.00),
-                palette: [
-                    themedColor(nsColor(red: 0.97, green: 0.99, blue: 1.00), alpha: 0.42),
-                    themedColor(nsColor(red: 0.83, green: 0.90, blue: 0.99), alpha: 0.34),
-                    themedColor(nsColor(red: 0.73, green: 0.82, blue: 0.95), alpha: 0.28),
-                    themedColor(nsColor(red: 0.93, green: 0.95, blue: 0.99), alpha: 0.22)
-                ],
-                contrastBoost: 0.72
-            )
-        case .midnight:
-            return ThemeSpec(
-                tint: nsColor(red: 0.24, green: 0.30, blue: 0.46),
-                palette: [
-                    themedColor(nsColor(red: 0.12, green: 0.15, blue: 0.24), alpha: 0.74),
-                    themedColor(nsColor(red: 0.17, green: 0.22, blue: 0.34), alpha: 0.64),
-                    themedColor(nsColor(red: 0.25, green: 0.30, blue: 0.46), alpha: 0.56),
-                    themedColor(nsColor(red: 0.34, green: 0.41, blue: 0.57), alpha: 0.40)
-                ],
-                contrastBoost: 0.18
-            )
-        case .warmStudio:
-            return ThemeSpec(
-                tint: nsColor(red: 0.82, green: 0.47, blue: 0.24),
-                palette: [
-                    themedColor(nsColor(red: 0.24, green: 0.11, blue: 0.08), alpha: 0.82),
-                    themedColor(nsColor(red: 0.44, green: 0.19, blue: 0.12), alpha: 0.64),
-                    themedColor(nsColor(red: 0.78, green: 0.35, blue: 0.18), alpha: 0.48),
-                    themedColor(nsColor(red: 0.93, green: 0.64, blue: 0.34), alpha: 0.30)
-                ],
-                contrastBoost: 0.44
-            )
-        case .highContrast:
-            return ThemeSpec(
-                tint: nsColor(red: 0.92, green: 0.95, blue: 0.99),
-                palette: [
-                    themedColor(nsColor(red: 0.04, green: 0.05, blue: 0.08), alpha: 0.95),
-                    themedColor(nsColor(red: 0.08, green: 0.10, blue: 0.16), alpha: 0.86),
-                    themedColor(nsColor(red: 0.18, green: 0.22, blue: 0.30), alpha: 0.64),
-                    themedColor(nsColor(red: 0.84, green: 0.90, blue: 0.99), alpha: 0.22)
-                ],
-                contrastBoost: 1.0
-            )
-        case .graphite:
-            return ThemeSpec(
-                tint: nsColor(red: 0.70, green: 0.73, blue: 0.79),
-                palette: [
-                    themedColor(nsColor(red: 0.18, green: 0.19, blue: 0.22), alpha: 0.84),
-                    themedColor(nsColor(red: 0.28, green: 0.30, blue: 0.34), alpha: 0.66),
-                    themedColor(nsColor(red: 0.42, green: 0.45, blue: 0.50), alpha: 0.46),
-                    themedColor(nsColor(red: 0.62, green: 0.66, blue: 0.72), alpha: 0.28)
-                ],
-                contrastBoost: 0.56
-            )
-        }
-    }
-
-    private func blendedThemeSpec(base: ThemeSpec, artwork: ThemeSpec, amount: Double) -> ThemeSpec {
-        let clampedAmount = CGFloat(min(max(amount, 0), 1))
-        let basePalette = base.palette
-        let artworkPalette = artwork.palette
-        let paletteCount = max(basePalette.count, artworkPalette.count)
-
-        let blendedPalette: [NSColor] = (0..<paletteCount).map { index in
-            let baseColor = index < basePalette.count ? basePalette[index] : (basePalette.last ?? base.tint)
-            let artworkColor = index < artworkPalette.count ? artworkPalette[index] : (artworkPalette.last ?? artwork.tint)
-            return blend(baseColor, artworkColor, ratio: clampedAmount)
-        }
-
-        return ThemeSpec(
-            tint: blend(base.tint, artwork.tint, ratio: clampedAmount),
-            palette: blendedPalette,
-            contrastBoost: base.contrastBoost + ((artwork.contrastBoost - base.contrastBoost) * Double(clampedAmount))
-        )
-    }
-
-    private func themedColor(_ color: NSColor, alpha: Double) -> NSColor {
-        let scaledAlpha = min(max(alpha * artworkColorIntensity, 0), 0.95)
-        let rgb = color.usingColorSpace(.deviceRGB) ?? color
-        return NSColor(
-            calibratedRed: rgb.redComponent,
-            green: rgb.greenComponent,
-            blue: rgb.blueComponent,
-            alpha: CGFloat(scaledAlpha)
-        )
-    }
-
-    private func nsColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat = 1.0) -> NSColor {
-        NSColor(calibratedRed: red, green: green, blue: blue, alpha: alpha)
-    }
-
-    private func blend(_ lhs: NSColor, _ rhs: NSColor, ratio: CGFloat) -> NSColor {
-        let p = min(max(ratio, 0), 1)
-        let lr = lhs.usingColorSpace(.deviceRGB) ?? lhs
-        let rr = rhs.usingColorSpace(.deviceRGB) ?? rhs
-        return NSColor(
-            calibratedRed: lr.redComponent * (1 - p) + rr.redComponent * p,
-            green: lr.greenComponent * (1 - p) + rr.greenComponent * p,
-            blue: lr.blueComponent * (1 - p) + rr.blueComponent * p,
-            alpha: lr.alphaComponent * (1 - p) + rr.alphaComponent * p
-        )
     }
 
     // MARK: - Menu bar marquee (safe for status items)
