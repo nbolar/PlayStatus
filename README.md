@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) 
 [![Version: 2.8](https://img.shields.io/badge/Version-3.0-green.svg)](https://github.com/nbolar/PlayStatus/releases) 
 [![Platform](http://img.shields.io/badge/platform-macOS-black.svg?style=flat)](https://developer.apple.com/resources/)
-[![Platform](https://img.shields.io/badge/swift-5.0-orange.svg?style=flat)](https://swift.org/blog/swift-5-released/)
+[![Platform](https://img.shields.io/badge/swiftUI-orange.svg?style=flat)](https://developer.apple.com/swiftui/)
 [![Open Source Love svg1](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/nbolar/playstatus/)
 [![GitHub All Releases](https://img.shields.io/github/downloads/nbolar/playstatus/total)](https://github.com/nbolar/PlayStatus/releases/latest/)
 
