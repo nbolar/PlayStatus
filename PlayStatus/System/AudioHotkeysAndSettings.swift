@@ -454,6 +454,23 @@ struct PlayStatusSettingsView: View {
             Divider().padding(.vertical, 2)
 
             SettingsToggleRow(
+                title: "Debug Coachmarks",
+                caption: "Temporarily re-arms coachmarks so you can inspect them again. Turn it off and back on to restart the sequence.",
+                isOn: Binding(
+                    get: { onboarding.debugCoachmarksEnabled },
+                    set: { onboarding.setDebugCoachmarksEnabled($0) }
+                )
+            )
+
+            if onboarding.debugCoachmarksEnabled {
+                SettingsNoteCard(
+                    text: "Coachmark dismissals stay in this debug session only while this toggle is enabled. Your normal saved coachmark state comes back when you turn it off."
+                )
+            }
+
+            Divider().padding(.vertical, 2)
+
+            SettingsToggleRow(
                 title: "Launch at login",
                 caption: "Start PlayStatus automatically when you sign in.",
                 isOn: Binding(

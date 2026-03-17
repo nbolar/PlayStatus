@@ -186,9 +186,9 @@ struct NowPlayingPopover: View {
         let regularDetachedControlScale = model.detachedRegularControlScaleFactor
         let restingRegularDetailTab = model.selectedRegularDetailsTab
         let restingRegularControlOpacity: Double = regularPointerHovering ? 1 : 0.44
-        let showModeCoachmark = onboarding.isCoachmarkActive(.modeToggle)
         let showDetailsCoachmark = onboarding.isCoachmarkActive(.detailsToggle)
-        let showDetachedCoachmark = onboarding.isCoachmarkActive(.detachedControls)
+        let showDetachedModeCoachmark = onboarding.isCoachmarkActive(.detachedMode)
+        let showDetachedControlsCoachmark = onboarding.isCoachmarkActive(.detachedControls)
         let forceCoachmarkControlsVisible = onboarding.shouldForceModeCoachmarkControls()
         let interactiveRegularControlsVisible = regularPointerHovering || forceCoachmarkControlsVisible
 
@@ -207,9 +207,9 @@ struct NowPlayingPopover: View {
                     restingRegularDetailTab: restingRegularDetailTab,
                     restingRegularControlOpacity: restingRegularControlOpacity,
                     interactiveRegularControlsVisible: interactiveRegularControlsVisible,
-                    showModeCoachmark: showModeCoachmark,
                     showDetailsCoachmark: showDetailsCoachmark,
-                    showDetachedCoachmark: showDetachedCoachmark
+                    showDetachedModeCoachmark: showDetachedModeCoachmark,
+                    showDetachedControlsCoachmark: showDetachedControlsCoachmark
                 )
             }
 
@@ -267,6 +267,52 @@ struct NowPlayingPopover: View {
                     searchTrailingAlignmentNudge: searchTrailingAlignmentNudge
                 )
             }
+        }
+    }
+
+    private func coachmarkBubble(for coachmark: CoachmarkID) -> some View {
+        CoachmarkBubble(
+            coachmark: coachmark,
+            accent: coachmarkAccent(for: coachmark)
+        ) {
+            onboarding.dismissCoachmark(coachmark)
+        }
+    }
+
+    private func coachmarkBinding(for coachmark: CoachmarkID) -> Binding<Bool> {
+        Binding(
+            get: { onboarding.isCoachmarkActive(coachmark) },
+            set: { isPresented in
+                if !isPresented && onboarding.isCoachmarkActive(coachmark) {
+                    onboarding.dismissCoachmark(coachmark)
+                }
+            }
+        )
+    }
+
+    private func coachmarkPopoverEdge(for coachmark: CoachmarkID) -> Edge {
+        switch coachmark {
+        case .search:
+            return .bottom
+        case .modeToggle, .detailsToggle, .detachedMode, .detachedControls, .settingsNavigation:
+            return .top
+        }
+    }
+
+    private func coachmarkAccent(for coachmark: CoachmarkID) -> Color {
+        switch coachmark {
+        case .modeToggle:
+            return Color(red: 0.44, green: 0.71, blue: 0.97)
+        case .search:
+            return Color(red: 0.98, green: 0.72, blue: 0.35)
+        case .detailsToggle:
+            return Color(red: 0.87, green: 0.54, blue: 0.77)
+        case .detachedMode:
+            return Color(red: 0.53, green: 0.83, blue: 0.63)
+        case .detachedControls:
+            return Color(red: 0.53, green: 0.83, blue: 0.63)
+        case .settingsNavigation:
+            return Color.accentColor
         }
     }
 
@@ -417,22 +463,22 @@ struct NowPlayingPopover: View {
         restingRegularDetailTab: DetailsPaneTab,
         restingRegularControlOpacity: Double,
         interactiveRegularControlsVisible: Bool,
-        showModeCoachmark: Bool,
         showDetailsCoachmark: Bool,
-        showDetachedCoachmark: Bool
+        showDetachedModeCoachmark: Bool,
+        showDetachedControlsCoachmark: Bool
     ) -> some View {
         HStack(spacing: 6 * controlScale) {
             regularModeToggle(
                 contrastBoost: contrastBoost,
                 controlScale: controlScale,
-                restingRegularControlOpacity: restingRegularControlOpacity,
-                showModeCoachmark: showModeCoachmark
+                restingRegularControlOpacity: restingRegularControlOpacity
             )
 
             regularDetachedControls(
                 contrastBoost: contrastBoost,
                 controlScale: controlScale,
-                showDetachedCoachmark: showDetachedCoachmark
+                showDetachedModeCoachmark: showDetachedModeCoachmark,
+                showDetachedControlsCoachmark: showDetachedControlsCoachmark
             )
 
             regularDetailControls(
@@ -460,8 +506,7 @@ struct NowPlayingPopover: View {
     private func regularModeToggle(
         contrastBoost: Double,
         controlScale: CGFloat,
-        restingRegularControlOpacity: Double,
-        showModeCoachmark: Bool
+        restingRegularControlOpacity: Double
     ) -> some View {
         ModeToggleControl(
             isMiniMode: false,
@@ -475,16 +520,12 @@ struct NowPlayingPopover: View {
                 model.miniMode = true
             }
         }
-        .overlay(alignment: .bottomTrailing) {
-            if showModeCoachmark {
-                CoachmarkBubble(
-                    coachmark: .modeToggle,
-                    accent: Color(red: 0.44, green: 0.71, blue: 0.97)
-                ) {
-                    onboarding.dismissCoachmark(.modeToggle)
-                }
-                .offset(x: 16, y: 42)
-            }
+        .popover(
+            isPresented: coachmarkBinding(for: .modeToggle),
+            attachmentAnchor: .rect(.bounds),
+            arrowEdge: coachmarkPopoverEdge(for: .modeToggle)
+        ) {
+            coachmarkBubble(for: .modeToggle)
         }
         .opacity(restingRegularControlOpacity)
     }
@@ -493,9 +534,10 @@ struct NowPlayingPopover: View {
     private func regularDetachedControls(
         contrastBoost: Double,
         controlScale: CGFloat,
-        showDetachedCoachmark: Bool
+        showDetachedModeCoachmark: Bool,
+        showDetachedControlsCoachmark: Bool
     ) -> some View {
-        if regularPointerHovering || showDetachedCoachmark {
+        if regularPointerHovering || showDetachedModeCoachmark || showDetachedControlsCoachmark {
             DetachedSurfaceToggleControl(
                 isDetachedMode: model.surfaceMode == .detached,
                 transitionActive: modeTransitionActive,
@@ -504,10 +546,17 @@ struct NowPlayingPopover: View {
             ) {
                 model.requestToggleDetachedMode()
             }
+            .popover(
+                isPresented: coachmarkBinding(for: .detachedMode),
+                attachmentAnchor: .rect(.bounds),
+                arrowEdge: coachmarkPopoverEdge(for: .detachedMode)
+            ) {
+                coachmarkBubble(for: .detachedMode)
+            }
             .transition(.opacity.combined(with: .move(edge: .trailing)))
         }
 
-        if model.surfaceMode == .detached && (regularPointerHovering || showDetachedCoachmark) {
+        if model.surfaceMode == .detached && (regularPointerHovering || showDetachedControlsCoachmark) {
             DetachedWindowPinControl(
                 isPinned: model.detachedWindowAlwaysOnTop,
                 transitionActive: modeTransitionActive,
@@ -516,16 +565,12 @@ struct NowPlayingPopover: View {
             ) {
                 model.detachedWindowAlwaysOnTop.toggle()
             }
-            .overlay(alignment: .bottomTrailing) {
-                if showDetachedCoachmark {
-                    CoachmarkBubble(
-                        coachmark: .detachedControls,
-                        accent: Color(red: 0.53, green: 0.83, blue: 0.63)
-                    ) {
-                        onboarding.dismissCoachmark(.detachedControls)
-                    }
-                    .offset(x: 18, y: 42)
-                }
+            .popover(
+                isPresented: coachmarkBinding(for: .detachedControls),
+                attachmentAnchor: .rect(.bounds),
+                arrowEdge: coachmarkPopoverEdge(for: .detachedControls)
+            ) {
+                coachmarkBubble(for: .detachedControls)
             }
             .transition(.opacity.combined(with: .move(edge: .trailing)))
 
@@ -560,16 +605,12 @@ struct NowPlayingPopover: View {
             ) {
                 toggleRegularDetails(tab: .lyrics)
             }
-            .overlay(alignment: .bottomTrailing) {
-                if showDetailsCoachmark {
-                    CoachmarkBubble(
-                        coachmark: .detailsToggle,
-                        accent: Color(red: 0.87, green: 0.54, blue: 0.77)
-                    ) {
-                        onboarding.dismissCoachmark(.detailsToggle)
-                    }
-                    .offset(x: 18, y: 42)
-                }
+            .popover(
+                isPresented: coachmarkBinding(for: .detailsToggle),
+                attachmentAnchor: .rect(.bounds),
+                arrowEdge: coachmarkPopoverEdge(for: .detailsToggle)
+            ) {
+                coachmarkBubble(for: .detailsToggle)
             }
             .opacity(interactiveRegularControlsVisible ? 1 : restingRegularControlOpacity)
         }
@@ -656,6 +697,13 @@ struct NowPlayingPopover: View {
                         .frame(width: 18 * clampedControlScale, height: 18 * clampedControlScale)
                 }
                 .buttonStyle(.plain)
+                .popover(
+                    isPresented: coachmarkBinding(for: .search),
+                    attachmentAnchor: .rect(.bounds),
+                    arrowEdge: coachmarkPopoverEdge(for: .search)
+                ) {
+                    coachmarkBubble(for: .search)
+                }
                 .frame(
                     width: isSearchExpanded ? (18 * clampedControlScale) : collapsedWidth,
                     height: 34 * clampedControlScale,
@@ -712,17 +760,6 @@ struct NowPlayingPopover: View {
 
         }
         .frame(height: 44 * clampedControlScale)
-        .overlay(alignment: .bottomTrailing) {
-            if onboarding.isCoachmarkActive(.search) {
-                CoachmarkBubble(
-                    coachmark: .search,
-                    accent: Color(red: 0.98, green: 0.72, blue: 0.35)
-                ) {
-                    onboarding.dismissCoachmark(.search)
-                }
-                .offset(x: 10, y: 42)
-            }
-        }
         .background(
             GeometryReader { proxy in
                 Color.clear.preference(
@@ -821,6 +858,7 @@ struct NowPlayingPopover: View {
         onboarding.registerCoachmark(.modeToggle, available: regularSurface)
         onboarding.registerCoachmark(.search, available: regularSurface && model.resolvedSearchProvider != .none)
         onboarding.registerCoachmark(.detailsToggle, available: regularSurface)
+        onboarding.registerCoachmark(.detachedMode, available: regularSurface && model.surfaceMode == .popover)
         onboarding.registerCoachmark(.detachedControls, available: regularSurface && model.surfaceMode == .detached)
     }
 
@@ -828,6 +866,7 @@ struct NowPlayingPopover: View {
         onboarding.registerCoachmark(.modeToggle, available: false)
         onboarding.registerCoachmark(.search, available: false)
         onboarding.registerCoachmark(.detailsToggle, available: false)
+        onboarding.registerCoachmark(.detachedMode, available: false)
         onboarding.registerCoachmark(.detachedControls, available: false)
     }
 }

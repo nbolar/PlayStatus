@@ -337,6 +337,17 @@ struct SettingsSidebar: View {
         return "v\(version) (\(build))"
     }
 
+    private var settingsNavigationCoachmarkBinding: Binding<Bool> {
+        Binding(
+            get: { onboarding.isCoachmarkActive(.settingsNavigation) },
+            set: { isPresented in
+                if !isPresented && onboarding.isCoachmarkActive(.settingsNavigation) {
+                    onboarding.dismissCoachmark(.settingsNavigation)
+                }
+            }
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
@@ -366,25 +377,23 @@ struct SettingsSidebar: View {
                 }
             }
             .padding(10)
-            .onAppear {
-                onboarding.registerCoachmark(.settingsNavigation, available: true)
-            }
-            .onDisappear {
-                onboarding.registerCoachmark(.settingsNavigation, available: false)
-            }
-
-            if onboarding.isCoachmarkActive(.settingsNavigation) {
+            .popover(
+                isPresented: settingsNavigationCoachmarkBinding,
+                attachmentAnchor: .rect(.bounds),
+                arrowEdge: .leading
+            ) {
                 CoachmarkBubble(
                     coachmark: .settingsNavigation,
                     accent: Color.accentColor
                 ) {
                     onboarding.dismissCoachmark(.settingsNavigation)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 10)
-                .padding(.top, 4)
-                .padding(.bottom, 8)
-                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            .onAppear {
+                onboarding.registerCoachmark(.settingsNavigation, available: true)
+            }
+            .onDisappear {
+                onboarding.registerCoachmark(.settingsNavigation, available: false)
             }
 
             Spacer(minLength: 10)

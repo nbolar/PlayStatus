@@ -83,6 +83,7 @@ enum CoachmarkID: String, CaseIterable, Hashable {
     case modeToggle
     case search
     case detailsToggle
+    case detachedMode
     case detachedControls
     case settingsNavigation
 
@@ -94,6 +95,8 @@ enum CoachmarkID: String, CaseIterable, Hashable {
             return "Search from the player"
         case .detailsToggle:
             return "Open lyrics and credits"
+        case .detachedMode:
+            return "Pop out the player"
         case .detachedControls:
             return "Pinned detached controls"
         case .settingsNavigation:
@@ -109,12 +112,15 @@ enum CoachmarkID: String, CaseIterable, Hashable {
             return "Search routes to the active provider: Music can play from your library, Spotify opens the matching search."
         case .detailsToggle:
             return "Use these buttons to reveal lyrics or credits without leaving the player."
+        case .detachedMode:
+            return "Detach the player into its own floating window when you want the artwork and controls to stay visible outside the menu bar."
         case .detachedControls:
             return "When detached, pin the window on top or close it and return to the menu bar."
         case .settingsNavigation:
             return "Display, playback, hotkeys, and system controls are grouped here so the redesign stays easy to learn."
         }
     }
+
 }
 
 final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate {
@@ -125,10 +131,12 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
     @Published private(set) var presentedMode: OnboardingMode?
     @Published var currentStep: OnboardingStep = .welcome
     @Published private(set) var activeCoachmark: CoachmarkID?
+    @Published private(set) var debugCoachmarksEnabled = false
 
     private let defaults = UserDefaults.standard
     private let completionVersionKey = "playstatus.onboarding.completionVersion"
     private let dismissedCoachmarksKey = "playstatus.onboarding.dismissedCoachmarks"
+    private let debugCoachmarksEnabledKey = "playstatus.onboarding.debugCoachmarksEnabled"
     private let windowAutosaveName = "PlayStatusOnboardingWindow"
     private let settingsMarkerKeys = [
         "enableMusic",
@@ -145,10 +153,12 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
     private var walkthroughDraftState: WalkthroughDraftState?
     private var isClosingWalkthroughWindow = false
     private var coachmarkAvailability: [CoachmarkID: Bool] = [:]
-    private var dismissedCoachmarks = Set<CoachmarkID>()
+    private var persistedDismissedCoachmarks = Set<CoachmarkID>()
+    private var debugDismissedCoachmarks = Set<CoachmarkID>()
     private override init() {
         super.init()
-        loadDismissedCoachmarks()
+        loadPersistedDismissedCoachmarks()
+        debugCoachmarksEnabled = defaults.bool(forKey: debugCoachmarksEnabledKey)
     }
 
     var hasSeenCurrentExperience: Bool {
@@ -254,8 +264,12 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
     }
 
     func dismissCoachmark(_ id: CoachmarkID) {
-        dismissedCoachmarks.insert(id)
-        persistDismissedCoachmarks()
+        if debugCoachmarksEnabled {
+            debugDismissedCoachmarks.insert(id)
+        } else {
+            persistedDismissedCoachmarks.insert(id)
+            persistDismissedCoachmarks()
+        }
         if activeCoachmark == id {
             activeCoachmark = nil
         }
@@ -269,6 +283,15 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
     func resetCoachmarkAvailability() {
         coachmarkAvailability.removeAll()
         activeCoachmark = nil
+    }
+
+    func setDebugCoachmarksEnabled(_ enabled: Bool) {
+        guard debugCoachmarksEnabled != enabled else { return }
+        debugCoachmarksEnabled = enabled
+        defaults.set(enabled, forKey: debugCoachmarksEnabledKey)
+        debugDismissedCoachmarks.removeAll()
+        activeCoachmark = nil
+        updateActiveCoachmark()
     }
 
     func steps(for mode: OnboardingMode) -> [OnboardingStep] {
@@ -286,7 +309,7 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
     }
 
     func shouldShowCoachmarks() -> Bool {
-        hasSeenCurrentExperience && presentedMode == nil
+        (debugCoachmarksEnabled || hasSeenCurrentExperience) && presentedMode == nil
     }
 
     func providerIsInstalled(_ provider: NowPlayingProvider) -> Bool {
@@ -311,7 +334,10 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
     }
 
     func shouldForceModeCoachmarkControls() -> Bool {
-        isCoachmarkActive(.modeToggle) || isCoachmarkActive(.detailsToggle) || isCoachmarkActive(.detachedControls)
+        isCoachmarkActive(.modeToggle) ||
+        isCoachmarkActive(.detailsToggle) ||
+        isCoachmarkActive(.detachedMode) ||
+        isCoachmarkActive(.detachedControls)
     }
 
     func nextStepTitle() -> String {
@@ -419,6 +445,7 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
     }
 
     private func updateActiveCoachmark() {
+        let dismissedCoachmarks = activeDismissedCoachmarks
         guard shouldShowCoachmarks() else {
             activeCoachmark = nil
             return
@@ -442,13 +469,17 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
         activeCoachmark = nil
     }
 
-    private func loadDismissedCoachmarks() {
+    private var activeDismissedCoachmarks: Set<CoachmarkID> {
+        debugCoachmarksEnabled ? debugDismissedCoachmarks : persistedDismissedCoachmarks
+    }
+
+    private func loadPersistedDismissedCoachmarks() {
         let rawValues = defaults.stringArray(forKey: dismissedCoachmarksKey) ?? []
-        dismissedCoachmarks = Set(rawValues.compactMap(CoachmarkID.init(rawValue:)))
+        persistedDismissedCoachmarks = Set(rawValues.compactMap(CoachmarkID.init(rawValue:)))
     }
 
     private func persistDismissedCoachmarks() {
-        defaults.set(dismissedCoachmarks.map(\.rawValue).sorted(), forKey: dismissedCoachmarksKey)
+        defaults.set(persistedDismissedCoachmarks.map(\.rawValue).sorted(), forKey: dismissedCoachmarksKey)
     }
 
     private func applicationURL(for provider: NowPlayingProvider) -> URL? {
