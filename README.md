@@ -1,9 +1,11 @@
 #![playstatus_header](https://user-images.githubusercontent.com/45484873/56880861-09cb3980-6a67-11e9-9d45-037a9165b212.png)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version: 2.8](https://img.shields.io/badge/Version-2.8-green.svg)](https://github.com/nbolar/PlayStatus/releases)
-[![Platform](https://img.shields.io/badge/macOS-15%2B-black.svg)](https://developer.apple.com/macos/)
-[![Built with SwiftUI](https://img.shields.io/badge/UI-SwiftUI-orange.svg)](https://developer.apple.com/xcode/swiftui/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) 
+[![Version: 2.8](https://img.shields.io/badge/Version-3.0-green.svg)](https://github.com/nbolar/PlayStatus/releases) 
+[![Platform](http://img.shields.io/badge/platform-macOS-black.svg?style=flat)](https://developer.apple.com/resources/)
+[![Platform](https://img.shields.io/badge/swift-5.0-orange.svg?style=flat)](https://swift.org/blog/swift-5-released/)
+[![Open Source Love svg1](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/nbolar/playstatus/)
+[![GitHub All Releases](https://img.shields.io/github/downloads/nbolar/playstatus/total)](https://github.com/nbolar/PlayStatus/releases/latest/)
 
 PlayStatus is a native SwiftUI macOS menu bar app for controlling Apple Music and Spotify without living in a full desktop window all day. The current generation of the app is a full SwiftUI relaunch with a richer now-playing surface, better onboarding, customizable display themes, provider-aware search, lyrics and credits, a detached floating player, and a cleaner settings flow.
 
