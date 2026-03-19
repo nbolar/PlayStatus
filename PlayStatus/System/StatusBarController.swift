@@ -156,6 +156,14 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             }
             .store(in: &cancellables)
 
+        model.$coachmarkSurfaceRevealRequestToken
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.revealCoachmarkSurface()
+            }
+            .store(in: &cancellables)
+
         if let button = statusItem.button {
             button.postsFrameChangedNotifications = true
             NotificationCenter.default.publisher(for: NSView.frameDidChangeNotification, object: button)
@@ -225,6 +233,24 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
 
     private func togglePopoverFromHotkey() {
         togglePopover(nil)
+    }
+
+    private func revealCoachmarkSurface() {
+        model.miniMode = false
+        if model.surfaceMode == .detached {
+            exitDetachedMode(openPopoverImmediately: true)
+            return
+        }
+
+        if popover.isShown {
+            ensureSurfaceContentLoaded()
+            updatePopoverLayout()
+            model.isPopoverVisible = true
+            NSApp.activate(ignoringOtherApps: false)
+            popover.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
+        } else {
+            showPopover()
+        }
     }
 
     private func toggleDetachedModeFromHotkey() {

@@ -455,7 +455,7 @@ struct PlayStatusSettingsView: View {
 
             SettingsToggleRow(
                 title: "Debug Coachmarks",
-                caption: "Temporarily re-arms coachmarks so you can inspect them again. Turn it off and back on to restart the sequence.",
+                caption: "Temporarily re-arms the player coachmarks, opens the main popover, and lets you inspect the live UI hints again.",
                 isOn: Binding(
                     get: { onboarding.debugCoachmarksEnabled },
                     set: { onboarding.setDebugCoachmarksEnabled($0) }
@@ -464,7 +464,7 @@ struct PlayStatusSettingsView: View {
 
             if onboarding.debugCoachmarksEnabled {
                 SettingsNoteCard(
-                    text: "Coachmark dismissals stay in this debug session only while this toggle is enabled. Your normal saved coachmark state comes back when you turn it off."
+                    text: "Dismissals stay in this debug session only while this toggle is enabled. Turn it off and back on to restart the player sequence from the main popover."
                 )
             }
 

@@ -19,6 +19,7 @@ struct NowPlayingPopover: View {
     @State private var showRegularDetailsPane = false
     @State private var regularDetailsHideWorkItem: DispatchWorkItem?
     @State private var regularPointerHovering = false
+    @State private var coachmarkTargetFrames: [CoachmarkID: CGRect] = [:]
 
     private var renderedPopoverWidth: CGFloat {
         popoverWidth(for: displayedMiniMode)
@@ -65,8 +66,14 @@ struct NowPlayingPopover: View {
         )
         .clipped()
         .coordinateSpace(name: "popoverRoot")
+        .onPreferenceChange(PlayerCoachmarkFramePreferenceKey.self) { frames in
+            coachmarkTargetFrames = frames
+        }
         .onPreferenceChange(SearchSectionFramePreferenceKey.self) { frame in
             updateSearchSectionFrame(frame)
+        }
+        .overlay(alignment: .topLeading) {
+            playerCoachmarkOverlay
         }
         .onChange(of: model.provider) { _, _ in
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -270,26 +277,6 @@ struct NowPlayingPopover: View {
         }
     }
 
-    private func coachmarkBubble(for coachmark: CoachmarkID) -> some View {
-        CoachmarkBubble(
-            coachmark: coachmark,
-            accent: coachmarkAccent(for: coachmark)
-        ) {
-            onboarding.dismissCoachmark(coachmark)
-        }
-    }
-
-    private func coachmarkBinding(for coachmark: CoachmarkID) -> Binding<Bool> {
-        Binding(
-            get: { onboarding.isCoachmarkActive(coachmark) },
-            set: { isPresented in
-                if !isPresented && onboarding.isCoachmarkActive(coachmark) {
-                    onboarding.dismissCoachmark(coachmark)
-                }
-            }
-        )
-    }
-
     private func coachmarkPopoverEdge(for coachmark: CoachmarkID) -> Edge {
         switch coachmark {
         case .search:
@@ -313,6 +300,82 @@ struct NowPlayingPopover: View {
             return Color(red: 0.53, green: 0.83, blue: 0.63)
         case .settingsNavigation:
             return Color.accentColor
+        }
+    }
+
+    private var activePlayerCoachmark: CoachmarkID? {
+        switch onboarding.activeCoachmark {
+        case .modeToggle, .search, .detailsToggle, .detachedMode, .detachedControls:
+            return onboarding.activeCoachmark
+        case .settingsNavigation, .none:
+            return nil
+        }
+    }
+
+    @ViewBuilder
+    private var playerCoachmarkOverlay: some View {
+        if let coachmark = activePlayerCoachmark,
+           let targetFrame = coachmarkTargetFrames[coachmark] {
+            let layout = playerCoachmarkLayout(for: coachmark, targetFrame: targetFrame)
+            PlayerCoachmarkCallout(
+                coachmark: coachmark,
+                accent: coachmarkAccent(for: coachmark),
+                arrowEdge: layout.arrowEdge,
+                arrowX: layout.arrowX
+            ) {
+                onboarding.dismissCoachmark(coachmark)
+            }
+            .offset(x: layout.origin.x, y: layout.origin.y)
+            .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .topLeading)))
+            .zIndex(40)
+        }
+    }
+
+    private func playerCoachmarkLayout(for coachmark: CoachmarkID, targetFrame: CGRect) -> PlayerCoachmarkLayout {
+        let bubbleWidth: CGFloat = 200
+        let bubbleHeight = estimatedCoachmarkHeight(for: coachmark)
+        let horizontalMargin: CGFloat = 14
+        let verticalMargin: CGFloat = 14
+        let targetSpacing: CGFloat = 12
+        let arrowEdge = coachmarkPopoverEdge(for: coachmark)
+        let clampedX = min(
+            max(targetFrame.midX - (bubbleWidth / 2), horizontalMargin),
+            max(horizontalMargin, renderedPopoverWidth - bubbleWidth - horizontalMargin)
+        )
+        let rawY: CGFloat
+
+        switch arrowEdge {
+        case .bottom:
+            rawY = targetFrame.minY - bubbleHeight - targetSpacing
+        case .top:
+            rawY = targetFrame.maxY + targetSpacing
+        default:
+            rawY = targetFrame.maxY + targetSpacing
+        }
+
+        let clampedY = min(
+            max(rawY, verticalMargin),
+            max(verticalMargin, renderedPopoverHeight - bubbleHeight - verticalMargin)
+        )
+        let arrowX = min(max(targetFrame.midX - clampedX, 22), bubbleWidth - 22)
+
+        return PlayerCoachmarkLayout(
+            origin: CGPoint(x: clampedX, y: clampedY),
+            arrowEdge: arrowEdge,
+            arrowX: arrowX
+        )
+    }
+
+    private func estimatedCoachmarkHeight(for coachmark: CoachmarkID) -> CGFloat {
+        switch coachmark {
+        case .modeToggle, .detailsToggle, .detachedControls:
+            return 126
+        case .search:
+            return 136
+        case .detachedMode:
+            return 148
+        case .settingsNavigation:
+            return 128
         }
     }
 
@@ -520,13 +583,7 @@ struct NowPlayingPopover: View {
                 model.miniMode = true
             }
         }
-        .popover(
-            isPresented: coachmarkBinding(for: .modeToggle),
-            attachmentAnchor: .rect(.bounds),
-            arrowEdge: coachmarkPopoverEdge(for: .modeToggle)
-        ) {
-            coachmarkBubble(for: .modeToggle)
-        }
+        .playerCoachmarkTarget(.modeToggle)
         .opacity(restingRegularControlOpacity)
     }
 
@@ -546,13 +603,7 @@ struct NowPlayingPopover: View {
             ) {
                 model.requestToggleDetachedMode()
             }
-            .popover(
-                isPresented: coachmarkBinding(for: .detachedMode),
-                attachmentAnchor: .rect(.bounds),
-                arrowEdge: coachmarkPopoverEdge(for: .detachedMode)
-            ) {
-                coachmarkBubble(for: .detachedMode)
-            }
+            .playerCoachmarkTarget(.detachedMode)
             .transition(.opacity.combined(with: .move(edge: .trailing)))
         }
 
@@ -565,13 +616,7 @@ struct NowPlayingPopover: View {
             ) {
                 model.detachedWindowAlwaysOnTop.toggle()
             }
-            .popover(
-                isPresented: coachmarkBinding(for: .detachedControls),
-                attachmentAnchor: .rect(.bounds),
-                arrowEdge: coachmarkPopoverEdge(for: .detachedControls)
-            ) {
-                coachmarkBubble(for: .detachedControls)
-            }
+            .playerCoachmarkTarget(.detachedControls)
             .transition(.opacity.combined(with: .move(edge: .trailing)))
 
             DetachedWindowCloseControl(
@@ -605,13 +650,7 @@ struct NowPlayingPopover: View {
             ) {
                 toggleRegularDetails(tab: .lyrics)
             }
-            .popover(
-                isPresented: coachmarkBinding(for: .detailsToggle),
-                attachmentAnchor: .rect(.bounds),
-                arrowEdge: coachmarkPopoverEdge(for: .detailsToggle)
-            ) {
-                coachmarkBubble(for: .detailsToggle)
-            }
+            .playerCoachmarkTarget(.detailsToggle)
             .opacity(interactiveRegularControlsVisible ? 1 : restingRegularControlOpacity)
         }
 
@@ -697,13 +736,7 @@ struct NowPlayingPopover: View {
                         .frame(width: 18 * clampedControlScale, height: 18 * clampedControlScale)
                 }
                 .buttonStyle(.plain)
-                .popover(
-                    isPresented: coachmarkBinding(for: .search),
-                    attachmentAnchor: .rect(.bounds),
-                    arrowEdge: coachmarkPopoverEdge(for: .search)
-                ) {
-                    coachmarkBubble(for: .search)
-                }
+                .playerCoachmarkTarget(.search)
                 .frame(
                     width: isSearchExpanded ? (18 * clampedControlScale) : collapsedWidth,
                     height: 34 * clampedControlScale,
@@ -868,5 +901,111 @@ struct NowPlayingPopover: View {
         onboarding.registerCoachmark(.detailsToggle, available: false)
         onboarding.registerCoachmark(.detachedMode, available: false)
         onboarding.registerCoachmark(.detachedControls, available: false)
+    }
+}
+
+private struct PlayerCoachmarkLayout {
+    let origin: CGPoint
+    let arrowEdge: Edge
+    let arrowX: CGFloat
+}
+
+private struct PlayerCoachmarkFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [CoachmarkID: CGRect] = [:]
+
+    static func reduce(value: inout [CoachmarkID: CGRect], nextValue: () -> [CoachmarkID: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, next in next })
+    }
+}
+
+private struct PlayerCoachmarkArrow: Shape {
+    let edge: Edge
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        switch edge {
+        case .top:
+            path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        case .bottom:
+            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        default:
+            path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        }
+
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct PlayerCoachmarkCallout: View {
+    let coachmark: CoachmarkID
+    let accent: Color
+    let arrowEdge: Edge
+    let arrowX: CGFloat
+    let onDismiss: () -> Void
+
+    private let bubbleWidth: CGFloat = 200
+    private let arrowWidth: CGFloat = 18
+    private let arrowHeight: CGFloat = 10
+
+    var body: some View {
+        Group {
+            if arrowEdge == .bottom {
+                VStack(spacing: -1) {
+                    bubble
+                    arrow
+                }
+            } else {
+                VStack(spacing: -1) {
+                    arrow
+                    bubble
+                }
+            }
+        }
+        .frame(width: bubbleWidth, alignment: .leading)
+        .allowsHitTesting(true)
+    }
+
+    private var bubble: some View {
+        CoachmarkBubble(
+            coachmark: coachmark,
+            accent: accent,
+            onDismiss: onDismiss
+        )
+    }
+
+    private var arrow: some View {
+        Color.clear
+            .frame(width: bubbleWidth, height: arrowHeight)
+            .overlay(alignment: .leading) {
+                PlayerCoachmarkArrow(edge: arrowEdge)
+                    .fill(Color(nsColor: .windowBackgroundColor))
+                    .frame(width: arrowWidth, height: arrowHeight)
+                    .overlay {
+                        PlayerCoachmarkArrow(edge: arrowEdge)
+                            .stroke(accent.opacity(0.28), lineWidth: 1)
+                    }
+                    .offset(x: min(max(arrowX - (arrowWidth / 2), 12), bubbleWidth - arrowWidth - 12))
+            }
+    }
+}
+
+private extension View {
+    func playerCoachmarkTarget(_ coachmark: CoachmarkID) -> some View {
+        background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: PlayerCoachmarkFramePreferenceKey.self,
+                    value: [coachmark: proxy.frame(in: .named("popoverRoot"))]
+                )
+            }
+        }
     }
 }

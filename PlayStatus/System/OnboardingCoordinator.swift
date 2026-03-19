@@ -291,6 +291,9 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
         defaults.set(enabled, forKey: debugCoachmarksEnabledKey)
         debugDismissedCoachmarks.removeAll()
         activeCoachmark = nil
+        if enabled {
+            NowPlayingModel.shared.requestCoachmarkSurfaceReveal()
+        }
         updateActiveCoachmark()
     }
 
@@ -451,22 +454,18 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
             return
         }
 
-        if let activeCoachmark {
-            if dismissedCoachmarks.contains(activeCoachmark) || coachmarkAvailability[activeCoachmark] != true {
-                self.activeCoachmark = nil
-            } else {
-                return
-            }
+        activeCoachmark = CoachmarkID.allCases.first { id in
+            !dismissedCoachmarks.contains(id) &&
+            shouldIncludeCoachmarkInCurrentSequence(id) &&
+            coachmarkAvailability[id] == true
         }
+    }
 
-        for id in CoachmarkID.allCases where !dismissedCoachmarks.contains(id) {
-            if coachmarkAvailability[id] == true {
-                activeCoachmark = id
-                return
-            }
+    private func shouldIncludeCoachmarkInCurrentSequence(_ id: CoachmarkID) -> Bool {
+        if debugCoachmarksEnabled, id == .settingsNavigation {
+            return false
         }
-
-        activeCoachmark = nil
+        return true
     }
 
     private var activeDismissedCoachmarks: Set<CoachmarkID> {

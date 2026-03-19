@@ -34,6 +34,9 @@ PlayStatus is a native SwiftUI macOS menu bar app for controlling Apple Music an
 <img width="406" height="586" alt="Image" src="https://github.com/user-attachments/assets/ace27ca0-f0b2-47d8-8981-9f59a3a616fd" />
 
 
+### Supports Animated Album Stream (if supported/exists)
+https://github.com/user-attachments/assets/e12a56e8-de6e-460d-b323-5db9d491533c
+
 ### Settings
 
 <img width="780" height="742" alt="Image" src="https://github.com/user-attachments/assets/ed84d8a9-10c8-48ce-921d-c55404165803" />

@@ -209,6 +209,7 @@ final class NowPlayingModel: ObservableObject {
     @Published var isCurrentTrackFavorited: Bool = false
     @Published var favoriteActionPulseToken: Int = 0
     @Published var popoverModeTransitionToken: Int = 0
+    @Published var coachmarkSurfaceRevealRequestToken: Int = 0
     @Published var detachedWindowLevelRevision: Int = 0
     @Published var detachedModeToggleRequestToken: Int = 0
     @Published var detachedCloseRequestToken: Int = 0
@@ -1083,6 +1084,10 @@ final class NowPlayingModel: ObservableObject {
 
     func notifyPopoverModeTransition() {
         popoverModeTransitionToken &+= 1
+    }
+
+    func requestCoachmarkSurfaceReveal() {
+        coachmarkSurfaceRevealRequestToken &+= 1
     }
 
     func requestPopoverLayoutRefresh() {
