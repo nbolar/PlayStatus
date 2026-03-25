@@ -851,7 +851,10 @@ struct ArtworkView: View {
         GeometryReader { geo in
             let side = min(geo.size.width, geo.size.height)
             let contentSide = side - 12
-            let outer = RoundedRectangle(cornerRadius: 22, style: .continuous)
+            let artworkShellCornerRadius: CGFloat = 22
+            let artworkPlateInset = max(0, (side - contentSide) * 0.5)
+            let artworkPlateCornerRadius = max(0, artworkShellCornerRadius - artworkPlateInset)
+            let outer = RoundedRectangle(cornerRadius: artworkShellCornerRadius, style: .continuous)
             let inner = RoundedRectangle(cornerRadius: 18, style: .continuous)
 
             ZStack {
@@ -903,7 +906,10 @@ struct ArtworkView: View {
                     isActive: animatedArtworkIsVisible,
                     animateOnFirstAppear: animateOnFirstAppear
                 ) {
-                    staticArtworkContent(side: contentSide)
+                    staticArtworkContent(
+                        side: contentSide,
+                        cornerRadius: artworkPlateCornerRadius
+                    )
                 }
                 .clipShape(inner, style: FillStyle(eoFill: false, antialiased: true))
                 .overlay(inner.stroke(.white.opacity(0.1), lineWidth: 1))
@@ -920,25 +926,27 @@ struct ArtworkView: View {
                 )
             }
             .frame(width: side, height: side)
-            .clipped()
+            .clipShape(outer, style: FillStyle(eoFill: false, antialiased: true))
             .compositingGroup()
         }
         .shadow(color: .black.opacity(0.28), radius: 16, x: 0, y: 10)
     }
 
     @ViewBuilder
-    private func staticArtworkContent(side: CGFloat) -> some View {
-        if let image {
-            Image(nsImage: image)
-                .resizable()
-                .interpolation(.high)
-                .scaledToFill()
-                .frame(width: side, height: side)
-                .background(tint.opacity(0.12))
-        } else {
-            EmptyArtworkPlaceholderView()
-                .frame(width: side, height: side)
+    private func staticArtworkContent(side: CGFloat, cornerRadius: CGFloat) -> some View {
+        Group {
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFill()
+                    .background(tint.opacity(0.12))
+            } else {
+                EmptyArtworkPlaceholderView()
+            }
         }
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }
 
