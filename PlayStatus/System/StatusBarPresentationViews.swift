@@ -8,23 +8,23 @@ final class PassthroughImageView: NSImageView {
 }
 
 final class StatusBarMarqueeView: NSView {
-    private let primaryLabel = NSTextField(labelWithString: "")
-    private let secondaryLabel = NSTextField(labelWithString: "")
-    private let transitionLabel = NSTextField(labelWithString: "")
+    private let contentLayer = CALayer()
+    private let primaryTextLayer = CATextLayer()
+    private let secondaryTextLayer = CATextLayer()
 
     private let font = NSFont.systemFont(ofSize: 13, weight: .regular)
-    private let gap: CGFloat = 18
-    private let speed: CGFloat = 24
+    private let gap: CGFloat = 36
+    private let speed: CGFloat = 26
+    private let textHeight: CGFloat = 16
+    private let leadInDelay: CFTimeInterval = 0.65
+    private let scrollAnimationKey = "playstatus.statusbar.scroll"
+    private let titleChangeAnimationKey = "playstatus.statusbar.title-change"
 
     private var currentSignature: String = ""
     private var resolvedText: String = "Not Playing"
     private var laneWidth: CGFloat = 120
     private var textWidth: CGFloat = 0
     private var shouldScroll = false
-    private var isTransitioning = false
-    private var xOffset: CGFloat = 0
-    private var tickTimer: Timer?
-    private var lastTickTime: CFTimeInterval = 0
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -32,14 +32,15 @@ final class StatusBarMarqueeView: NSView {
         layer = CALayer()
         layer?.masksToBounds = true
 
-        configureLabel(primaryLabel)
-        configureLabel(secondaryLabel)
-        configureLabel(transitionLabel)
-        addSubview(primaryLabel)
-        addSubview(secondaryLabel)
-        addSubview(transitionLabel)
-        secondaryLabel.isHidden = true
-        transitionLabel.isHidden = true
+        contentLayer.masksToBounds = false
+        layer?.addSublayer(contentLayer)
+
+        configureTextLayer(primaryTextLayer)
+        configureTextLayer(secondaryTextLayer)
+        contentLayer.addSublayer(primaryTextLayer)
+        contentLayer.addSublayer(secondaryTextLayer)
+        secondaryTextLayer.isHidden = true
+        updateContentsScale()
     }
 
     required init?(coder: NSCoder) {
@@ -52,16 +53,28 @@ final class StatusBarMarqueeView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        updateContentsScale()
+        refreshTextAppearance()
         if window == nil {
             suspendScrolling()
-        } else if shouldScroll && !isTransitioning {
-            startTickerIfNeeded()
+        } else {
+            restartScrollingIfNeeded(resetPhase: false)
         }
     }
 
     override func layout() {
         super.layout()
-        applyLayout()
+        updateLayerFrames()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        updateContentsScale()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        refreshTextAppearance()
     }
 
     func update(text: String, enabled: Bool, laneWidth: CGFloat, slideOnChange: Bool) {
@@ -72,246 +85,158 @@ final class StatusBarMarqueeView: NSView {
         currentSignature = signature
 
         let previousText = resolvedText
-        let previousShouldScroll = shouldScroll
         resolvedText = text
         self.laneWidth = width
         textWidth = measuredTextWidth(text, font: font)
         shouldScroll = enabled && textWidth > width + 1
 
-        primaryLabel.stringValue = text
-        secondaryLabel.stringValue = text
-        xOffset = 0
-        lastTickTime = 0
-
-        primaryLabel.lineBreakMode = shouldScroll ? .byClipping : .byTruncatingTail
-        secondaryLabel.lineBreakMode = .byClipping
-
-        let shouldAnimateTitleSwap =
-            slideOnChange &&
-            previousText != text &&
-            window != nil
-
-        if shouldAnimateTitleSwap {
-            let useSlideMotion = !(previousShouldScroll || shouldScroll)
-            animateTitleSwap(
-                from: previousText,
-                to: text,
-                newShouldScroll: shouldScroll,
-                useSlideMotion: useSlideMotion
-            )
-            return
-        }
-
-        if shouldScroll {
-            secondaryLabel.isHidden = false
-            transitionLabel.isHidden = true
-            transitionLabel.alphaValue = 1
-            startTickerIfNeeded()
-        } else {
-            secondaryLabel.isHidden = true
-            stopTicker()
-        }
-
-        isTransitioning = false
-        transitionLabel.isHidden = true
-        transitionLabel.alphaValue = 1
-        applyLayout()
+        applyText(animateTransition: slideOnChange && previousText != text && window != nil)
+        updateLayerFrames()
+        restartScrollingIfNeeded(resetPhase: true)
     }
 
     func suspendScrolling() {
-        stopTicker()
-        isTransitioning = false
-        shouldScroll = false
+        stopScrolling(resetTransform: true)
         currentSignature = ""
-        xOffset = 0
-        transitionLabel.isHidden = true
-        transitionLabel.alphaValue = 1
-        secondaryLabel.isHidden = true
-        secondaryLabel.alphaValue = 1
-        primaryLabel.alphaValue = 1
-        applyLayout()
-        #if DEBUG
-        NSLog("PlayStatus marquee ticker: suspended")
-        #endif
+        shouldScroll = false
+        contentLayer.frame = CGRect(x: 0, y: floor((bounds.height - textHeight) / 2), width: laneWidth, height: textHeight)
+        secondaryTextLayer.isHidden = true
+        updateLayerFrames()
     }
 
-    private func configureLabel(_ label: NSTextField) {
-        label.font = font
-        label.textColor = .labelColor
-        label.isBezeled = false
-        label.isEditable = false
-        label.isSelectable = false
-        label.drawsBackground = false
-        label.usesSingleLineMode = true
-        label.maximumNumberOfLines = 1
-        label.alignment = .left
-        label.cell?.lineBreakMode = .byClipping
-        label.cell?.truncatesLastVisibleLine = true
+    private func configureTextLayer(_ textLayer: CATextLayer) {
+        textLayer.alignmentMode = .left
+        textLayer.isWrapped = false
+        textLayer.truncationMode = .end
+        textLayer.foregroundColor = resolvedTextColor().cgColor
     }
 
-    private func applyLayout() {
-        guard !isTransitioning else { return }
-        let height = bounds.height
-        let y = floor((height - 16) / 2)
+    private func applyText(animateTransition: Bool) {
+        let textColor = resolvedTextColor()
+        let primaryAttributes = textAttributes(truncates: !shouldScroll, textColor: textColor)
+        let scrollingAttributes = textAttributes(truncates: false, textColor: textColor)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        primaryTextLayer.foregroundColor = textColor.cgColor
+        secondaryTextLayer.foregroundColor = textColor.cgColor
+        primaryTextLayer.string = NSAttributedString(
+            string: resolvedText,
+            attributes: shouldScroll ? scrollingAttributes : primaryAttributes
+        )
+        secondaryTextLayer.string = NSAttributedString(
+            string: resolvedText,
+            attributes: scrollingAttributes
+        )
+        CATransaction.commit()
+
+        if animateTransition {
+            let transition = CATransition()
+            transition.duration = 0.20
+            transition.type = .fade
+            transition.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            contentLayer.add(transition, forKey: titleChangeAnimationKey)
+        }
+    }
+
+    private func refreshTextAppearance() {
+        guard !resolvedText.isEmpty else { return }
+        applyText(animateTransition: false)
+    }
+
+    private func updateLayerFrames() {
+        let y = floor((bounds.height - textHeight) / 2)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         if shouldScroll {
             let cycle = max(1, textWidth + gap)
-            let firstX = -xOffset
-            primaryLabel.frame = CGRect(x: firstX, y: y, width: textWidth + 2, height: 16)
-            secondaryLabel.frame = CGRect(x: firstX + cycle, y: y, width: textWidth + 2, height: 16)
-            secondaryLabel.isHidden = false
+            contentLayer.frame = CGRect(x: 0, y: y, width: cycle * 2, height: textHeight)
+            primaryTextLayer.frame = CGRect(x: 0, y: 0, width: textWidth + 2, height: textHeight)
+            secondaryTextLayer.frame = CGRect(x: cycle, y: 0, width: textWidth + 2, height: textHeight)
+            secondaryTextLayer.isHidden = false
         } else {
-            primaryLabel.frame = CGRect(x: 0, y: y, width: laneWidth, height: 16)
-            secondaryLabel.frame = .zero
-            secondaryLabel.isHidden = true
-            if transitionLabel.isHidden {
-                transitionLabel.frame = CGRect(x: 0, y: y, width: laneWidth, height: 16)
-            }
+            contentLayer.frame = CGRect(x: 0, y: y, width: laneWidth, height: textHeight)
+            primaryTextLayer.frame = CGRect(x: 0, y: 0, width: laneWidth, height: textHeight)
+            secondaryTextLayer.frame = .zero
+            secondaryTextLayer.isHidden = true
         }
+        CATransaction.commit()
     }
 
-    private func animateTitleSwap(from oldTitle: String, to newTitle: String, newShouldScroll: Bool, useSlideMotion: Bool) {
-        let height = bounds.height
-        let y = floor((height - 16) / 2)
-        let animationOffset: CGFloat = useSlideMotion ? 12 : 0
-        let cycle = max(1, textWidth + gap)
-
-        stopTicker()
-
-        transitionLabel.stringValue = oldTitle
-        transitionLabel.frame = CGRect(x: 0, y: y, width: laneWidth, height: 16)
-        transitionLabel.alphaValue = 1
-        transitionLabel.isHidden = false
-        isTransitioning = true
-
-        primaryLabel.stringValue = newTitle
-        secondaryLabel.stringValue = newTitle
-        secondaryLabel.isHidden = true
-        secondaryLabel.alphaValue = 1
-
-        if !useSlideMotion {
-            let targetPrimaryWidth = newShouldScroll ? (textWidth + 2) : laneWidth
-            primaryLabel.frame = CGRect(x: 0, y: y, width: targetPrimaryWidth, height: 16)
-            primaryLabel.alphaValue = 0
-            if newShouldScroll {
-                secondaryLabel.frame = CGRect(x: cycle, y: y, width: textWidth + 2, height: 16)
-            } else {
-                secondaryLabel.frame = .zero
-            }
-
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.20
-                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                context.allowsImplicitAnimation = true
-                transitionLabel.animator().alphaValue = 0
-            } completionHandler: { [weak self] in
-                guard let self else { return }
-                self.transitionLabel.isHidden = true
-                self.transitionLabel.alphaValue = 1
-
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.26
-                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                    context.allowsImplicitAnimation = true
-                    self.primaryLabel.animator().alphaValue = 1
-                } completionHandler: { [weak self] in
-                    guard let self else { return }
-                    self.finishTitleSwap(newShouldScroll: newShouldScroll)
-                }
-            }
+    private func restartScrollingIfNeeded(resetPhase: Bool) {
+        guard shouldScroll, window != nil else {
+            stopScrolling(resetTransform: true)
             return
         }
 
-        if newShouldScroll {
-            primaryLabel.frame = CGRect(x: animationOffset, y: y, width: textWidth + 2, height: 16)
-            secondaryLabel.frame = CGRect(x: cycle, y: y, width: textWidth + 2, height: 16)
-        } else {
-            primaryLabel.frame = CGRect(x: animationOffset, y: y, width: laneWidth, height: 16)
-            secondaryLabel.frame = .zero
-        }
-        primaryLabel.alphaValue = 0
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.18
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            context.allowsImplicitAnimation = true
-            transitionLabel.animator().alphaValue = 0
-        } completionHandler: { [weak self] in
-            guard let self else { return }
-            self.transitionLabel.isHidden = true
-            self.transitionLabel.alphaValue = 1
-
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.40
-                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                context.allowsImplicitAnimation = true
-                let targetPrimaryWidth = newShouldScroll ? (self.textWidth + 2) : self.laneWidth
-                self.primaryLabel.animator().frame = CGRect(x: 0, y: y, width: targetPrimaryWidth, height: 16)
-                self.primaryLabel.animator().alphaValue = 1
-            } completionHandler: { [weak self] in
-                guard let self else { return }
-                self.finishTitleSwap(newShouldScroll: newShouldScroll)
-            }
-        }
-    }
-
-    private func finishTitleSwap(newShouldScroll: Bool) {
-        isTransitioning = false
-        transitionLabel.isHidden = true
-        transitionLabel.alphaValue = 1
-        primaryLabel.alphaValue = 1
-        if newShouldScroll {
-            secondaryLabel.isHidden = false
-            secondaryLabel.alphaValue = 1
-            startTickerIfNeeded()
-        } else {
-            secondaryLabel.isHidden = true
-            secondaryLabel.alphaValue = 1
-            stopTicker()
-        }
-        applyLayout()
-    }
-
-    private func startTickerIfNeeded() {
-        guard tickTimer == nil else { return }
-        tickTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 240.0, repeats: true) { [weak self] _ in
-            self?.tick()
-        }
-        if let tickTimer {
-            RunLoop.main.add(tickTimer, forMode: .common)
-        }
-        #if DEBUG
-        NSLog("PlayStatus marquee ticker: started")
-        #endif
-    }
-
-    private func stopTicker() {
-        let hadTimer = tickTimer != nil
-        tickTimer?.invalidate()
-        tickTimer = nil
-        lastTickTime = 0
-        #if DEBUG
-        if hadTimer {
-            NSLog("PlayStatus marquee ticker: stopped")
-        }
-        #endif
-    }
-
-    private func tick() {
-        guard shouldScroll else { return }
-        let now = CACurrentMediaTime()
-        if lastTickTime == 0 {
-            lastTickTime = now
+        if !resetPhase, contentLayer.animation(forKey: scrollAnimationKey) != nil {
             return
         }
-        let delta = min(0.05, now - lastTickTime)
-        lastTickTime = now
 
-        xOffset += CGFloat(delta) * speed
+        stopScrolling(resetTransform: true)
+
         let cycle = max(1, textWidth + gap)
-        while xOffset >= cycle {
-            xOffset -= cycle
+        let duration = max(8.0, CFTimeInterval(cycle / speed))
+        let animation = CABasicAnimation(keyPath: "transform.translation.x")
+        animation.fromValue = 0
+        animation.toValue = -cycle
+        animation.duration = duration
+        animation.repeatCount = .infinity
+        animation.timingFunction = CAMediaTimingFunction(name: .linear)
+        animation.isRemovedOnCompletion = false
+        animation.fillMode = .both
+        animation.beginTime = CACurrentMediaTime() + (resetPhase ? leadInDelay : 0.05)
+        contentLayer.add(animation, forKey: scrollAnimationKey)
+    }
+
+    private func stopScrolling(resetTransform: Bool) {
+        contentLayer.removeAnimation(forKey: scrollAnimationKey)
+        if resetTransform {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            contentLayer.transform = CATransform3DIdentity
+            CATransaction.commit()
         }
-        applyLayout()
+    }
+
+    private func updateContentsScale() {
+        let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        layer?.contentsScale = scale
+        contentLayer.contentsScale = scale
+        primaryTextLayer.contentsScale = scale
+        secondaryTextLayer.contentsScale = scale
+    }
+
+    private func textAttributes(truncates: Bool, textColor: NSColor) -> [NSAttributedString.Key: Any] {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = truncates ? .byTruncatingTail : .byClipping
+        return [
+            .font: font,
+            .foregroundColor: textColor,
+            .paragraphStyle: paragraph
+        ]
+    }
+
+    private func resolvedTextColor() -> NSColor {
+        let appearance = window?.effectiveAppearance ?? effectiveAppearance
+        if #available(macOS 11.0, *) {
+            var resolvedColor: NSColor?
+            appearance.performAsCurrentDrawingAppearance {
+                resolvedColor = NSColor(cgColor: NSColor.labelColor.cgColor)
+            }
+            if let resolvedColor {
+                return resolvedColor
+            }
+        }
+        return fallbackTextColor(for: appearance)
+    }
+
+    private func fallbackTextColor(for appearance: NSAppearance) -> NSColor {
+        switch appearance.bestMatch(from: [.vibrantDark, .darkAqua, .vibrantLight, .aqua]) {
+        case .some(.vibrantDark), .some(.darkAqua):
+            return NSColor(calibratedWhite: 1.0, alpha: 0.94)
+        default:
+            return NSColor(calibratedWhite: 0.08, alpha: 0.92)
+        }
     }
 }
 

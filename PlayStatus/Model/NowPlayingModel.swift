@@ -77,6 +77,15 @@ final class NowPlayingModel: ObservableObject {
         }
     }
 
+    private enum StatusBarMarquee {
+        static let gap = "     "
+        static let targetPointsPerSecond: CGFloat = 240
+        static let minimumStepInterval: TimeInterval = 0.12
+        static let maximumStepInterval: TimeInterval = 0.22
+        static let pauseDuration: TimeInterval = 0.55
+        static let titleFont = NSFont.systemFont(ofSize: 13, weight: .regular)
+    }
+
     private struct ResumeVolumeRampState {
         let deviceID: AudioDeviceID
         let targetVolume: Double
@@ -240,17 +249,18 @@ final class NowPlayingModel: ObservableObject {
     @Published var animatedArtworkState: AnimatedArtworkState = .none
     @Published var animatedArtworkStatusMessage: String = "Idle"
     @Published var animatedArtworkLastError: String = ""
-    private var marqueeTimer: AnyCancellable?
+    private var marqueeTimer: DispatchSourceTimer?
     private var marqueeSignature: String = ""
     private var marqueeTrack: [Character] = []
     private var marqueeTrackDoubled: [Character] = []
     private var marqueeIndex: Int = 0
-    private var marqueeWindowLength: Int = 0
+    private var marqueeStepInterval: TimeInterval = StatusBarMarquee.minimumStepInterval
+    private var marqueePauseTicksRemaining: Int = 0
 
     // Internals
     private var cancellables = Set<AnyCancellable>()
-    private var metadataRefreshTimer: AnyCancellable?
-    private var audioRefreshTimer: AnyCancellable?
+    private var metadataRefreshTimer: DispatchSourceTimer?
+    private var audioRefreshTimer: DispatchSourceTimer?
     private var currentMetadataPollInterval: TimeInterval = 0
     private var currentAudioPollInterval: TimeInterval = 0
     private var lastSnapshot: NowPlayingSnapshot?
@@ -274,6 +284,8 @@ final class NowPlayingModel: ObservableObject {
     private var lyricsMetricFailures: Int = 0
     #endif
     private let refreshQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.refresh", qos: .utility)
+    private let pollingTimerQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.polling", qos: .utility)
+    private let marqueeTimerQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.statusbar-title", qos: .utility)
     private var refreshInFlight = false
     private var refreshPending = false
     #if DEBUG
@@ -361,6 +373,10 @@ final class NowPlayingModel: ObservableObject {
     var statusTextWidth: CGFloat {
         let clamped = min(max(statusTextWidthStorage, 80), 320)
         return CGFloat(clamped)
+    }
+
+    var statusBarTitleFont: NSFont {
+        StatusBarMarquee.titleFont
     }
 
     var menuBarVisibleCharacters: Int {
@@ -549,21 +565,41 @@ final class NowPlayingModel: ObservableObject {
         return .idle
     }
 
+    private func cancelPollingTimer(_ timer: inout DispatchSourceTimer?) {
+        timer?.setEventHandler {}
+        timer?.cancel()
+        timer = nil
+    }
+
+    private func makePollingTimer(
+        interval: TimeInterval,
+        handler: @escaping @Sendable () -> Void
+    ) -> DispatchSourceTimer {
+        let timer = DispatchSource.makeTimerSource(queue: pollingTimerQueue)
+        let leewayMilliseconds = max(50, Int((interval * 100).rounded()))
+        timer.schedule(
+            deadline: .now() + interval,
+            repeating: interval,
+            leeway: .milliseconds(leewayMilliseconds)
+        )
+        timer.setEventHandler(handler: handler)
+        timer.resume()
+        return timer
+    }
+
     private func updateMetadataPollingTimerIfNeeded(using snapshot: NowPlayingSnapshot? = nil) {
         let mode = metadataPollingMode(for: snapshot)
         let interval = mode.interval
         guard abs(currentMetadataPollInterval - interval) > 0.001 else { return }
 
-        metadataRefreshTimer?.cancel()
+        cancelPollingTimer(&metadataRefreshTimer)
         currentMetadataPollInterval = interval
-        metadataRefreshTimer = Timer.publish(every: interval, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
-                #if DEBUG
-                self?.recordMetadataPollTick()
-                #endif
-                self?.refresh()
-            }
+        metadataRefreshTimer = makePollingTimer(interval: interval) { [weak self] in
+            #if DEBUG
+            self?.recordMetadataPollTick()
+            #endif
+            self?.refresh()
+        }
 
         #if DEBUG
         NSLog("PlayStatus polling: metadata interval=%.2fs mode=%@", interval, mode.debugLabel)
@@ -578,16 +614,14 @@ final class NowPlayingModel: ObservableObject {
         let interval = desiredAudioPollingInterval()
         guard abs(currentAudioPollInterval - interval) > 0.001 else { return }
 
-        audioRefreshTimer?.cancel()
+        cancelPollingTimer(&audioRefreshTimer)
         currentAudioPollInterval = interval
-        audioRefreshTimer = Timer.publish(every: interval, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
-                #if DEBUG
-                self?.recordAudioPollTick()
-                #endif
-                self?.refreshAudioState()
-            }
+        audioRefreshTimer = makePollingTimer(interval: interval) { [weak self] in
+            #if DEBUG
+            self?.recordAudioPollTick()
+            #endif
+            self?.refreshAudioState()
+        }
 
         #if DEBUG
         NSLog("PlayStatus polling: audio interval=%.2fs visible=%d", interval, isPopoverVisible ? 1 : 0)
@@ -620,8 +654,9 @@ final class NowPlayingModel: ObservableObject {
     #endif
 
     deinit {
-        metadataRefreshTimer?.cancel()
-        audioRefreshTimer?.cancel()
+        cancelPollingTimer(&metadataRefreshTimer)
+        cancelPollingTimer(&audioRefreshTimer)
+        stopMenuBarMarquee()
         resumeVolumeRampTask?.cancel()
         #if DEBUG
         flushDebugPollMetricsIfNeeded(force: true)
@@ -1068,14 +1103,80 @@ final class NowPlayingModel: ObservableObject {
 
     private func configureMarquee(forceRestart: Bool = false) {
         let base = menuBarTitle.isEmpty ? "Not Playing" : menuBarTitle
-        marqueeTimer?.cancel()
-        marqueeTimer = nil
+        let signature = "\(base)|\(scrollableTitle)|\(menuBarTextMode.rawValue)|\(Int(statusTextWidth.rounded()))|\(isPlaying ? 1 : 0)"
+        if !forceRestart && signature == marqueeSignature {
+            return
+        }
+        marqueeSignature = signature
+        stopMenuBarMarquee()
         marqueeTrack = []
         marqueeTrackDoubled = []
         marqueeIndex = 0
-        marqueeWindowLength = 0
-        marqueeSignature = "\(base)|\(scrollableTitle)|\(menuBarTextMode.rawValue)|\(Int(statusTextWidth.rounded()))|\(forceRestart)"
+        marqueeStepInterval = StatusBarMarquee.minimumStepInterval
+        marqueePauseTicksRemaining = 0
         menuBarDisplayTitle = base
+    }
+
+    private func startMenuBarMarqueeIfNeeded() {
+        guard marqueeTimer == nil, !marqueeTrack.isEmpty else { return }
+        let timer = DispatchSource.makeTimerSource(queue: marqueeTimerQueue)
+        let interval = marqueeStepInterval
+        timer.schedule(
+            deadline: .now() + interval,
+            repeating: interval,
+            leeway: .milliseconds(30)
+        )
+        timer.setEventHandler { [weak self] in
+            DispatchQueue.main.async { [weak self] in
+                self?.advanceMenuBarMarquee()
+            }
+        }
+        marqueeTimer = timer
+        timer.resume()
+    }
+
+    private func stopMenuBarMarquee() {
+        marqueeTimer?.setEventHandler {}
+        marqueeTimer?.cancel()
+        marqueeTimer = nil
+    }
+
+    private func advanceMenuBarMarquee() {
+        guard !marqueeTrack.isEmpty else { return }
+
+        if marqueePauseTicksRemaining > 0 {
+            marqueePauseTicksRemaining -= 1
+            return
+        }
+
+        marqueeIndex = (marqueeIndex + 1) % marqueeTrack.count
+        menuBarDisplayTitle = currentMenuBarMarqueeTitle()
+        if marqueeIndex == 0 {
+            marqueePauseTicksRemaining = marqueePauseTickCount()
+        }
+    }
+
+    private func currentMenuBarMarqueeTitle() -> String {
+        guard !marqueeTrack.isEmpty, marqueeTrackDoubled.count >= marqueeTrack.count else {
+            return menuBarTitle.isEmpty ? "Not Playing" : menuBarTitle
+        }
+        let endIndex = min(marqueeIndex + marqueeTrack.count, marqueeTrackDoubled.count)
+        return String(marqueeTrackDoubled[marqueeIndex..<endIndex])
+    }
+
+    private func resolvedMarqueeStepInterval(for track: [Character]) -> TimeInterval {
+        let trackString = String(track)
+        let measuredWidth = measuredTextWidth(trackString, font: statusBarTitleFont)
+        let averageStepWidth = measuredWidth / CGFloat(max(track.count, 1))
+        let rawInterval = Double(averageStepWidth / StatusBarMarquee.targetPointsPerSecond)
+        return min(
+            StatusBarMarquee.maximumStepInterval,
+            max(StatusBarMarquee.minimumStepInterval, rawInterval)
+        )
+    }
+
+    private func marqueePauseTickCount() -> Int {
+        max(1, Int((StatusBarMarquee.pauseDuration / max(marqueeStepInterval, 0.001)).rounded()))
     }
 
     private func bumpStatusBarConfigRevision() {

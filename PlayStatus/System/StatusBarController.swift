@@ -349,6 +349,10 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             iconView.frame = CGRect(x: iconX, y: iconY, width: iconSize, height: iconSize)
             marqueeView.suspendScrolling()
             marqueeView.isHidden = true
+            button.image = nil
+            button.attributedTitle = NSAttributedString(string: "")
+            button.title = ""
+            button.toolTip = model.statusLine
             return
         }
 
@@ -367,21 +371,24 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         let iconY = floor((button.bounds.height - iconSize) / 2)
         iconView.frame = CGRect(x: 4, y: iconY, width: iconSize, height: iconSize)
         marqueeView.isHidden = false
+        button.image = nil
+        button.attributedTitle = NSAttributedString(string: "")
+        button.title = ""
 
-        let laneWidth = effectiveLaneWidth
         let laneHeight: CGFloat = 16
         let x = floor(iconView.frame.maxX + 5)
         let y = floor((button.bounds.height - laneHeight) / 2)
-        let targetFrame = CGRect(x: x, y: y, width: laneWidth, height: laneHeight)
+        let targetFrame = CGRect(x: x, y: y, width: effectiveLaneWidth, height: laneHeight)
         if !marqueeView.frame.equalTo(targetFrame) {
             marqueeView.frame = targetFrame
         }
         marqueeView.update(
             text: model.menuBarTitle,
             enabled: model.scrollableTitle,
-            laneWidth: laneWidth,
+            laneWidth: effectiveLaneWidth,
             slideOnChange: model.slideTitleOnChange
         )
+        button.toolTip = model.menuBarTitle
     }
 
     private func statusImage(for icon: ProviderIconKind) -> NSImage? {

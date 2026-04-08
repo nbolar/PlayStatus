@@ -34,18 +34,17 @@ struct NowPlayingTitleMarquee: View {
     var laneWidth: CGFloat = 272
 
     @State private var startDate = Date()
+    @State private var cachedTextWidth: CGFloat = 0
 
     private let gap: CGFloat = 108
     private let speed: CGFloat = 26
     private let leadInDelay: Double = 0.65
 
     private var resolvedText: String { text.isEmpty ? "Nothing Playing" : text }
-    private var textWidth: CGFloat {
-        measuredTextWidth(resolvedText, font: .systemFont(ofSize: 15, weight: .semibold))
-    }
-    private var shouldScroll: Bool { isVisible && enabled && textWidth > laneWidth + 2 }
-    private var travel: CGFloat { textWidth + gap }
+    private var shouldScroll: Bool { isVisible && enabled && cachedTextWidth > laneWidth + 2 }
+    private var travel: CGFloat { cachedTextWidth + gap }
     private var cycleDuration: Double { max(8.0, Double(travel / speed)) }
+    private var measurementSignature: String { resolvedText }
     private var marqueeSignature: String {
         "\(resolvedText)|\(enabled)|\(isVisible)|\(Int(laneWidth.rounded()))|\(shouldScroll ? 1 : 0)"
     }
@@ -68,7 +67,10 @@ struct NowPlayingTitleMarquee: View {
         .id(marqueeSignature)
         .clipped()
         .modifier(ScrollingEdgeFade(enabled: shouldScroll))
-        .onAppear { startDate = Date() }
+        .onAppear { refreshCachedMetrics(resetStartDate: true) }
+        .onChange(of: measurementSignature) { _, _ in
+            refreshCachedMetrics(resetStartDate: true)
+        }
         .onChange(of: marqueeSignature) { _, _ in startDate = Date() }
         .onDisappear { startDate = Date() }
     }
@@ -96,6 +98,19 @@ struct NowPlayingTitleMarquee: View {
         let progress = active.truncatingRemainder(dividingBy: cycle) / cycle
         return CGFloat(progress) * travel
     }
+
+    private func refreshCachedMetrics(resetStartDate: Bool) {
+        let measuredWidth = measuredTextWidth(
+            resolvedText,
+            font: .systemFont(ofSize: 15, weight: .semibold)
+        )
+        if abs(cachedTextWidth - measuredWidth) > 0.5 {
+            cachedTextWidth = measuredWidth
+        }
+        if resetStartDate {
+            startDate = Date()
+        }
+    }
 }
 
 struct NowPlayingSecondaryMarquee: View {
@@ -106,6 +121,7 @@ struct NowPlayingSecondaryMarquee: View {
     var usesSecondaryStyle: Bool = true
 
     @State private var startDate = Date()
+    @State private var cachedTextWidth: CGFloat = 0
 
     private let gap: CGFloat = 88
     private let speed: CGFloat = 26
@@ -113,12 +129,12 @@ struct NowPlayingSecondaryMarquee: View {
     private var secondaryFontSize: CGFloat { usesSecondaryStyle ? 11 : 13 }
 
     private var resolvedText: String { text.isEmpty ? " " : text }
-    private var textWidth: CGFloat {
-        measuredTextWidth(resolvedText, font: .systemFont(ofSize: secondaryFontSize, weight: .medium))
-    }
-    private var shouldScroll: Bool { isVisible && enabled && textWidth > laneWidth + 2 }
-    private var travel: CGFloat { textWidth + gap }
+    private var shouldScroll: Bool { isVisible && enabled && cachedTextWidth > laneWidth + 2 }
+    private var travel: CGFloat { cachedTextWidth + gap }
     private var cycleDuration: Double { max(8.0, Double(travel / speed)) }
+    private var measurementSignature: String {
+        "\(resolvedText)|\(usesSecondaryStyle ? 1 : 0)"
+    }
     private var marqueeSignature: String {
         "\(resolvedText)|\(enabled)|\(isVisible)|\(Int(laneWidth.rounded()))|\(shouldScroll ? 1 : 0)"
     }
@@ -141,7 +157,10 @@ struct NowPlayingSecondaryMarquee: View {
         .id(marqueeSignature)
         .clipped()
         .modifier(ScrollingEdgeFade(enabled: shouldScroll))
-        .onAppear { startDate = Date() }
+        .onAppear { refreshCachedMetrics(resetStartDate: true) }
+        .onChange(of: measurementSignature) { _, _ in
+            refreshCachedMetrics(resetStartDate: true)
+        }
         .onChange(of: marqueeSignature) { _, _ in startDate = Date() }
         .onDisappear { startDate = Date() }
     }
@@ -188,6 +207,19 @@ struct NowPlayingSecondaryMarquee: View {
         let cycle = max(0.001, cycleDuration)
         let progress = active.truncatingRemainder(dividingBy: cycle) / cycle
         return CGFloat(progress) * travel
+    }
+
+    private func refreshCachedMetrics(resetStartDate: Bool) {
+        let measuredWidth = measuredTextWidth(
+            resolvedText,
+            font: .systemFont(ofSize: secondaryFontSize, weight: .medium)
+        )
+        if abs(cachedTextWidth - measuredWidth) > 0.5 {
+            cachedTextWidth = measuredWidth
+        }
+        if resetStartDate {
+            startDate = Date()
+        }
     }
 }
 
