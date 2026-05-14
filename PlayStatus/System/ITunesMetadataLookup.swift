@@ -4,7 +4,7 @@ actor ITunesMetadataLookup {
     static let shared = ITunesMetadataLookup()
     private static let requestUserAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
-    private static let persistentAlbumURLCacheKey = "PlayStatus.ITunesMetadataLookup.AlbumURLCache.v1"
+    private static let persistentAlbumURLCacheKey = "PlayStatus.ITunesMetadataLookup.AlbumURLCache.v2"
 
     private struct SearchTarget {
         let artistRaw: String
@@ -86,14 +86,19 @@ actor ITunesMetadataLookup {
 
     func lookupAlbumURL(
         artist: String,
+        albumArtist: String,
         album: String,
         title: String,
         profile: AnimatedAlbumLookupProfile = .standard
     ) async -> URL? {
-        let normalizedArtist = Self.normalizeText(artist)
+        let lookupArtist = Self.preferredLookupArtist(albumArtist: albumArtist, artist: artist)
+        let normalizedArtist = Self.normalizeText(lookupArtist)
         let normalizedAlbum = Self.normalizeText(album)
         let exactKey = [profile.rawValue, normalizedArtist, normalizedAlbum].joined(separator: "|")
-        let albumKey = [profile.rawValue, normalizedAlbum].joined(separator: "|")
+        let sharedKey =
+            normalizedArtist.isEmpty || normalizedAlbum.isEmpty
+            ? ""
+            : [normalizedArtist, normalizedAlbum].joined(separator: "|")
         let persistentKeys = persistentLookupKeys(
             profile: profile,
             normalizedArtist: normalizedArtist,
@@ -104,15 +109,17 @@ actor ITunesMetadataLookup {
             touchInMemoryCacheKey(exactKey)
             return cached
         }
-        if let cached = cache[albumKey] {
-            touchInMemoryCacheKey(albumKey)
+        if !sharedKey.isEmpty, let cached = cache[sharedKey] {
+            touchInMemoryCacheKey(sharedKey)
             return cached
         }
         if let persisted = persistedAlbumURL(for: persistentKeys) {
             setInMemoryCachedAlbumURL(persisted, for: exactKey)
-            setInMemoryCachedAlbumURL(persisted, for: albumKey)
+            if !sharedKey.isEmpty {
+                setInMemoryCachedAlbumURL(persisted, for: sharedKey)
+            }
             Self.logLookupEvent(
-                "persistent albumURL cache hit url=\(persisted.absoluteString) artist=\(artist) album=\(album)"
+                "persistent albumURL cache hit url=\(persisted.absoluteString) artist=\(lookupArtist) album=\(album)"
             )
             return persisted
         }
@@ -124,6 +131,7 @@ actor ITunesMetadataLookup {
         let task = Task<URL?, Never> {
             await Self.resolveAlbumURL(
                 artist: artist,
+                albumArtist: albumArtist,
                 album: album,
                 title: title,
                 profile: profile
@@ -135,7 +143,9 @@ actor ITunesMetadataLookup {
         inflight[exactKey] = nil
         if let resolved {
             setInMemoryCachedAlbumURL(resolved, for: exactKey)
-            setInMemoryCachedAlbumURL(resolved, for: albumKey)
+            if !sharedKey.isEmpty {
+                setInMemoryCachedAlbumURL(resolved, for: sharedKey)
+            }
             persistAlbumURL(resolved, for: persistentKeys)
         }
         return resolved
@@ -148,13 +158,15 @@ actor ITunesMetadataLookup {
 
     private static func resolveAlbumURL(
         artist: String,
+        albumArtist: String,
         album: String,
         title: String,
         profile: AnimatedAlbumLookupProfile
     ) async -> URL? {
-        let target = SearchTarget(artist: artist, album: album, title: title)
+        let lookupArtist = preferredLookupArtist(albumArtist: albumArtist, artist: artist)
+        let target = SearchTarget(artist: lookupArtist, album: album, title: title)
         guard target.hasMinimumMetadata else {
-            logLookupEvent("skip iTunes lookup: missing artist/album artist=\(artist) album=\(album)")
+            logLookupEvent("skip iTunes lookup: missing artist/album artist=\(lookupArtist) album=\(album)")
             return nil
         }
 
@@ -847,7 +859,7 @@ actor ITunesMetadataLookup {
         normalizedArtist: String,
         normalizedAlbum: String
     ) -> [String] {
-        guard !normalizedAlbum.isEmpty else { return [] }
+        guard !normalizedArtist.isEmpty, !normalizedAlbum.isEmpty else { return [] }
 
         var keys: [String] = []
         var seen = Set<String>()
@@ -858,10 +870,16 @@ actor ITunesMetadataLookup {
         }
 
         append([profile.rawValue, normalizedArtist, normalizedAlbum].joined(separator: "|"))
-        append([profile.rawValue, normalizedAlbum].joined(separator: "|"))
         append([normalizedArtist, normalizedAlbum].joined(separator: "|"))
-        append(normalizedAlbum)
         return keys
+    }
+
+    private static func preferredLookupArtist(albumArtist: String, artist: String) -> String {
+        let trimmedAlbumArtist = albumArtist.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedAlbumArtist.isEmpty {
+            return trimmedAlbumArtist
+        }
+        return artist.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func logLookupEvent(_ message: String) {

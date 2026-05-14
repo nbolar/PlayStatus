@@ -192,6 +192,7 @@ final class NowPlayingModel: ObservableObject {
     @Published var provider: NowPlayingProvider = .none
     @Published var title: String = ""
     @Published var artist: String = ""
+    @Published var albumArtist: String = ""
     @Published var album: String = ""
     @Published var isPlaying: Bool = false
     @Published var artwork: NSImage? = nil
@@ -706,9 +707,11 @@ final class NowPlayingModel: ObservableObject {
             lastSnapshot = snap
             // Same track: if native provider artwork arrives later (e.g. Spotify URL fetch),
             // promote it over any previously shown fallback art without forcing a full apply().
+            let lastArtworkIdentity = last.artwork?.artworkTransitionIdentity
+            let currentArtworkIdentity = snap.artwork?.artworkTransitionIdentity
             let shouldPromoteNativeArtwork =
                 snap.nativeArtworkState == .available &&
-                (last.nativeArtworkState != .available || last.artwork == nil)
+                (last.nativeArtworkState != .available || lastArtworkIdentity != currentArtworkIdentity)
 
             if shouldPromoteNativeArtwork, let artwork = snap.artwork?.normalizedArtworkForDisplay() {
                 DispatchQueue.main.async {
@@ -743,12 +746,17 @@ final class NowPlayingModel: ObservableObject {
     }
 
     private func snapshotsSimilar(_ a: NowPlayingSnapshot, _ b: NowPlayingSnapshot) -> Bool {
-        a.provider == b.provider &&
+        trackIdentityMatches(a, b) &&
         a.isPlaying == b.isPlaying &&
+        a.isFavorited == b.isFavorited
+    }
+
+    private func trackIdentityMatches(_ a: NowPlayingSnapshot, _ b: NowPlayingSnapshot) -> Bool {
+        a.provider == b.provider &&
         a.title == b.title &&
         a.artist == b.artist &&
-        a.album == b.album &&
-        a.isFavorited == b.isFavorited
+        a.albumArtist == b.albumArtist &&
+        a.album == b.album
     }
 
     private func apply(snapshot: NowPlayingSnapshot) {
@@ -764,6 +772,7 @@ final class NowPlayingModel: ObservableObject {
             self.isPlaying = resolvedSnapshot.isPlaying
             self.title = resolvedSnapshot.title
             self.artist = resolvedSnapshot.artist
+            self.albumArtist = resolvedSnapshot.albumArtist
             self.album = resolvedSnapshot.album
             self.isCurrentTrackFavorited = resolvedSnapshot.provider == .music ? resolvedSnapshot.isFavorited : false
             self.creditsPayload = resolvedSnapshot.credits
@@ -819,10 +828,7 @@ final class NowPlayingModel: ObservableObject {
             let work = DispatchWorkItem { [weak self] in
                 guard let self else { return }
                 guard let current = self.lastSnapshot,
-                      current.provider == resolvedSnapshot.provider,
-                      current.title == resolvedSnapshot.title,
-                      current.artist == resolvedSnapshot.artist,
-                      current.album == resolvedSnapshot.album else { return }
+                      self.trackIdentityMatches(current, resolvedSnapshot) else { return }
                 if current.artwork == nil {
                     self.fetchFallbackArtwork(for: resolvedSnapshot)
                 }
@@ -836,10 +842,7 @@ final class NowPlayingModel: ObservableObject {
 
     private func isSameTrack(_ a: NowPlayingSnapshot?, _ b: NowPlayingSnapshot) -> Bool {
         guard let a else { return false }
-        return a.provider == b.provider &&
-            a.title == b.title &&
-            a.artist == b.artist &&
-            a.album == b.album &&
+        return trackIdentityMatches(a, b) &&
             Int(a.duration.rounded()) == Int(b.duration.rounded())
     }
 
@@ -1757,6 +1760,7 @@ final class NowPlayingModel: ObservableObject {
         let descriptor = AnimatedArtworkTrackDescriptor(
             sourceProvider: snapshot.provider,
             artist: snapshot.artist,
+            albumArtist: snapshot.albumArtist,
             album: snapshot.album,
             title: snapshot.title,
             appleMusicAlbumURL: snapshot.appleMusicAlbumURL
@@ -1781,11 +1785,7 @@ final class NowPlayingModel: ObservableObject {
                     return
                 }
 
-                let isCurrentSnapshotMatch =
-                    self.provider == snapshot.provider &&
-                    self.title == snapshot.title &&
-                    self.artist == snapshot.artist &&
-                    self.album == snapshot.album
+                let isCurrentSnapshotMatch = self.lastSnapshot.map { self.trackIdentityMatches($0, snapshot) } ?? false
                 let isTransientMusicGap =
                     snapshot.provider == .music &&
                     self.provider == .none &&
@@ -1824,10 +1824,7 @@ final class NowPlayingModel: ObservableObject {
                     fallback: resolution.statusMessage
                 )
                 if resolution.state == .available, resolution.hlsURL != nil {
-                    self.animatedArtworkStreamIdentity = self.animatedArtworkIdentityKey(
-                        title: snapshot.title,
-                        artist: snapshot.artist
-                    )
+                    self.animatedArtworkStreamIdentity = self.animatedArtworkIdentityKey(for: snapshot)
                 } else if resolution.hlsURL == nil {
                     self.animatedArtworkStreamIdentity = ""
                 }
@@ -1842,10 +1839,18 @@ final class NowPlayingModel: ObservableObject {
         }
         return [
             snapshot.provider.rawValue,
-            animatedArtworkLookupComponent(snapshot.artist),
+            animatedArtworkLookupComponent(animatedArtworkLookupArtist(for: snapshot)),
             animatedArtworkLookupComponent(snapshot.album),
             animatedArtworkLookupComponent(snapshot.title)
         ].joined(separator: "|")
+    }
+
+    private func animatedArtworkLookupArtist(for snapshot: NowPlayingSnapshot) -> String {
+        let trimmedAlbumArtist = snapshot.albumArtist.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedAlbumArtist.isEmpty {
+            return trimmedAlbumArtist
+        }
+        return snapshot.artist
     }
 
     private func animatedArtworkLookupComponent(_ value: String) -> String {
@@ -1857,28 +1862,22 @@ final class NowPlayingModel: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func animatedArtworkIdentityKey(title: String, artist: String) -> String {
+    private func animatedArtworkIdentityKey(for snapshot: NowPlayingSnapshot) -> String {
         [
-            animatedArtworkLookupComponent(artist),
-            animatedArtworkLookupComponent(title)
+            animatedArtworkLookupComponent(animatedArtworkLookupArtist(for: snapshot)),
+            animatedArtworkLookupComponent(snapshot.album),
+            animatedArtworkLookupComponent(snapshot.title)
         ].joined(separator: "|")
     }
 
     private func shouldPreserveAnimatedArtworkStream(for snapshot: NowPlayingSnapshot) -> Bool {
         guard snapshot.provider == .music, animatedArtworkHLSURL != nil else { return false }
-        let snapshotIdentity = animatedArtworkIdentityKey(title: snapshot.title, artist: snapshot.artist)
+        let snapshotIdentity = animatedArtworkIdentityKey(for: snapshot)
         guard !snapshotIdentity.isEmpty else { return false }
 
-        if animatedArtworkStreamIdentity == snapshotIdentity {
-            return true
-        }
-
-        let currentIdentity = animatedArtworkIdentityKey(title: title, artist: artist)
-        if !currentIdentity.isEmpty, currentIdentity == snapshotIdentity {
-            return true
-        }
-
-        return false
+        // `lastSnapshot` has already advanced to the new track by the time we re-resolve
+        // animated artwork, so only preserve a stream when it is already owned by this track.
+        return animatedArtworkStreamIdentity == snapshotIdentity
     }
 
     private func animatedArtworkLoadingStatusMessage(for provider: NowPlayingProvider) -> String {
@@ -1911,13 +1910,14 @@ final class NowPlayingModel: ObservableObject {
     }
 
     private func fetchFallbackArtwork(for snapshot: NowPlayingSnapshot) {
+        let lookupArtist = fallbackArtworkLookupArtist(for: snapshot)
         let durationKeyComponent = snapshot.duration > 0 ? "d:\(Int(snapshot.duration.rounded()))" : "d:none"
-        let key = "\(snapshot.provider.rawValue)|\(snapshot.artist)|\(snapshot.album)|\(snapshot.title)|\(durationKeyComponent)"
+        let key = "\(snapshot.provider.rawValue)|\(lookupArtist)|\(snapshot.album)|\(snapshot.title)|\(durationKeyComponent)"
         if fallbackArtworkTaskKey == key { return }
         fallbackArtworkTaskKey = key
 
         ITunesArtworkLookup.shared.lookup(
-            artist: snapshot.artist,
+            artist: lookupArtist,
             album: snapshot.album,
             title: snapshot.title,
             trackDurationSeconds: snapshot.duration > 0 ? snapshot.duration : nil
@@ -1925,13 +1925,19 @@ final class NowPlayingModel: ObservableObject {
             guard let self, let image else { return }
             let resolvedImage = image.normalizedArtworkForDisplay()
             DispatchQueue.main.async {
-                guard self.provider == snapshot.provider,
-                      self.title == snapshot.title,
-                      self.artist == snapshot.artist,
-                      self.album == snapshot.album else { return }
+                guard let current = self.lastSnapshot,
+                      self.trackIdentityMatches(current, snapshot) else { return }
                 self.artwork = resolvedImage
                 self.updateTint(from: resolvedImage)
             }
         }
+    }
+
+    private func fallbackArtworkLookupArtist(for snapshot: NowPlayingSnapshot) -> String {
+        let trimmedAlbumArtist = snapshot.albumArtist.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedAlbumArtist.isEmpty {
+            return trimmedAlbumArtist
+        }
+        return snapshot.artist
     }
 }

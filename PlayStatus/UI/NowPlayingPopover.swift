@@ -407,7 +407,7 @@ struct NowPlayingPopover: View {
             image: model.artwork,
             tint: model.glassTint,
             isEnabled: false,
-            seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
+            seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.albumArtist)|\(model.album)|\(model.title)",
             style: model.artworkMotionStyle,
             animatedArtworkURL: model.effectiveAnimatedArtworkURL,
             animatedArtworkIsVisible: model.isPopoverVisible,
@@ -416,7 +416,7 @@ struct NowPlayingPopover: View {
         .frame(width: regularArtworkSize, height: regularArtworkSize)
         .animatedArtworkMotion(
             isEnabled: model.animatedArtworkEnabled,
-            seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
+            seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.albumArtist)|\(model.album)|\(model.title)",
             style: model.artworkMotionStyle,
             isPlaying: model.isPlaying,
             hasAnimatedStream: model.effectiveAnimatedArtworkURL != nil,

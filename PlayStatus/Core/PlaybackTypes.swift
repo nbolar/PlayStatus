@@ -293,6 +293,7 @@ struct NowPlayingSnapshot: Equatable {
     var isPlaying: Bool
     var title: String
     var artist: String
+    var albumArtist: String = ""
     var album: String
     var artwork: NSImage?
     var nativeArtworkState: NativeArtworkState

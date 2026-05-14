@@ -8,14 +8,45 @@ enum AnimatedAlbumLookupProfile: String {
 struct AnimatedArtworkTrackDescriptor: Equatable {
     let sourceProvider: NowPlayingProvider
     let artist: String
+    let albumArtist: String
     let album: String
     let title: String
     let appleMusicAlbumURL: URL?
 
+    var lookupArtist: String {
+        let trimmedAlbumArtist = albumArtist.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedAlbumArtist.isEmpty {
+            return trimmedAlbumArtist
+        }
+        return artist.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     var cacheKey: String {
-        [sourceProvider.rawValue, artist, album]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-            .joined(separator: "|")
+        if let albumURL = appleMusicAlbumURL?.absoluteString,
+           !albumURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return [
+                "v2",
+                sourceProvider.rawValue,
+                "albumURL",
+                normalizedCacheComponent(albumURL)
+            ].joined(separator: "|")
+        }
+
+        return [
+            "v2",
+            sourceProvider.rawValue,
+            normalizedCacheComponent(lookupArtist),
+            normalizedCacheComponent(album)
+        ].joined(separator: "|")
+    }
+
+    private func normalizedCacheComponent(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.diacriticInsensitive, .widthInsensitive], locale: .current)
+            .lowercased()
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -66,6 +97,7 @@ final class AppleMusicAnimatedArtworkService {
         } else {
             resolvedAlbumURL = await ITunesMetadataLookup.shared.lookupAlbumURL(
                 artist: descriptor.artist,
+                albumArtist: descriptor.albumArtist,
                 album: descriptor.album,
                 title: descriptor.title,
                 profile: lookupProfile

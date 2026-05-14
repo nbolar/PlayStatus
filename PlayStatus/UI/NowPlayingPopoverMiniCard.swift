@@ -80,7 +80,7 @@ struct MiniNowPlayingCard: View {
         let shouldRenderMiniLyricsPane = showMiniLyricsPane || visibleLyricsHeight > 0.5
         let seamOpacity = min(1, max(0, visibleLyricsHeight / max(1, model.miniLyricsPaneHeight)))
         let miniMarqueeLaneWidth = max(120, model.miniPopoverWidth - 64)
-        let miniTrackKey = "\(model.provider.rawValue)|\(model.artist)|\(model.album)|\(model.title)"
+        let miniTrackKey = "\(model.provider.rawValue)|\(model.artist)|\(model.albumArtist)|\(model.album)|\(model.title)"
         let miniLowerPanelHorizontalInset = (pointerHovering ? 6.0 : 14.0) * miniDetachedControlScale
         let miniLowerPanelBottomInset = (pointerHovering ? 15.0 : 8.0) * miniDetachedControlScale
         let miniLowerPanelHoverLift = (pointerHovering ? 8.0 : 0) * miniDetachedControlScale
@@ -318,7 +318,7 @@ struct MiniNowPlayingCard: View {
         )
         .animatedArtworkMotion(
             isEnabled: model.animatedArtworkEnabled,
-            seed: "mini|\(model.provider.rawValue)|\(model.artist)|\(model.title)",
+            seed: "mini|\(model.provider.rawValue)|\(model.artist)|\(model.albumArtist)|\(model.album)|\(model.title)",
             style: model.artworkMotionStyle,
             isPlaying: model.isPlaying,
             hasAnimatedStream: model.effectiveAnimatedArtworkURL != nil,

@@ -119,12 +119,16 @@ enum MusicProvider {
                             set tLoved to (loved of current track as boolean)
                         end try
                     end try
-                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDur as string) & "||" & (pPos as string) & "||" & (tLoved as string) & "||" & tAlbumArtist & "||" & tComposer & "||" & tGenre & "||" & (tDiscNumber as string) & "||" & (tTrackNumber as string) & "||" & (tYear as string)
+                    set tPersistentID to ""
+                    try
+                        set tPersistentID to (persistent ID of current track as string)
+                    end try
+                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDur as string) & "||" & (pPos as string) & "||" & (tLoved as string) & "||" & tAlbumArtist & "||" & tComposer & "||" & tGenre & "||" & (tDiscNumber as string) & "||" & (tTrackNumber as string) & "||" & (tYear as string) & "||" & tPersistentID
                 else
-                    return pState & "|||||||||||||"
+                    return pState & "||||||||||||||"
                 end if
             else
-                return "stopped|||||||||||||"
+                return "stopped||||||||||||||"
             end if
         end tell
         """
@@ -146,6 +150,7 @@ enum MusicProvider {
         let discNumber = Int(parts.count > 10 ? parts[10] : "") ?? 0
         let trackNumber = Int(parts.count > 11 ? parts[11] : "") ?? 0
         let year = Int(parts.count > 12 ? parts[12] : "") ?? 0
+        let persistentID = parts.count > 13 ? parts[13] : ""
         let credits = creditsPayload(
             sourceName: "Music app",
             contributors: [
@@ -164,7 +169,12 @@ enum MusicProvider {
             ]
         )
 
-        let trackKey = "\(title)|\(artist)|\(album)"
+        let trackKey: String
+        if persistentID.isEmpty {
+            trackKey = "\(title)|\(artist)|\(albumArtist)|\(album)"
+        } else {
+            trackKey = "pid:\(persistentID)"
+        }
         var artwork: NSImage? = nil
         if includeArtwork, !title.isEmpty {
             if cachedArtworkTrackKey == trackKey, let cachedArtworkImage {
@@ -174,7 +184,17 @@ enum MusicProvider {
                 tell application "Music"
                     if it is running then
                         try
-                            set artData to data of artwork 1 of current track
+                            set currentTrack to current track
+                            if "\(persistentID)" is not "" then
+                                try
+                                    if (persistent ID of currentTrack as string) is not "\(persistentID)" then
+                                        return ""
+                                    end if
+                                on error
+                                    return ""
+                                end try
+                            end if
+                            set artData to data of artwork 1 of currentTrack
                             return artData
                         on error
                             return ""
@@ -201,6 +221,7 @@ enum MusicProvider {
             isPlaying: isPlaying,
             title: title,
             artist: artist,
+            albumArtist: albumArtist,
             album: album,
             artwork: artwork,
             nativeArtworkState: artwork == nil ? .none : .available,
@@ -438,6 +459,7 @@ enum SpotifyProvider {
             isPlaying: isPlaying,
             title: title,
             artist: artist,
+            albumArtist: albumArtist,
             album: album,
             artwork: artwork,
             nativeArtworkState: artwork != nil ? .available : (artURLString.isEmpty ? .none : .pending),
