@@ -261,6 +261,14 @@ final class DetachedNowPlayingContainerController: NSViewController {
         nil
     }
 
+    func applyAppearance(_ appearance: NSAppearance?) {
+        guard isViewLoaded else { return }
+        view.appearance = appearance
+        materialView.appearance = appearance
+        neutralWashView.appearance = appearance
+        hostController.view.appearance = appearance
+    }
+
     override func loadView() {
         let root = NSView()
         root.wantsLayer = true
@@ -306,5 +314,10 @@ final class DetachedNowPlayingContainerController: NSViewController {
             hostView.topAnchor.constraint(equalTo: materialView.topAnchor),
             hostView.bottomAnchor.constraint(equalTo: materialView.bottomAnchor)
         ])
+
+        let inheritedAppearance = hostController.view.appearance
+        root.appearance = inheritedAppearance
+        materialView.appearance = inheritedAppearance
+        neutralWashView.appearance = inheritedAppearance
     }
 }

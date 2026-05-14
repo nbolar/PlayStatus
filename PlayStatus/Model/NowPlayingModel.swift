@@ -115,6 +115,12 @@ final class NowPlayingModel: ObservableObject {
             updateTint(from: artwork)
         }
     }
+    @AppStorage("appAppearanceMode") private var appAppearanceModeRaw: String = AppAppearanceMode.system.rawValue {
+        didSet {
+            guard oldValue != appAppearanceModeRaw else { return }
+            appearanceRevision &+= 1
+        }
+    }
     @Published var ignoreParentheses: Bool = UserDefaults.standard.bool(forKey: "ignoreParentheses") {
         didSet {
             UserDefaults.standard.set(ignoreParentheses, forKey: "ignoreParentheses")
@@ -209,6 +215,7 @@ final class NowPlayingModel: ObservableObject {
     ]
     @Published var regularControlsContrastBoost: Double = 0
     @Published var statusBarConfigRevision: Int = 0
+    @Published var appearanceRevision: Int = 0
     @Published var menuBarDisplayTitle: String = "Not Playing"
     @Published var availableOutputDevices: [AudioOutputDevice] = []
     @Published var selectedOutputDeviceID: AudioDeviceID = 0
@@ -339,6 +346,20 @@ final class NowPlayingModel: ObservableObject {
     var themeArtworkBlend: Double {
         get { min(max(themeArtworkBlendStorage, 0), 1) }
         set { themeArtworkBlendStorage = min(max(newValue, 0), 1) }
+    }
+
+    var appAppearanceMode: AppAppearanceMode {
+        get {
+            guard let resolved = AppAppearanceMode(rawValue: appAppearanceModeRaw) else {
+                appAppearanceModeRaw = AppAppearanceMode.system.rawValue
+                return .system
+            }
+            return resolved
+        }
+        set {
+            guard appAppearanceModeRaw != newValue.rawValue else { return }
+            appAppearanceModeRaw = newValue.rawValue
+        }
     }
 
     var animatedArtworkQualityPolicy: AnimatedArtworkQualityPolicy {

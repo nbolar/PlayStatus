@@ -475,7 +475,7 @@ struct MiniDetailToggleControl: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
-                .foregroundStyle(.primary.opacity(isOn ? 0.98 : 0.90))
+                .foregroundStyle(.white.opacity(isOn ? 0.98 : 0.90))
                 .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
                 .background(Circle().fill(Color.white.opacity(0.14)))
                 .overlay(

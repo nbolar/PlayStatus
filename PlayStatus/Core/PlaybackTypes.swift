@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import SwiftUI
 
 let modeTransitionDuration: Double = 0.38
 let miniLyricsTransitionDuration: Double = 0.26
@@ -7,6 +8,39 @@ let miniLyricsTransitionDuration: Double = 0.26
 enum NowPlayingSurfaceMode: String {
     case popover
     case detached
+}
+
+enum AppAppearanceMode: String, CaseIterable {
+    case system
+    case light
+    case dark
+
+    var displayName: String {
+        switch self {
+        case .system: return "Follow System"
+        case .light: return "Always Light"
+        case .dark: return "Always Dark"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .system:
+            return nil
+        case .light:
+            return NSAppearance(named: .aqua)
+        case .dark:
+            return NSAppearance(named: .darkAqua)
+        }
+    }
 }
 
 enum DetachedWindowSizePreset: String, CaseIterable {

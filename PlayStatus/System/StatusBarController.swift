@@ -65,6 +65,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         popover.contentViewController = popoverHost
         model.surfaceMode = .popover
         model.isPopoverVisible = false
+        applyAppearanceOverride()
         lastMiniModeValue = model.miniMode
         lastLyricsPaneExpandedValue = currentLyricsPaneExpandedState()
         updatePopoverLayout()
@@ -156,6 +157,13 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             }
             .store(in: &cancellables)
 
+        model.$appearanceRevision
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.applyAppearanceOverride()
+            }
+            .store(in: &cancellables)
+
         model.$coachmarkSurfaceRevealRequestToken
             .dropFirst()
             .receive(on: RunLoop.main)
@@ -217,6 +225,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         updatePopoverLayout()
         model.isPopoverVisible = true
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        applyAppearanceOverride()
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             NSApp.activate(ignoringOtherApps: false)
@@ -450,6 +459,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         // frame to avoid transient intermediate layout states.
         if !popover.isShown, surfaceContentLoaded {
             popoverHost.rootView = AnyView(NowPlayingPopover(model: model))
+            applyAppearanceOverride()
         }
 
         guard popover.isShown else {
@@ -632,8 +642,8 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
 
         detachedHost.rootView = AnyView(NowPlayingPopover(model: model))
         window.contentViewController = detachedContainerController
-
         detachedWindow = window
+        applyAppearanceOverride()
         lastAppliedDetachedSize = targetContentSize
         return window
     }
@@ -645,6 +655,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         ensureSurfaceContentLoaded()
         let window = ensureDetachedWindow()
         updateDetachedWindowLevel()
+        applyAppearanceOverride()
         updateDetachedWindowLayout()
         NSApp.activate(ignoringOtherApps: false)
         window.makeKeyAndOrderFront(nil)
@@ -669,6 +680,19 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
 
     private func updateDetachedWindowLevel() {
         detachedWindow?.level = detachedWindowLevel()
+    }
+
+    private func applyAppearanceOverride() {
+        let appearance = model.appAppearanceMode.nsAppearance
+        popoverHost.view.appearance = appearance
+        detachedHost.view.appearance = appearance
+        popover.contentViewController?.view.appearance = appearance
+        popover.contentViewController?.view.window?.appearance = appearance
+        detachedWindow?.appearance = appearance
+        detachedWindow?.contentView?.appearance = appearance
+        if detachedWindow != nil {
+            detachedContainerController.applyAppearance(appearance)
+        }
     }
 
     private func defaultDetachedWindowFrame(for contentSize: NSSize) -> NSRect {
@@ -792,6 +816,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         guard !surfaceContentLoaded else { return }
         popoverHost.rootView = AnyView(NowPlayingPopover(model: model))
         detachedHost.rootView = AnyView(NowPlayingPopover(model: model))
+        applyAppearanceOverride()
         surfaceContentLoaded = true
     }
 

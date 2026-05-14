@@ -147,6 +147,10 @@ struct OutputControlsRow: View {
                 HStack(spacing: 5 * clampedControlScale) {
                     Image(systemName: "hifispeaker.fill")
                         .font(.system(size: 10 * clampedControlScale, weight: .semibold))
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 8 * clampedControlScale, weight: .bold))
+                        .opacity(0.78)
                 }
                 .font(.system(size: 10 * clampedControlScale, weight: .semibold, design: .rounded))
                 .foregroundStyle(controlForeground.opacity(0.90))
@@ -157,6 +161,8 @@ struct OutputControlsRow: View {
                 .overlay(Capsule().stroke(.white.opacity(controlStrokeOpacity), lineWidth: 1))
             }
             .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .tint(controlForeground.opacity(0.90))
             .buttonStyle(.plain)
 
             Button {

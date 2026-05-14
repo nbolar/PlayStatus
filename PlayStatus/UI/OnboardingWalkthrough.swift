@@ -358,11 +358,29 @@ private struct WalkthroughShellView<Content: View>: View {
     let onContinue: () -> Void
     @ViewBuilder let content: Content
 
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var stepCountLabel: String {
         let stepIndex = (mode.steps.firstIndex(of: currentStep) ?? 0) + 1
         return "Step \(stepIndex) of \(mode.steps.count)"
+    }
+
+    private var dividerColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.08)
+    }
+
+    private var sidebarBackgroundColors: [Color] {
+        if colorScheme == .dark {
+            return [
+                Color.black.opacity(0.16),
+                Color.black.opacity(0.08)
+            ]
+        }
+        return [
+            Color.white.opacity(0.76),
+            Color.white.opacity(0.46)
+        ]
     }
 
     var body: some View {
@@ -374,7 +392,7 @@ private struct WalkthroughShellView<Content: View>: View {
                 sidebar
 
                 Divider()
-                    .overlay(Color.white.opacity(0.08))
+                    .overlay(dividerColor)
 
                 mainPanel
             }
@@ -457,10 +475,7 @@ private struct WalkthroughShellView<Content: View>: View {
         .frame(width: 300, alignment: .leading)
         .background(
             LinearGradient(
-                colors: [
-                    Color.black.opacity(0.16),
-                    Color.black.opacity(0.08)
-                ],
+                colors: sidebarBackgroundColors,
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -472,7 +487,7 @@ private struct WalkthroughShellView<Content: View>: View {
             header
 
             Divider()
-                .overlay(Color.white.opacity(0.08))
+                .overlay(dividerColor)
 
             WalkthroughContentPane(
                 stepID: currentStep.rawValue,
@@ -485,7 +500,7 @@ private struct WalkthroughShellView<Content: View>: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             Divider()
-                .overlay(Color.white.opacity(0.08))
+                .overlay(dividerColor)
 
             footer
         }
@@ -565,21 +580,19 @@ private struct WalkthroughContentPane<Content: View>: View {
 }
 
 private struct WalkthroughBackdropView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [
-                    Color(red: 0.10, green: 0.11, blue: 0.16),
-                    Color(red: 0.15, green: 0.21, blue: 0.28),
-                    Color(red: 0.11, green: 0.16, blue: 0.24)
-                ],
+                colors: backgroundColors,
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
 
             RadialGradient(
                 colors: [
-                    Color.white.opacity(0.10),
+                    topHighlightColor,
                     Color.clear
                 ],
                 center: .topTrailing,
@@ -589,7 +602,7 @@ private struct WalkthroughBackdropView: View {
 
             RadialGradient(
                 colors: [
-                    Color(red: 0.26, green: 0.33, blue: 0.56).opacity(0.26),
+                    bottomHighlightColor,
                     Color.clear
                 ],
                 center: .bottomLeading,
@@ -598,14 +611,51 @@ private struct WalkthroughBackdropView: View {
             )
 
             LinearGradient(
-                colors: [
-                    Color.black.opacity(0.06),
-                    Color.black.opacity(0.22)
-                ],
+                colors: overlayColors,
                 startPoint: .top,
                 endPoint: .bottom
             )
         }
+    }
+
+    private var backgroundColors: [Color] {
+        if colorScheme == .dark {
+            return [
+                Color(red: 0.10, green: 0.11, blue: 0.16),
+                Color(red: 0.15, green: 0.21, blue: 0.28),
+                Color(red: 0.11, green: 0.16, blue: 0.24)
+            ]
+        }
+        return [
+            Color(red: 0.97, green: 0.98, blue: 1.00),
+            Color(red: 0.92, green: 0.96, blue: 0.99),
+            Color(red: 0.95, green: 0.97, blue: 1.00)
+        ]
+    }
+
+    private var topHighlightColor: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.10)
+            : Color.white.opacity(0.82)
+    }
+
+    private var bottomHighlightColor: Color {
+        colorScheme == .dark
+            ? Color(red: 0.26, green: 0.33, blue: 0.56).opacity(0.26)
+            : Color(red: 0.42, green: 0.66, blue: 0.96).opacity(0.16)
+    }
+
+    private var overlayColors: [Color] {
+        if colorScheme == .dark {
+            return [
+                Color.black.opacity(0.06),
+                Color.black.opacity(0.22)
+            ]
+        }
+        return [
+            Color.white.opacity(0.16),
+            Color.black.opacity(0.04)
+        ]
     }
 }
 
@@ -616,6 +666,7 @@ private struct WalkthroughStepSidebarItem: View {
     let isEnabled: Bool
     let accent: Color
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering = false
 
     private var circleFill: Color {
@@ -646,14 +697,20 @@ private struct WalkthroughStepSidebarItem: View {
         if isSelected {
             return accent.opacity(0.12)
         }
-        return isHovering ? Color.white.opacity(0.08) : .clear
+        if isHovering {
+            return colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.04)
+        }
+        return .clear
     }
 
     private var borderColor: Color {
         if isSelected {
             return accent.opacity(0.24)
         }
-        return isHovering ? Color.white.opacity(0.12) : .clear
+        if isHovering {
+            return colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)
+        }
+        return .clear
     }
 
     var body: some View {

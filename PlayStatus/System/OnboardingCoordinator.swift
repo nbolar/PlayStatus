@@ -155,10 +155,17 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
     private var coachmarkAvailability: [CoachmarkID: Bool] = [:]
     private var persistedDismissedCoachmarks = Set<CoachmarkID>()
     private var debugDismissedCoachmarks = Set<CoachmarkID>()
+    private var cancellables = Set<AnyCancellable>()
     private override init() {
         super.init()
         loadPersistedDismissedCoachmarks()
         debugCoachmarksEnabled = defaults.bool(forKey: debugCoachmarksEnabledKey)
+        NowPlayingModel.shared.$appearanceRevision
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.applyAppearanceOverride()
+            }
+            .store(in: &cancellables)
     }
 
     var hasSeenCurrentExperience: Bool {
@@ -402,6 +409,7 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
         window.contentViewController = host
         window.center()
         walkthroughWindow = window
+        applyAppearanceOverride()
         return window
     }
 
@@ -412,7 +420,15 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
                 draft: currentDraftState
             )
         )
+        applyAppearanceOverride()
         walkthroughWindow?.title = currentModeTitle()
+    }
+
+    private func applyAppearanceOverride() {
+        let appearance = NowPlayingModel.shared.appAppearanceMode.nsAppearance
+        walkthroughHost?.view.appearance = appearance
+        walkthroughWindow?.appearance = appearance
+        walkthroughWindow?.contentView?.appearance = appearance
     }
 
     private func closeWalkthroughWindow() {

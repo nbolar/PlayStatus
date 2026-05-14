@@ -34,6 +34,7 @@ struct PlayStatusSettingsView: View {
         .background(
             SettingsSceneVisibilityBridge(
                 targetSize: settingsWindowSize,
+                appearanceMode: model.appAppearanceMode,
                 isContentLoaded: $settingsContentLoaded
             )
         )
@@ -43,6 +44,7 @@ struct PlayStatusSettingsView: View {
             showHoverMotionStylePreview = false
         }
         .environment(\.controlActiveState, .key)
+        .preferredColorScheme(model.appAppearanceMode.colorScheme)
     }
 
     private var settingsContent: some View {
@@ -218,6 +220,25 @@ struct PlayStatusSettingsView: View {
                 range: 0.5...1.8,
                 valueText: "\(Int(model.artworkColorIntensity * 100))%"
             )
+
+            Divider().padding(.vertical, 2)
+
+            SettingsControlRow(
+                title: "Appearance",
+                caption: "Controls light or dark rendering for PlayStatus windows; themes still control player styling."
+            ) {
+                Picker("Appearance", selection: Binding(
+                    get: { model.appAppearanceMode },
+                    set: { model.appAppearanceMode = $0 }
+                )) {
+                    ForEach(AppAppearanceMode.allCases, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(width: 220, alignment: .trailing)
+            }
 
             Divider().padding(.vertical, 2)
 
@@ -705,29 +726,34 @@ private struct HotkeyRecorderRow: View {
 
 private struct SettingsSceneVisibilityBridge: NSViewRepresentable {
     let targetSize: CGSize
+    let appearanceMode: AppAppearanceMode
     @Binding var isContentLoaded: Bool
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(isContentLoaded: $isContentLoaded)
+        Coordinator(
+            isContentLoaded: $isContentLoaded,
+            targetSize: targetSize,
+            appearanceMode: appearanceMode
+        )
     }
 
     func makeNSView(context: Context) -> SettingsSceneBridgeView {
         let view = SettingsSceneBridgeView(frame: .zero)
         view.onWindowChanged = { window in
-            context.coordinator.attach(to: window, targetSize: targetSize)
+            context.coordinator.attach(to: window)
         }
         DispatchQueue.main.async {
-            context.coordinator.refresh(targetSize: targetSize)
+            context.coordinator.update(targetSize: targetSize, appearanceMode: appearanceMode)
         }
         return view
     }
 
     func updateNSView(_ nsView: SettingsSceneBridgeView, context: Context) {
         nsView.onWindowChanged = { window in
-            context.coordinator.attach(to: window, targetSize: targetSize)
+            context.coordinator.attach(to: window)
         }
         DispatchQueue.main.async {
-            context.coordinator.refresh(targetSize: targetSize)
+            context.coordinator.update(targetSize: targetSize, appearanceMode: appearanceMode)
         }
     }
 
@@ -735,19 +761,33 @@ private struct SettingsSceneVisibilityBridge: NSViewRepresentable {
         private var windowObservers: [NSObjectProtocol] = []
         private weak var window: NSWindow?
         private var isContentLoaded: Binding<Bool>
+        private var targetSize: CGSize
+        private var appearanceMode: AppAppearanceMode
         var lastAppliedSize: CGSize?
 
-        init(isContentLoaded: Binding<Bool>) {
+        init(
+            isContentLoaded: Binding<Bool>,
+            targetSize: CGSize,
+            appearanceMode: AppAppearanceMode
+        ) {
             self.isContentLoaded = isContentLoaded
+            self.targetSize = targetSize
+            self.appearanceMode = appearanceMode
         }
 
         deinit {
             removeObservers()
         }
 
-        func attach(to newWindow: NSWindow?, targetSize: CGSize) {
+        func update(targetSize: CGSize, appearanceMode: AppAppearanceMode) {
+            self.targetSize = targetSize
+            self.appearanceMode = appearanceMode
+            refresh()
+        }
+
+        func attach(to newWindow: NSWindow?) {
             guard window !== newWindow else {
-                refresh(targetSize: targetSize)
+                refresh()
                 return
             }
 
@@ -767,21 +807,21 @@ private struct SettingsSceneVisibilityBridge: NSViewRepresentable {
                     object: newWindow,
                     queue: .main
                 ) { [weak self] _ in
-                    self?.refresh(targetSize: targetSize)
+                    self?.refresh()
                 },
                 center.addObserver(
                     forName: NSWindow.didDeminiaturizeNotification,
                     object: newWindow,
                     queue: .main
                 ) { [weak self] _ in
-                    self?.refresh(targetSize: targetSize)
+                    self?.refresh()
                 },
                 center.addObserver(
                     forName: NSWindow.didMiniaturizeNotification,
                     object: newWindow,
                     queue: .main
                 ) { [weak self] _ in
-                    self?.refresh(targetSize: targetSize)
+                    self?.refresh()
                 },
                 center.addObserver(
                     forName: NSWindow.willCloseNotification,
@@ -792,20 +832,22 @@ private struct SettingsSceneVisibilityBridge: NSViewRepresentable {
                 }
             ]
 
-            refresh(targetSize: targetSize)
+            refresh()
         }
 
-        func refresh(targetSize: CGSize) {
+        func refresh() {
             guard let window else {
                 updateContentLoaded(false)
                 return
             }
 
-            applyConfiguration(to: window, targetSize: targetSize)
+            applyConfiguration(to: window)
             updateContentLoaded(window.isVisible && !window.isMiniaturized)
         }
 
-        private func applyConfiguration(to window: NSWindow, targetSize: CGSize) {
+        private func applyConfiguration(to window: NSWindow) {
+            window.appearance = appearanceMode.nsAppearance
+            window.contentView?.appearance = appearanceMode.nsAppearance
             window.titleVisibility = .hidden
             window.titlebarAppearsTransparent = true
             window.styleMask.remove(.fullSizeContentView)
