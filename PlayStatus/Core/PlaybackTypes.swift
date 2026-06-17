@@ -43,6 +43,174 @@ enum AppAppearanceMode: String, CaseIterable {
     }
 }
 
+enum PlaybackRepeatMode: String, CaseIterable, Equatable {
+    case off
+    case all
+    case one
+
+    var displayName: String {
+        switch self {
+        case .off: return "Repeat Off"
+        case .all: return "Repeat All"
+        case .one: return "Repeat One"
+        }
+    }
+
+    var shortDisplayName: String {
+        switch self {
+        case .off: return "Off"
+        case .all: return "All"
+        case .one: return "One"
+        }
+    }
+
+    var systemImageName: String {
+        switch self {
+        case .off, .all: return "repeat"
+        case .one: return "repeat.1"
+        }
+    }
+
+    var isEnabled: Bool {
+        self != .off
+    }
+
+    func next(for provider: NowPlayingProvider) -> PlaybackRepeatMode {
+        switch provider {
+        case .music:
+            switch self {
+            case .off: return .all
+            case .all: return .one
+            case .one: return .off
+            }
+        case .spotify:
+            return self == .off ? .all : .off
+        case .none:
+            return .off
+        }
+    }
+
+    static func musicAppleScriptMode(from rawValue: String) -> PlaybackRepeatMode {
+        switch rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "all": return .all
+        case "one": return .one
+        default: return .off
+        }
+    }
+
+    var musicAppleScriptLiteral: String {
+        switch self {
+        case .off: return "off"
+        case .all: return "all"
+        case .one: return "one"
+        }
+    }
+}
+
+enum LyricsPaneSizePreset: String, CaseIterable {
+    case compact
+    case standard
+    case tall
+
+    var displayName: String {
+        switch self {
+        case .compact: return "Compact"
+        case .standard: return "Standard"
+        case .tall: return "Tall"
+        }
+    }
+
+    var regularContentHeight: CGFloat {
+        switch self {
+        case .compact: return 160
+        case .standard: return 270
+        case .tall: return 430
+        }
+    }
+
+    var miniContentHeight: CGFloat {
+        switch self {
+        case .compact: return 120
+        case .standard: return 205
+        case .tall: return 320
+        }
+    }
+}
+
+enum LyricsFontSizePreset: String, CaseIterable {
+    case small
+    case standard
+    case large
+    case custom
+
+    static let customSizeRange: ClosedRange<Double> = 10...28
+
+    var displayName: String {
+        switch self {
+        case .small: return "Small"
+        case .standard: return "Standard"
+        case .large: return "Large"
+        case .custom: return "Custom"
+        }
+    }
+
+    var regularInactiveSize: CGFloat {
+        switch self {
+        case .small: return 12
+        case .standard: return 13
+        case .large: return 15
+        case .custom: return LyricsFontSizePreset.standard.regularInactiveSize
+        }
+    }
+
+    var regularActiveSize: CGFloat {
+        switch self {
+        case .small: return 15
+        case .standard: return 17
+        case .large: return 20
+        case .custom: return LyricsFontSizePreset.standard.regularActiveSize
+        }
+    }
+
+    var miniInactiveSize: CGFloat {
+        switch self {
+        case .small: return 11
+        case .standard: return 12
+        case .large: return 14
+        case .custom: return LyricsFontSizePreset.standard.miniInactiveSize
+        }
+    }
+
+    var miniActiveSize: CGFloat {
+        switch self {
+        case .small: return 15
+        case .standard: return 17
+        case .large: return 20
+        case .custom: return LyricsFontSizePreset.standard.miniActiveSize
+        }
+    }
+
+    static func clampedCustomSize(_ size: Double) -> Double {
+        min(max(size, customSizeRange.lowerBound), customSizeRange.upperBound)
+    }
+
+    static func regularInactiveSize(for customSize: Double) -> CGFloat {
+        CGFloat(clampedCustomSize(customSize))
+    }
+
+    static func regularActiveSize(for customSize: Double) -> CGFloat {
+        CGFloat(clampedCustomSize(customSize) + 4)
+    }
+
+    static func miniInactiveSize(for customSize: Double) -> CGFloat {
+        CGFloat(max(9, clampedCustomSize(customSize) - 1))
+    }
+
+    static func miniActiveSize(for customSize: Double) -> CGFloat {
+        regularActiveSize(for: customSize)
+    }
+}
+
 enum DetachedWindowSizePreset: String, CaseIterable {
     case small
     case medium
@@ -334,6 +502,8 @@ struct NowPlayingSnapshot: Equatable {
     var elapsed: Double
     var duration: Double
     var canSeek: Bool
+    var isShuffleEnabled: Bool = false
+    var repeatMode: PlaybackRepeatMode = .off
     var isFavorited: Bool = false
     var lyrics: LyricsPayload? = nil
     var lyricsState: LyricsState = .idle

@@ -422,15 +422,71 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         return copy
     }
 
-    private func currentSurfaceContentSize() -> NSSize {
+    private func desiredSurfaceContentSize() -> NSSize {
         let resolvedContentHeight: CGFloat = model.miniMode
             ? model.miniPopoverHeight
             : model.regularPopoverHeight
         return NSSize(width: model.popoverWidth, height: resolvedContentHeight)
     }
 
+    private func currentSurfaceContentSize(anchorWindow: NSWindow? = nil, updatesHeightCap: Bool = true) -> NSSize {
+        let desiredSize = desiredSurfaceContentSize()
+        let targetSize = constrainedSurfaceContentSize(desiredSize, anchorWindow: anchorWindow)
+        if updatesHeightCap {
+            model.setSurfaceContentHeightCap(targetSize.height < desiredSize.height - 0.5 ? targetSize.height : nil)
+        }
+        return targetSize
+    }
+
+    private func minimumSurfaceContentHeight() -> CGFloat {
+        model.miniMode ? model.miniBaseHeight : model.estimatedRegularPopoverHeight
+    }
+
+    private func constrainedSurfaceContentSize(_ desiredSize: NSSize, anchorWindow: NSWindow?) -> NSSize {
+        guard let maxContentHeight = maxVisibleSurfaceContentHeight(anchorWindow: anchorWindow, desiredSize: desiredSize) else {
+            return desiredSize
+        }
+
+        let resolvedHeight = min(
+            desiredSize.height,
+            max(minimumSurfaceContentHeight(), maxContentHeight)
+        )
+        return NSSize(width: desiredSize.width, height: resolvedHeight)
+    }
+
+    private func maxVisibleSurfaceContentHeight(anchorWindow: NSWindow?, desiredSize: NSSize) -> CGFloat? {
+        let bottomPadding: CGFloat = 6
+
+        if let anchorWindow,
+           let screenFrame = anchorWindow.screen?.visibleFrame {
+            let maxFrameHeight = max(
+                0,
+                anchorWindow.frame.maxY - screenFrame.minY - bottomPadding
+            )
+            let frameRect = NSRect(
+                x: 0,
+                y: 0,
+                width: desiredSize.width,
+                height: maxFrameHeight
+            )
+            return max(0, anchorWindow.contentRect(forFrameRect: frameRect).height)
+        }
+
+        guard model.surfaceMode == .popover,
+              let button = statusItem?.button,
+              let buttonWindow = button.window,
+              let screenFrame = buttonWindow.screen?.visibleFrame else {
+            return nil
+        }
+
+        let buttonRectInWindow = button.convert(button.bounds, to: nil)
+        let buttonRectOnScreen = buttonWindow.convertToScreen(buttonRectInWindow)
+        return max(0, buttonRectOnScreen.minY - screenFrame.minY - bottomPadding)
+    }
+
     private func updatePopoverLayout() {
-        let targetSize = currentSurfaceContentSize()
+        let popoverOwnsHeightCap = model.surfaceMode == .popover
+        var targetSize = currentSurfaceContentSize(updatesHeightCap: popoverOwnsHeightCap)
         let width = targetSize.width
         let hostView = popoverHost.view
         if !popover.isShown && abs(hostView.frame.width - width) > 0.5 {
@@ -447,7 +503,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         //
         // Both modes have statically-known heights:
         //   • Regular: artworkDisplaySize + fixed padding + optional lyrics pane height
-        //   • Mini:    miniBaseHeight (380 pt) + optional miniLyricsPaneHeight (180 pt)
+        //   • Mini:    miniBaseHeight + optional preset-driven miniLyricsPaneHeight
         // Mini mode still resolves to fixed target heights; SwiftUI uses live host height
         // while shown so pane reveal tracks the window animation without a second timeline.
         if !popover.isShown && !sizeApproximatelyEqual(hostView.frame.size, targetSize) {
@@ -474,6 +530,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         // popover.contentSize) to avoid NSPopover's internal intermediate size
         // transitions that can flash during rapid SwiftUI tree updates.
         if let window = popover.contentViewController?.view.window {
+            targetSize = currentSurfaceContentSize(anchorWindow: window, updatesHeightCap: popoverOwnsHeightCap)
             let targetFrameSize = window.frameRect(
                 forContentRect: NSRect(origin: .zero, size: targetSize)
             ).size
@@ -545,7 +602,8 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
 
     private func updateDetachedWindowLayout() {
         guard let window = detachedWindow else { return }
-        let targetContentSize = currentSurfaceContentSize()
+        let detachedOwnsHeightCap = model.surfaceMode == .detached
+        let targetContentSize = currentSurfaceContentSize(anchorWindow: window, updatesHeightCap: detachedOwnsHeightCap)
         let targetFrameSize = window.frameRect(
             forContentRect: NSRect(origin: .zero, size: targetContentSize)
         ).size

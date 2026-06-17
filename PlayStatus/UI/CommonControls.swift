@@ -75,9 +75,14 @@ struct EmptyArtworkPlaceholderView: View {
 
 struct ControlsRow: View {
     let isPlaying: Bool
+    let isShuffleEnabled: Bool
+    let repeatMode: PlaybackRepeatMode
+    let controlsEnabled: Bool
+    let onShuffle: () -> Void
     let onPrev: () -> Void
     let onPlayPause: () -> Void
     let onNext: () -> Void
+    let onRepeat: () -> Void
     var contrastBoost: Double = 0
     var controlScale: CGFloat = 1
 
@@ -86,10 +91,52 @@ struct ControlsRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 10 * clampedControlScale) {
-            GlassButton(systemName: "backward.fill", contrastBoost: contrastBoost, sizeScale: clampedControlScale, action: onPrev)
-            GlassButton(systemName: isPlaying ? "pause.fill" : "play.fill", isPrimary: true, contrastBoost: contrastBoost, sizeScale: clampedControlScale, action: onPlayPause)
-            GlassButton(systemName: "forward.fill", contrastBoost: contrastBoost, sizeScale: clampedControlScale, action: onNext)
+        HStack(spacing: 8 * clampedControlScale) {
+            GlassButton(
+                systemName: "shuffle",
+                compact: true,
+                isActive: isShuffleEnabled,
+                isEnabled: controlsEnabled,
+                helpText: isShuffleEnabled ? "Turn shuffle off" : "Turn shuffle on",
+                contrastBoost: contrastBoost,
+                sizeScale: clampedControlScale,
+                action: onShuffle
+            )
+            GlassButton(
+                systemName: "backward.fill",
+                isEnabled: controlsEnabled,
+                helpText: "Previous track",
+                contrastBoost: contrastBoost,
+                sizeScale: clampedControlScale,
+                action: onPrev
+            )
+            GlassButton(
+                systemName: isPlaying ? "pause.fill" : "play.fill",
+                isPrimary: true,
+                isEnabled: controlsEnabled,
+                helpText: isPlaying ? "Pause" : "Play",
+                contrastBoost: contrastBoost,
+                sizeScale: clampedControlScale,
+                action: onPlayPause
+            )
+            GlassButton(
+                systemName: "forward.fill",
+                isEnabled: controlsEnabled,
+                helpText: "Next track",
+                contrastBoost: contrastBoost,
+                sizeScale: clampedControlScale,
+                action: onNext
+            )
+            GlassButton(
+                systemName: repeatMode.systemImageName,
+                compact: true,
+                isActive: repeatMode.isEnabled,
+                isEnabled: controlsEnabled,
+                helpText: repeatMode == .off ? "Turn repeat on" : repeatMode.displayName,
+                contrastBoost: contrastBoost,
+                sizeScale: clampedControlScale,
+                action: onRepeat
+            )
         }
     }
 }
@@ -218,6 +265,9 @@ struct GlassButton: View {
     let systemName: String
     var isPrimary: Bool = false
     var compact: Bool = false
+    var isActive: Bool = false
+    var isEnabled: Bool = true
+    var helpText: String? = nil
     var contrastBoost: Double = 0
     var sizeScale: CGFloat = 1
     let action: () -> Void
@@ -230,17 +280,19 @@ struct GlassButton: View {
     }
 
     private var iconColor: Color {
-        Color.white
+        isActive ? Color(red: 0.68, green: 0.88, blue: 1.0) : Color.white
     }
 
     private var fillOpacity: Double {
         let base = isPrimary ? 0.13 : 0.08
-        return min(0.38, base + (0.20 * clampedContrastBoost))
+        let activeBoost = isActive ? 0.10 : 0
+        return min(0.46, base + activeBoost + (0.20 * clampedContrastBoost))
     }
 
     private var strokeOpacity: Double {
         let base = isPrimary ? 0.18 : 0.12
-        return min(0.30, base + (0.08 * clampedContrastBoost))
+        let activeBoost = isActive ? 0.12 : 0
+        return min(0.38, base + activeBoost + (0.08 * clampedContrastBoost))
     }
 
     private var highlightOpacity: Double {
@@ -276,6 +328,7 @@ struct GlassButton: View {
                 .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
         .foregroundStyle(iconColor.opacity(isPrimary ? 0.98 : 0.92))
         .background(
             ZStack {
@@ -299,16 +352,29 @@ struct GlassButton: View {
                     .stroke(.white.opacity(strokeOpacity), lineWidth: 1)
             }
         )
+        .opacity(isEnabled ? 1 : 0.46)
         .scaleEffect(isPressed ? 0.96 : 1.0)
         .animation(.spring(response: 0.22, dampingFraction: 0.72), value: isPressed)
+        .animation(.easeInOut(duration: 0.16), value: isActive)
+        .animation(.easeInOut(duration: 0.16), value: isEnabled)
         .onHover { hovering in
+            guard isEnabled else {
+                if isHovering {
+                    withAnimation(.easeOut(duration: 0.15)) { isHovering = false }
+                }
+                return
+            }
             withAnimation(.easeOut(duration: 0.15)) { isHovering = hovering }
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
-                .onChanged { _ in isPressed = true }
+                .onChanged { _ in
+                    guard isEnabled else { return }
+                    isPressed = true
+                }
                 .onEnded { _ in isPressed = false }
         )
+        .help(helpText ?? "")
     }
 }
 

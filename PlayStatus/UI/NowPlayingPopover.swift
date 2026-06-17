@@ -26,7 +26,14 @@ struct NowPlayingPopover: View {
     }
 
     private var renderedPopoverHeight: CGFloat {
-        popoverHeight(for: displayedMiniMode)
+        cappedPopoverHeight(
+            popoverHeight(for: displayedMiniMode),
+            miniMode: displayedMiniMode
+        )
+    }
+
+    private var shouldFillLiveDetachedHostHeight: Bool {
+        model.surfaceMode == .detached && model.isPopoverVisible
     }
 
     private var regularArtworkSize: CGFloat {
@@ -46,6 +53,21 @@ struct NowPlayingPopover: View {
         return model.lyricsPanelExpanded ? base + model.regularLyricsPaneHeight : base
     }
 
+    private func minimumPopoverHeight(for miniMode: Bool) -> CGFloat {
+        miniMode ? model.miniBaseHeight : model.estimatedRegularPopoverHeight
+    }
+
+    private func cappedPopoverHeight(_ desiredHeight: CGFloat, miniMode: Bool) -> CGFloat {
+        guard let cap = model.surfaceContentHeightCap else {
+            return desiredHeight
+        }
+
+        return max(
+            minimumPopoverHeight(for: miniMode),
+            min(desiredHeight, cap)
+        )
+    }
+
     var body: some View {
         GeometryReader { geometry in
             modeContent(
@@ -61,7 +83,10 @@ struct NowPlayingPopover: View {
         }
         .frame(
             width: renderedPopoverWidth,
-            height: model.isPopoverVisible ? nil : renderedPopoverHeight,
+            // Keep the NSPopover root fixed to avoid AppKit re-entrant sizing,
+            // but let the detached host fill its animating window so the player
+            // stays top-aligned while lyrics expands or collapses.
+            height: shouldFillLiveDetachedHostHeight ? nil : renderedPopoverHeight,
             alignment: .topLeading
         )
         .clipped()
@@ -228,6 +253,8 @@ struct NowPlayingPopover: View {
                     lyricsPayload: model.lyricsPayload,
                     lyricsLoadingProgress: model.lyricsLoadingProgress,
                     creditsPayload: model.creditsPayload,
+                    inactiveFontSize: model.regularLyricsInactiveFontSize,
+                    activeFontSize: model.regularLyricsActiveFontSize,
                     glassTint: model.glassTint,
                     visibleHeight: visibleRegularDetailsHeight
                 )
@@ -438,6 +465,8 @@ struct NowPlayingPopover: View {
                     isVisible: model.isPopoverVisible,
                     laneWidth: regularMarqueeLaneWidth
                 )
+                .foregroundStyle(.white.opacity(0.98))
+                .shadow(color: .black.opacity(0.26), radius: 2.2, x: 0, y: 1)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -449,6 +478,8 @@ struct NowPlayingPopover: View {
                 laneWidth: regularMarqueeLaneWidth,
                 usesSecondaryStyle: false
             )
+            .foregroundStyle(.white.opacity(0.90))
+            .shadow(color: .black.opacity(0.20), radius: 1.8, x: 0, y: 1)
 
             PlaybackProgressBlock(
                 contrastBoost: regularControlContrastBoost,
@@ -469,9 +500,14 @@ struct NowPlayingPopover: View {
                 Spacer(minLength: 0)
                 ControlsRow(
                     isPlaying: model.isPlaying,
+                    isShuffleEnabled: model.isShuffleEnabled,
+                    repeatMode: model.repeatMode,
+                    controlsEnabled: model.canControlPlayback,
+                    onShuffle: { model.toggleShuffle() },
                     onPrev: { model.previousTrack() },
                     onPlayPause: { model.playPause() },
                     onNext: { model.nextTrack() },
+                    onRepeat: { model.cycleRepeatMode() },
                     contrastBoost: regularControlContrastBoost,
                     controlScale: regularDetachedControlScale
                 )

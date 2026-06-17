@@ -444,6 +444,51 @@ struct PlayStatusSettingsView: View {
                 caption: "Opens the lower details pane automatically for new tracks.",
                 isOn: $model.expandLyricsByDefault
             )
+
+            SettingsControlRow(
+                title: "Lyrics Pane Size",
+                caption: "Controls how much vertical space lyrics and credits get in the player."
+            ) {
+                Picker("Lyrics Pane Size", selection: Binding(
+                    get: { model.lyricsPaneSizePreset },
+                    set: { model.lyricsPaneSizePreset = $0 }
+                )) {
+                    ForEach(LyricsPaneSizePreset.allCases, id: \.self) { preset in
+                        Text(preset.displayName).tag(preset)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(width: 220, alignment: .trailing)
+            }
+
+            SettingsControlRow(
+                title: "Lyrics Font Preset",
+                caption: "Quickly switches between common lyric text sizes."
+            ) {
+                Picker("Lyrics Font Size", selection: Binding(
+                    get: { model.lyricsFontSizePreset },
+                    set: { model.lyricsFontSizePreset = $0 }
+                )) {
+                    ForEach(LyricsFontSizePreset.allCases, id: \.self) { preset in
+                        Text(preset.displayName).tag(preset)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(width: 220, alignment: .trailing)
+            }
+
+            SettingsSliderRow(
+                title: "Custom Lyrics Font Size",
+                caption: "Fine-tunes lyric text size; moving this slider switches the preset to Custom.",
+                value: Binding(
+                    get: { model.lyricsCustomFontSize },
+                    set: { model.lyricsCustomFontSize = $0 }
+                ),
+                range: LyricsFontSizePreset.customSizeRange,
+                valueText: String(format: "%.1f pt", model.lyricsCustomFontSize)
+            )
         }
     }
 

@@ -37,6 +37,7 @@ struct MiniNowPlayingCard: View {
     let startExpandedOnAppear: Bool
     let onInitialExpandConsumed: () -> Void
     let onToggleMode: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
     @State private var pointerHovering = false
     @State private var forceExpandedUntilPointerExit = false
     @State private var showMiniLyricsPane = false
@@ -401,14 +402,14 @@ struct MiniNowPlayingCard: View {
                 SettingsOpenControl {
                     Image(systemName: "gearshape.fill")
                         .font(.system(size: 16 * miniDetachedControlScale, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.94))
+                        .foregroundStyle(colorScheme == .dark ? .white.opacity(0.94) : .primary.opacity(0.80))
                         .frame(
                             width: 26 * miniDetachedControlScale,
                             height: 26 * miniDetachedControlScale
                         )
-                        .background(Circle().fill(Color.white.opacity(0.14)))
+                        .background(Circle().fill(colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.055)))
                         .overlay(
-                            Circle().stroke(.white.opacity(0.18), lineWidth: 1)
+                            Circle().stroke(colorScheme == .dark ? Color.white.opacity(0.18) : Color.black.opacity(0.09), lineWidth: 1)
                         )
                 }
                 .buttonStyle(.plain)
@@ -542,9 +543,14 @@ struct MiniNowPlayingCard: View {
                             Spacer(minLength: 0)
                             ControlsRow(
                                 isPlaying: model.isPlaying,
+                                isShuffleEnabled: model.isShuffleEnabled,
+                                repeatMode: model.repeatMode,
+                                controlsEnabled: model.canControlPlayback,
+                                onShuffle: { model.toggleShuffle() },
                                 onPrev: { model.previousTrack() },
                                 onPlayPause: { model.playPause() },
                                 onNext: { model.nextTrack() },
+                                onRepeat: { model.cycleRepeatMode() },
                                 contrastBoost: miniInfoBandContrastBoost,
                                 controlScale: miniDetachedControlScale
                             )

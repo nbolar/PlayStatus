@@ -171,6 +171,21 @@ final class NowPlayingModel: ObservableObject {
             }
         }
     }
+    @AppStorage("lyricsPaneSizePreset") private var lyricsPaneSizePresetRaw: String = LyricsPaneSizePreset.standard.rawValue {
+        didSet {
+            requestPopoverLayoutRefresh()
+        }
+    }
+    @AppStorage("lyricsFontSizePreset") private var lyricsFontSizePresetRaw: String = LyricsFontSizePreset.standard.rawValue {
+        didSet {
+            requestPopoverLayoutRefresh()
+        }
+    }
+    @AppStorage("lyricsCustomFontSize") private var lyricsCustomFontSizeStorage: Double = Double(LyricsFontSizePreset.standard.regularInactiveSize) {
+        didSet {
+            requestPopoverLayoutRefresh()
+        }
+    }
     @AppStorage("miniMode") var miniMode: Bool = false {
         didSet {
             bumpStatusBarConfigRevision()
@@ -201,6 +216,8 @@ final class NowPlayingModel: ObservableObject {
     @Published var albumArtist: String = ""
     @Published var album: String = ""
     @Published var isPlaying: Bool = false
+    @Published var isShuffleEnabled: Bool = false
+    @Published var repeatMode: PlaybackRepeatMode = .off
     @Published var artwork: NSImage? = nil
     @Published var isPopoverVisible: Bool = false
     // elapsed and duration are managed by PlaybackClock.shared to avoid
@@ -231,6 +248,7 @@ final class NowPlayingModel: ObservableObject {
     @Published var detachedModeToggleRequestToken: Int = 0
     @Published var detachedCloseRequestToken: Int = 0
     @Published var miniLyricsTransitionToken: Int = 0
+    @Published private(set) var surfaceContentHeightCap: CGFloat?
     @Published var selectedMiniDetailsTab: DetailsPaneTab = .lyrics
     @Published var selectedRegularDetailsTab: DetailsPaneTab = .lyrics
     @Published var lyricsPayload: LyricsPayload? {
@@ -367,6 +385,66 @@ final class NowPlayingModel: ObservableObject {
         set { animatedArtworkQualityPolicyRaw = newValue.rawValue }
     }
 
+    var lyricsPaneSizePreset: LyricsPaneSizePreset {
+        get {
+            guard let resolved = LyricsPaneSizePreset(rawValue: lyricsPaneSizePresetRaw) else {
+                lyricsPaneSizePresetRaw = LyricsPaneSizePreset.standard.rawValue
+                return .standard
+            }
+            return resolved
+        }
+        set { lyricsPaneSizePresetRaw = newValue.rawValue }
+    }
+
+    var lyricsFontSizePreset: LyricsFontSizePreset {
+        get {
+            guard let resolved = LyricsFontSizePreset(rawValue: lyricsFontSizePresetRaw) else {
+                lyricsFontSizePresetRaw = LyricsFontSizePreset.standard.rawValue
+                return .standard
+            }
+            return resolved
+        }
+        set {
+            guard lyricsFontSizePresetRaw != newValue.rawValue else { return }
+            objectWillChange.send()
+            lyricsFontSizePresetRaw = newValue.rawValue
+            if newValue != .custom {
+                lyricsCustomFontSizeStorage = Double(newValue.regularInactiveSize)
+            }
+        }
+    }
+
+    var lyricsCustomFontSize: Double {
+        get {
+            LyricsFontSizePreset.clampedCustomSize(lyricsCustomFontSizeStorage)
+        }
+        set {
+            let clamped = LyricsFontSizePreset.clampedCustomSize(newValue)
+            guard abs(lyricsCustomFontSizeStorage - clamped) >= 0.05 || lyricsFontSizePresetRaw != LyricsFontSizePreset.custom.rawValue else {
+                return
+            }
+            objectWillChange.send()
+            lyricsFontSizePresetRaw = LyricsFontSizePreset.custom.rawValue
+            lyricsCustomFontSizeStorage = clamped
+        }
+    }
+
+    var regularLyricsInactiveFontSize: CGFloat {
+        LyricsFontSizePreset.regularInactiveSize(for: lyricsCustomFontSize)
+    }
+
+    var regularLyricsActiveFontSize: CGFloat {
+        LyricsFontSizePreset.regularActiveSize(for: lyricsCustomFontSize)
+    }
+
+    var miniLyricsInactiveFontSize: CGFloat {
+        LyricsFontSizePreset.miniInactiveSize(for: lyricsCustomFontSize)
+    }
+
+    var miniLyricsActiveFontSize: CGFloat {
+        LyricsFontSizePreset.miniActiveSize(for: lyricsCustomFontSize)
+    }
+
     var detachedWindowSizePreset: DetachedWindowSizePreset {
         get { DetachedWindowSizePreset(rawValue: detachedWindowSizePresetRaw) ?? .medium }
         set { detachedWindowSizePresetRaw = newValue.rawValue }
@@ -452,14 +530,18 @@ final class NowPlayingModel: ObservableObject {
     }
 
     var miniBaseHeight: CGFloat { 380 * detachedMiniScaleFactor }
-    var miniLyricsPaneHeight: CGFloat { 180 * detachedMiniScaleFactor }
+    var miniLyricsPaneHeight: CGFloat {
+        lyricsPaneSizePreset.miniContentHeight * detachedMiniScaleFactor
+    }
     var miniExpandedHeight: CGFloat { miniBaseHeight + miniLyricsPaneHeight }
 
     var miniPopoverHeight: CGFloat {
         (miniMode && miniLyricsEnabled) ? miniExpandedHeight : miniBaseHeight
     }
 
-    var regularLyricsPaneHeight: CGFloat { 241 * detachedRegularScaleFactor } // 1pt divider + 240pt pane
+    var regularLyricsPaneHeight: CGFloat {
+        1 + (lyricsPaneSizePreset.regularContentHeight * detachedRegularScaleFactor)
+    }
 
     var estimatedRegularPopoverHeight: CGFloat {
         let baseArtwork = CGFloat(min(max(artworkDisplaySizeStorage, 120), 260))
@@ -555,6 +637,7 @@ final class NowPlayingModel: ObservableObject {
         return isPlaying ? "Playing" : "Paused"
     }
     var launchAtLoginEnabled: Bool { launchAtLoginStatus() == .enabled }
+    var canControlPlayback: Bool { provider != .none && !title.isEmpty }
     var canFavoriteCurrentTrack: Bool { provider == .music && !title.isEmpty }
     var resolvedSearchProvider: NowPlayingProvider {
         switch provider {
@@ -769,6 +852,8 @@ final class NowPlayingModel: ObservableObject {
     private func snapshotsSimilar(_ a: NowPlayingSnapshot, _ b: NowPlayingSnapshot) -> Bool {
         trackIdentityMatches(a, b) &&
         a.isPlaying == b.isPlaying &&
+        a.isShuffleEnabled == b.isShuffleEnabled &&
+        a.repeatMode == b.repeatMode &&
         a.isFavorited == b.isFavorited
     }
 
@@ -795,6 +880,8 @@ final class NowPlayingModel: ObservableObject {
             self.artist = resolvedSnapshot.artist
             self.albumArtist = resolvedSnapshot.albumArtist
             self.album = resolvedSnapshot.album
+            self.isShuffleEnabled = resolvedSnapshot.isShuffleEnabled
+            self.repeatMode = resolvedSnapshot.repeatMode
             self.isCurrentTrackFavorited = resolvedSnapshot.provider == .music ? resolvedSnapshot.isFavorited : false
             self.creditsPayload = resolvedSnapshot.credits
             PlaybackClock.shared.sync(
@@ -1219,6 +1306,17 @@ final class NowPlayingModel: ObservableObject {
         bumpStatusBarConfigRevision()
     }
 
+    func setSurfaceContentHeightCap(_ height: CGFloat?) {
+        switch (surfaceContentHeightCap, height) {
+        case (nil, nil):
+            return
+        case let (current?, next?) where abs(current - next) < 0.5:
+            return
+        default:
+            surfaceContentHeightCap = height
+        }
+    }
+
     func requestToggleDetachedMode() {
         detachedModeToggleRequestToken &+= 1
     }
@@ -1322,12 +1420,64 @@ final class NowPlayingModel: ObservableObject {
         }
     }
 
+    func toggleShuffle() {
+        guard canControlPlayback else { return }
+        let targetState = !isShuffleEnabled
+        let confirmedState: Bool?
+
+        switch provider {
+        case .spotify:
+            confirmedState = SpotifyProvider.setShuffleEnabled(targetState)
+        case .music:
+            confirmedState = MusicProvider.setShuffleEnabled(targetState)
+        case .none:
+            confirmedState = nil
+        }
+
+        guard let confirmedState else {
+            refresh()
+            return
+        }
+
+        isShuffleEnabled = confirmedState
+        refreshPlaybackModeStateAfterCommand()
+    }
+
+    func cycleRepeatMode() {
+        guard canControlPlayback else { return }
+        let targetMode = repeatMode.next(for: provider)
+        let confirmedMode: PlaybackRepeatMode?
+
+        switch provider {
+        case .spotify:
+            confirmedMode = SpotifyProvider.setRepeatMode(targetMode)
+        case .music:
+            confirmedMode = MusicProvider.setRepeatMode(targetMode)
+        case .none:
+            confirmedMode = nil
+        }
+
+        guard let confirmedMode else {
+            refresh()
+            return
+        }
+
+        repeatMode = confirmedMode
+        refreshPlaybackModeStateAfterCommand()
+    }
+
     func seek(to progress: Double) {
         let p = min(max(progress, 0), 1)
         let target = duration * p
         switch provider {
         case .spotify: SpotifyProvider.seek(to: target)
         case .music, .none: MusicProvider.seek(to: target)
+        }
+    }
+
+    private func refreshPlaybackModeStateAfterCommand() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            self?.refresh()
         }
     }
 

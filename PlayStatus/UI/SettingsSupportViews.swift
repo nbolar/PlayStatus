@@ -311,7 +311,7 @@ enum SettingsTab: String, CaseIterable {
         case .display:
             return CGSize(width: 780, height: 710)
         case .playback:
-            return CGSize(width: 780, height: 560)
+            return CGSize(width: 780, height: 620)
         case .hotkeys:
             return CGSize(width: 780, height: 520)
         case .system:

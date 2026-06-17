@@ -123,12 +123,20 @@ enum MusicProvider {
                     try
                         set tPersistentID to (persistent ID of current track as string)
                     end try
-                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDur as string) & "||" & (pPos as string) & "||" & (tLoved as string) & "||" & tAlbumArtist & "||" & tComposer & "||" & tGenre & "||" & (tDiscNumber as string) & "||" & (tTrackNumber as string) & "||" & (tYear as string) & "||" & tPersistentID
+                    set tShuffle to false
+                    try
+                        set tShuffle to (shuffle enabled as boolean)
+                    end try
+                    set tRepeat to "off"
+                    try
+                        set tRepeat to (song repeat as string)
+                    end try
+                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDur as string) & "||" & (pPos as string) & "||" & (tLoved as string) & "||" & tAlbumArtist & "||" & tComposer & "||" & tGenre & "||" & (tDiscNumber as string) & "||" & (tTrackNumber as string) & "||" & (tYear as string) & "||" & tPersistentID & "||" & (tShuffle as string) & "||" & tRepeat
                 else
-                    return pState & "||||||||||||||"
+                    return pState & "||||||||||||||||"
                 end if
             else
-                return "stopped||||||||||||||"
+                return "stopped||||||||||||||||"
             end if
         end tell
         """
@@ -151,6 +159,8 @@ enum MusicProvider {
         let trackNumber = Int(parts.count > 11 ? parts[11] : "") ?? 0
         let year = Int(parts.count > 12 ? parts[12] : "") ?? 0
         let persistentID = parts.count > 13 ? parts[13] : ""
+        let isShuffleEnabled = parseAppleScriptBoolean(parts.count > 14 ? parts[14] : "") ?? false
+        let repeatMode = PlaybackRepeatMode.musicAppleScriptMode(from: parts.count > 15 ? parts[15] : "")
         let credits = creditsPayload(
             sourceName: "Music app",
             contributors: [
@@ -228,6 +238,8 @@ enum MusicProvider {
             elapsed: elapsed,
             duration: duration,
             canSeek: duration > 0.5,
+            isShuffleEnabled: isShuffleEnabled,
+            repeatMode: repeatMode,
             isFavorited: isFavorited,
             credits: credits,
             appleMusicAlbumURL: nil,
@@ -263,6 +275,47 @@ enum MusicProvider {
     static func seek(to seconds: Double) {
         let s = max(0, seconds)
         _ = runAppleScript(#"tell application "Music" to set player position to "# + "\(s)")
+    }
+
+    @discardableResult
+    static func setShuffleEnabled(_ isEnabled: Bool) -> Bool? {
+        let targetValue = isEnabled ? "true" : "false"
+        let script = """
+        tell application "Music"
+            if it is running then
+                try
+                    set shuffle enabled to \(targetValue)
+                    return (shuffle enabled as string)
+                on error
+                    return "__error__"
+                end try
+            else
+                return "__error__"
+            end if
+        end tell
+        """
+        return parseAppleScriptBoolean(runAppleScript(script))
+    }
+
+    @discardableResult
+    static func setRepeatMode(_ mode: PlaybackRepeatMode) -> PlaybackRepeatMode? {
+        let script = """
+        tell application "Music"
+            if it is running then
+                try
+                    set song repeat to \(mode.musicAppleScriptLiteral)
+                    return (song repeat as string)
+                on error
+                    return "__error__"
+                end try
+            else
+                return "__error__"
+            end if
+        end tell
+        """
+        let raw = runAppleScript(script) ?? ""
+        guard raw != "__error__" else { return nil }
+        return PlaybackRepeatMode.musicAppleScriptMode(from: raw)
     }
 
     static func clearTransientArtworkCache() {
@@ -408,12 +461,20 @@ enum SpotifyProvider {
                     try
                         set tTrackNumber to track number of current track
                     end try
-                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDurMs as string) & "||" & (pPos as string) & "||" & artURL & "||" & tAlbumArtist & "||" & (tTrackNumber as string)
+                    set tShuffle to false
+                    try
+                        set tShuffle to (shuffling as boolean)
+                    end try
+                    set tRepeat to false
+                    try
+                        set tRepeat to (repeating as boolean)
+                    end try
+                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDurMs as string) & "||" & (pPos as string) & "||" & artURL & "||" & tAlbumArtist & "||" & (tTrackNumber as string) & "||" & (tShuffle as string) & "||" & (tRepeat as string)
                 else
-                    return pState & "|||||||||"
+                    return pState & "|||||||||||"
                 end if
             else
-                return "stopped|||||||||"
+                return "stopped|||||||||||"
             end if
         end tell
         """
@@ -433,6 +494,8 @@ enum SpotifyProvider {
         let artURLString = parts.count > 6 ? parts[6] : ""
         let albumArtist = parts.count > 7 ? parts[7] : ""
         let trackNumber = Int(parts.count > 8 ? parts[8] : "") ?? 0
+        let isShuffleEnabled = parseAppleScriptBoolean(parts.count > 9 ? parts[9] : "") ?? false
+        let repeatMode: PlaybackRepeatMode = (parseAppleScriptBoolean(parts.count > 10 ? parts[10] : "") ?? false) ? .all : .off
         let credits = creditsPayload(
             sourceName: "Spotify",
             contributors: [
@@ -466,6 +529,8 @@ enum SpotifyProvider {
             elapsed: elapsed,
             duration: duration,
             canSeek: duration > 0.5,
+            isShuffleEnabled: isShuffleEnabled,
+            repeatMode: repeatMode,
             credits: credits,
             appleMusicAlbumURL: nil,
             animatedArtworkState: .none,
@@ -479,6 +544,62 @@ enum SpotifyProvider {
     static func seek(to seconds: Double) {
         let s = max(0, seconds)
         _ = runAppleScript(#"tell application "Spotify" to set player position to "# + "\(s)")
+    }
+
+    @discardableResult
+    static func setShuffleEnabled(_ isEnabled: Bool) -> Bool? {
+        let targetValue = isEnabled ? "true" : "false"
+        let script = """
+        tell application "Spotify"
+            if it is running then
+                try
+                    set shuffling to \(targetValue)
+                    return (shuffling as string)
+                on error
+                    return "__error__"
+                end try
+            else
+                return "__error__"
+            end if
+        end tell
+        """
+        return parseAppleScriptBoolean(runAppleScript(script))
+    }
+
+    @discardableResult
+    static func setRepeatMode(_ mode: PlaybackRepeatMode) -> PlaybackRepeatMode? {
+        let targetValue = mode == .off ? "false" : "true"
+        let script = """
+        tell application "Spotify"
+            if it is running then
+                try
+                    set repeating to \(targetValue)
+                    return (repeating as string)
+                on error
+                    return "__error__"
+                end try
+            else
+                return "__error__"
+            end if
+        end tell
+        """
+        guard let enabled = parseAppleScriptBoolean(runAppleScript(script)) else { return nil }
+        return enabled ? .all : .off
+    }
+
+    private static func parseAppleScriptBoolean(_ raw: String?) -> Bool? {
+        guard let raw else { return nil }
+        let normalized = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        switch normalized {
+        case "true", "1", "yes":
+            return true
+        case "false", "0", "no":
+            return false
+        default:
+            return nil
+        }
     }
 }
 

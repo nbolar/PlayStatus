@@ -1,10 +1,109 @@
 import SwiftUI
 import AppKit
 
+private struct DetailPaneSurfaceAppearance {
+    let colorScheme: ColorScheme
+    let glassTint: Color
+    let bleed: (top: Double, mid: Double)
+
+    var baseGradientColors: [Color] {
+        if colorScheme == .dark {
+            return [
+                Color.black.opacity(0.58),
+                Color.black.opacity(0.62),
+                Color.black.opacity(0.70)
+            ]
+        }
+
+        return [
+            Color.white.opacity(0.86),
+            Color(red: 0.95, green: 0.96, blue: 0.98).opacity(0.82),
+            Color(red: 0.89, green: 0.92, blue: 0.96).opacity(0.84)
+        ]
+    }
+
+    var tintGradientColors: [Color] {
+        if colorScheme == .dark {
+            return [
+                glassTint.opacity(bleed.top),
+                glassTint.opacity(bleed.mid),
+                .clear
+            ]
+        }
+
+        return [
+            glassTint.opacity(min(0.48, 0.14 + (bleed.top * 1.10))),
+            glassTint.opacity(min(0.36, 0.09 + (bleed.mid * 1.02))),
+            glassTint.opacity(0.10)
+        ]
+    }
+
+    var tintBlendMode: BlendMode {
+        colorScheme == .dark ? .screen : .multiply
+    }
+
+    var topSheenColors: [Color] {
+        colorScheme == .dark
+            ? [.white.opacity(0.04), .clear]
+            : [.white.opacity(0.38), .clear]
+    }
+
+    var bottomShadeColors: [Color] {
+        colorScheme == .dark
+            ? [.clear, .black.opacity(0.16), .black.opacity(0.28)]
+            : [.clear, .black.opacity(0.035), .black.opacity(0.075)]
+    }
+
+    var seamTintColors: [Color] {
+        if colorScheme == .dark {
+            return [
+                glassTint.opacity(0.18),
+                glassTint.opacity(0.08),
+                .clear
+            ]
+        }
+
+        return [
+            glassTint.opacity(0.26),
+            glassTint.opacity(0.14),
+            glassTint.opacity(0.04)
+        ]
+    }
+
+    var seamSheenColors: [Color] {
+        colorScheme == .dark
+            ? [.white.opacity(0.07), .white.opacity(0.025), .clear]
+            : [.white.opacity(0.44), .white.opacity(0.16), .clear]
+    }
+
+    var seamShadeColors: [Color] {
+        colorScheme == .dark
+            ? [.black.opacity(0.14), .black.opacity(0.05), .clear]
+            : [.black.opacity(0.055), .black.opacity(0.018), .clear]
+    }
+
+    var separatorFill: Color {
+        colorScheme == .dark ? Color.black.opacity(0.48) : Color.black.opacity(0.12)
+    }
+
+    var separatorTint: Color {
+        colorScheme == .dark ? glassTint.opacity(0.08) : glassTint.opacity(0.20)
+    }
+
+    var miniActiveLyricStyle: Color {
+        colorScheme == .dark ? .white.opacity(0.98) : .primary.opacity(0.92)
+    }
+
+    var miniInactiveLyricStyle: Color {
+        colorScheme == .dark ? .white.opacity(0.72) : .secondary.opacity(0.86)
+    }
+}
+
 struct MiniExpandedDetailsPane: View {
     @ObservedObject var model: NowPlayingModel
     let selectedTab: DetailsPaneTab
     let visibleHeight: CGFloat
+    @Environment(\.colorScheme) private var colorScheme
     @State private var activeLineID: UUID?
     @State private var coordinator = LyricsScrollCoordinator()
     @State private var enableLyricLineAnimations = false
@@ -12,33 +111,30 @@ struct MiniExpandedDetailsPane: View {
 
     var body: some View {
         let bleed = lyricsBleedOpacities(for: model.artworkColorIntensity)
+        let surface = DetailPaneSurfaceAppearance(
+            colorScheme: colorScheme,
+            glassTint: model.glassTint,
+            bleed: bleed
+        )
 
         ZStack(alignment: .top) {
             ZStack {
                 LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.56),
-                        Color.black.opacity(0.62),
-                        Color.black.opacity(0.70)
-                    ],
+                    colors: surface.baseGradientColors,
                     startPoint: .top,
                     endPoint: .bottom
                 )
 
                 LinearGradient(
-                    colors: [
-                        model.glassTint.opacity(bleed.top),
-                        model.glassTint.opacity(bleed.mid),
-                        .clear
-                    ],
+                    colors: surface.tintGradientColors,
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
-                .blendMode(.screen)
+                .blendMode(surface.tintBlendMode)
             }
             .overlay(
                 LinearGradient(
-                    colors: [.white.opacity(0.04), .clear],
+                    colors: surface.topSheenColors,
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -46,32 +142,20 @@ struct MiniExpandedDetailsPane: View {
             .overlay(alignment: .top) {
                 ZStack(alignment: .top) {
                     LinearGradient(
-                        colors: [
-                            model.glassTint.opacity(0.18),
-                            model.glassTint.opacity(0.08),
-                            .clear
-                        ],
+                        colors: surface.seamTintColors,
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
-                    .blendMode(.screen)
+                    .blendMode(surface.tintBlendMode)
 
                     LinearGradient(
-                        colors: [
-                            .white.opacity(0.07),
-                            .white.opacity(0.025),
-                            .clear
-                        ],
+                        colors: surface.seamSheenColors,
                         startPoint: .top,
                         endPoint: .bottom
                     )
 
                     LinearGradient(
-                        colors: [
-                            .black.opacity(0.14),
-                            .black.opacity(0.05),
-                            .clear
-                        ],
+                        colors: surface.seamShadeColors,
                         startPoint: .bottom,
                         endPoint: .top
                     )
@@ -82,7 +166,7 @@ struct MiniExpandedDetailsPane: View {
             }
             .overlay(
                 LinearGradient(
-                    colors: [.clear, .black.opacity(0.16), .black.opacity(0.28)],
+                    colors: surface.bottomShadeColors,
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -243,6 +327,12 @@ struct MiniExpandedDetailsPane: View {
 
     private var lyricsScroll: some View {
         let lines = model.lyricsPayload?.lines ?? []
+        let bleed = lyricsBleedOpacities(for: model.artworkColorIntensity)
+        let surface = DetailPaneSurfaceAppearance(
+            colorScheme: colorScheme,
+            glassTint: model.glassTint,
+            bleed: bleed
+        )
 
         return GeometryReader { geometry in
             let edgeInset = miniLyricsScrollEdgeInset(for: geometry.size.height)
@@ -258,8 +348,12 @@ struct MiniExpandedDetailsPane: View {
                         ForEach(lines) { line in
                             let isActive = line.id == activeLineID
                             Text(line.text)
-                                .font(.system(size: isActive ? 17 : 12, weight: isActive ? .semibold : .medium, design: .rounded))
-                                .foregroundStyle(isActive ? .white.opacity(0.98) : .white.opacity(0.72))
+                                .font(.system(
+                                    size: isActive ? model.miniLyricsActiveFontSize : model.miniLyricsInactiveFontSize,
+                                    weight: isActive ? .semibold : .medium,
+                                    design: .rounded
+                                ))
+                                .foregroundStyle(isActive ? surface.miniActiveLyricStyle : surface.miniInactiveLyricStyle)
                                 .lineLimit(2)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -465,22 +559,35 @@ struct MiniDetailToggleControl: View {
     let transitionActive: Bool
     var sizeScale: CGFloat = 1
     let action: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
     @State private var hovering = false
 
     private var clampedSizeScale: CGFloat {
         min(max(sizeScale, 0.80), 1.20)
     }
 
+    private var iconStyle: Color {
+        colorScheme == .dark ? .white.opacity(isOn ? 0.98 : 0.90) : .primary.opacity(isOn ? 0.90 : 0.74)
+    }
+
+    private var fillStyle: Color {
+        colorScheme == .dark ? .white.opacity(0.14) : .black.opacity(isOn ? 0.075 : 0.045)
+    }
+
+    private var strokeStyle: Color {
+        colorScheme == .dark ? .white.opacity(hovering ? 0.24 : 0.16) : .black.opacity(hovering ? 0.14 : 0.08)
+    }
+
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
-                .foregroundStyle(.white.opacity(isOn ? 0.98 : 0.90))
+                .foregroundStyle(iconStyle)
                 .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
-                .background(Circle().fill(Color.white.opacity(0.14)))
+                .background(Circle().fill(fillStyle))
                 .overlay(
                     Circle()
-                        .stroke(.white.opacity(hovering ? 0.24 : 0.16), lineWidth: 1)
+                        .stroke(strokeStyle, lineWidth: 1)
                 )
                 .scaleEffect(hovering ? 1.06 : 1.0)
         }
@@ -614,86 +721,81 @@ struct RegularDetailsPane: View {
     let lyricsPayload: LyricsPayload?
     let lyricsLoadingProgress: LyricsLoadingProgress?
     let creditsPayload: CreditsPayload?
+    let inactiveFontSize: CGFloat
+    let activeFontSize: CGFloat
     let glassTint: Color
     let visibleHeight: CGFloat
-
-    private var paneContentHeight: CGFloat {
-        max(0, visibleHeight - 1)
-    }
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         let bleed = lyricsBleedOpacities(for: model.artworkColorIntensity)
+        let surface = DetailPaneSurfaceAppearance(
+            colorScheme: colorScheme,
+            glassTint: glassTint,
+            bleed: bleed
+        )
 
-        VStack(spacing: 0) {
-            Divider()
-                .overlay(glassTint.opacity(0.18))
-
-            ZStack(alignment: .top) {
-                ZStack {
-                    LinearGradient(
-                        colors: [
-                            Color.black.opacity(0.56),
-                            Color.black.opacity(0.62),
-                            Color.black.opacity(0.70)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-
-                    LinearGradient(
-                        colors: [
-                            glassTint.opacity(bleed.top),
-                            glassTint.opacity(bleed.mid),
-                            .clear
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    .blendMode(.screen)
-                }
-                .overlay(
-                    LinearGradient(
-                        colors: [.white.opacity(0.04), .clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .overlay(
-                    LinearGradient(
-                        colors: [.clear, .black.opacity(0.16), .black.opacity(0.28)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
+        ZStack(alignment: .top) {
+            ZStack {
+                LinearGradient(
+                    colors: surface.baseGradientColors,
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
 
-                HStack {
-                    DetailPaneTabChip(tab: .lyrics, isSelected: selectedTab == .lyrics) {
-                        model.selectRegularDetailsTab(.lyrics)
-                    }
-                    DetailPaneTabChip(tab: .credits, isSelected: selectedTab == .credits) {
-                        model.selectRegularDetailsTab(.credits)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    detailSourceBadge
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 10)
-
-                VStack(alignment: .leading, spacing: 0) {
-                    switch selectedTab {
-                    case .lyrics:
-                        lyricsTabContent
-                    case .credits:
-                        creditsTabContent
-                    }
-                }
-                .padding(.top, 36)
-                .padding(.bottom, 12)
-                .padding(.horizontal, 14)
+                LinearGradient(
+                    colors: surface.tintGradientColors,
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .blendMode(surface.tintBlendMode)
             }
-            .frame(height: paneContentHeight)
+            .overlay(
+                LinearGradient(
+                    colors: surface.topSheenColors,
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .overlay(
+                LinearGradient(
+                    colors: surface.bottomShadeColors,
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+
+            Rectangle()
+                .fill(surface.separatorFill)
+                .overlay(surface.separatorTint)
+                .frame(height: 1)
+
+            HStack {
+                DetailPaneTabChip(tab: .lyrics, isSelected: selectedTab == .lyrics) {
+                    model.selectRegularDetailsTab(.lyrics)
+                }
+                DetailPaneTabChip(tab: .credits, isSelected: selectedTab == .credits) {
+                    model.selectRegularDetailsTab(.credits)
+                }
+
+                Spacer(minLength: 0)
+
+                detailSourceBadge
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+
+            VStack(alignment: .leading, spacing: 0) {
+                switch selectedTab {
+                case .lyrics:
+                    lyricsTabContent
+                case .credits:
+                    creditsTabContent
+                }
+            }
+            .padding(.top, 36)
+            .padding(.bottom, 12)
+            .padding(.horizontal, 14)
         }
         .frame(height: max(0, visibleHeight), alignment: .top)
         .clipped()
@@ -747,7 +849,9 @@ struct RegularDetailsPane: View {
         case .available:
             RegularLyricsScrollContent(
                 lines: lyricsPayload?.lines ?? [],
-                isTimed: lyricsPayload?.isTimed ?? false
+                isTimed: lyricsPayload?.isTimed ?? false,
+                inactiveFontSize: inactiveFontSize,
+                activeFontSize: activeFontSize
             )
         }
     }
@@ -788,6 +892,15 @@ struct LyricsLoadingPulseBlock: View {
     let primaryFontSize: CGFloat
     let secondaryText: String?
     let secondaryFontSize: CGFloat
+    @Environment(\.colorScheme) private var colorScheme
+
+    private func primaryStyle(opacity: Double) -> Color {
+        colorScheme == .dark ? .white.opacity(opacity) : .primary.opacity(min(0.92, opacity + 0.05))
+    }
+
+    private func secondaryStyle(opacity: Double) -> Color {
+        colorScheme == .dark ? .white.opacity(opacity) : .secondary.opacity(min(0.86, opacity + 0.08))
+    }
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { context in
@@ -799,12 +912,12 @@ struct LyricsLoadingPulseBlock: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Loading lyrics…")
                     .font(.system(size: primaryFontSize, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(primaryOpacity))
+                    .foregroundStyle(primaryStyle(opacity: primaryOpacity))
 
                 if let secondaryText, !secondaryText.isEmpty {
                     Text(secondaryText)
                         .font(.system(size: secondaryFontSize, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(secondaryOpacity))
+                        .foregroundStyle(secondaryStyle(opacity: secondaryOpacity))
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
@@ -816,6 +929,8 @@ struct LyricsLoadingPulseBlock: View {
 struct RegularLyricsScrollContent: View {
     let lines: [LyricsLine]
     let isTimed: Bool
+    let inactiveFontSize: CGFloat
+    let activeFontSize: CGFloat
     @State private var activeLineID: UUID?
     @State private var coordinator = LyricsScrollCoordinator()
     private let maxRenderableLines: Int = 500
@@ -872,7 +987,11 @@ struct RegularLyricsScrollContent: View {
 
     private func lyricLineView(line: LyricsLine, isActive: Bool) -> some View {
         Text(line.text)
-            .font(.system(size: isActive ? 17 : 13, weight: isActive ? .semibold : .regular, design: .rounded))
+            .font(.system(
+                size: isActive ? activeFontSize : inactiveFontSize,
+                weight: isActive ? .semibold : .regular,
+                design: .rounded
+            ))
             .foregroundStyle(isActive ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary.opacity(0.72)))
             .lineLimit(3)
             .frame(maxWidth: .infinity, alignment: .leading)

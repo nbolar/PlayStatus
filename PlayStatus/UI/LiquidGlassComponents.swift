@@ -90,7 +90,7 @@ struct LiquidGlassCard<Content: View>: View {
     }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(
                     LinearGradient(
@@ -122,8 +122,11 @@ struct LiquidGlassCard<Content: View>: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(.white.opacity(strokeOpacity * clampedTransparencyMultiplier), lineWidth: 1)
 
-            content.padding(14)
+            content
+                .padding(14)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
