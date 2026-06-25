@@ -16,8 +16,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "810"
             endingLineNumber = "810"
-            landmarkName = "displayContent"
-            landmarkType = "24">
+            landmarkName = "SettingsSceneVisibilityBridge"
+            landmarkType = "14">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>
