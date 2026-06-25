@@ -815,6 +815,7 @@ struct AnimatedArtworkView: View {
     let style: ArtworkMotionStyle
     let animatedArtworkURL: URL?
     let animatedArtworkIsVisible: Bool
+    var cropAnimatedArtworkToSquare: Bool = true
     var animateOnFirstAppear: Bool = true
     var body: some View {
         ArtworkView(
@@ -822,6 +823,7 @@ struct AnimatedArtworkView: View {
             tint: tint,
             animatedArtworkURL: animatedArtworkURL,
             animatedArtworkIsVisible: animatedArtworkIsVisible,
+            cropAnimatedArtworkToSquare: cropAnimatedArtworkToSquare,
             animateOnFirstAppear: animateOnFirstAppear
         )
             .animatedArtworkMotion(
@@ -841,6 +843,7 @@ struct ArtworkView: View {
     let tint: Color
     let animatedArtworkURL: URL?
     let animatedArtworkIsVisible: Bool
+    var cropAnimatedArtworkToSquare: Bool = true
     var animateOnFirstAppear: Bool = true
 
     private var artworkBackdropKey: String {
@@ -904,6 +907,7 @@ struct ArtworkView: View {
                     image: image,
                     animatedArtworkURL: animatedArtworkURL,
                     isActive: animatedArtworkIsVisible,
+                    cropAnimatedArtworkToSquare: cropAnimatedArtworkToSquare,
                     animateOnFirstAppear: animateOnFirstAppear
                 ) {
                     staticArtworkContent(
@@ -953,12 +957,14 @@ struct ArtworkView: View {
 struct AnimatedArtworkPlayerView: View {
     let streamURL: URL
     let isActive: Bool
+    let cropToSquare: Bool
     var onRenderReadinessChanged: (Bool) -> Void = { _ in }
 
     var body: some View {
         AnimatedArtworkPlayerRepresentable(
             streamURL: streamURL,
             isActive: isActive,
+            cropToSquare: cropToSquare,
             onRenderReadinessChanged: onRenderReadinessChanged
         )
             .background(Color.black.opacity(0.08))
@@ -968,6 +974,7 @@ struct AnimatedArtworkPlayerView: View {
 private struct AnimatedArtworkPlayerRepresentable: NSViewRepresentable {
     let streamURL: URL
     let isActive: Bool
+    let cropToSquare: Bool
     let onRenderReadinessChanged: (Bool) -> Void
 
     func makeNSView(context: Context) -> AnimatedArtworkPlayerContainerView {
@@ -978,6 +985,7 @@ private struct AnimatedArtworkPlayerRepresentable: NSViewRepresentable {
         nsView.configure(
             streamURL: streamURL,
             isActive: isActive,
+            cropToSquare: cropToSquare,
             onRenderReadinessChanged: onRenderReadinessChanged
         )
     }
@@ -989,6 +997,7 @@ private struct AnimatedArtworkPlayerRepresentable: NSViewRepresentable {
 
 private final class AnimatedArtworkPlayerContainerView: NSView {
     private let playerLayer = AVPlayerLayer()
+    private let edgeFadeMask = CAGradientLayer()
     private var player: AVPlayer?
     private var endObserver: NSObjectProtocol?
     private var itemStatusObservation: NSKeyValueObservation?
@@ -999,12 +1008,13 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
     private var startedPlaybackForCurrentItem = false
     private var lastNotifiedReadiness: Bool?
     private var currentURL: URL?
+    private var cropToSquare = true
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
         layer = CALayer()
-        playerLayer.videoGravity = .resizeAspectFill
+        playerLayer.videoGravity = .resizeAspect
         layer?.addSublayer(playerLayer)
     }
 
@@ -1015,6 +1025,7 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
     override func layout() {
         super.layout()
         playerLayer.frame = bounds
+        updateVideoEdgeMask()
     }
 
     deinit {
@@ -1024,10 +1035,18 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
     func configure(
         streamURL: URL,
         isActive: Bool,
+        cropToSquare: Bool,
         onRenderReadinessChanged: @escaping (Bool) -> Void
     ) {
         self.onRenderReadinessChanged = onRenderReadinessChanged
         shouldBePlaying = isActive
+        self.cropToSquare = cropToSquare
+        playerLayer.videoGravity = cropToSquare ? .resizeAspectFill : .resizeAspect
+        if cropToSquare {
+            playerLayer.mask = nil
+        } else {
+            updateVideoEdgeMask()
+        }
         if currentURL != streamURL || player == nil {
             setupPlayer(streamURL: streamURL)
         } else {
@@ -1075,6 +1094,7 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
             guard layer.isReadyForDisplay else { return }
             guard !self.hasReportedReadyForDisplay else { return }
             self.hasReportedReadyForDisplay = true
+            self.updateVideoEdgeMask()
             self.notifyRenderReadiness(true)
             self.startPlaybackIfPossible()
         }
@@ -1107,9 +1127,90 @@ private final class AnimatedArtworkPlayerContainerView: NSView {
             lastNotifiedReadiness = nil
         }
         player?.pause()
+        playerLayer.mask = nil
         playerLayer.player = nil
         player = nil
         currentURL = nil
+    }
+
+    private func updateVideoEdgeMask() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+
+        guard !cropToSquare else {
+            playerLayer.mask = nil
+            return
+        }
+
+        let layerBounds = playerLayer.bounds
+        let videoRect = playerLayer.videoRect.intersection(layerBounds)
+        guard playerLayer.isReadyForDisplay,
+              layerBounds.width > 1,
+              layerBounds.height > 1,
+              !videoRect.isNull,
+              videoRect.width > 1,
+              videoRect.height > 1 else {
+            playerLayer.mask = nil
+            return
+        }
+
+        let horizontalLetterbox = layerBounds.width - videoRect.width > 2
+        let verticalLetterbox = layerBounds.height - videoRect.height > 2
+        guard horizontalLetterbox || verticalLetterbox else {
+            playerLayer.mask = nil
+            return
+        }
+
+        let transparent = NSColor.clear.cgColor
+        let opaque = NSColor.black.cgColor
+        edgeFadeMask.frame = layerBounds
+
+        if horizontalLetterbox {
+            let edgeTrim = min(14, max(6, videoRect.width * 0.03))
+            let visibleMinX = videoRect.minX + edgeTrim
+            let visibleMaxX = videoRect.maxX - edgeTrim
+            let fadeWidth = min(
+                min(36, max(20, videoRect.width * 0.09)),
+                max(0, (visibleMaxX - visibleMinX) * 0.45)
+            )
+            edgeFadeMask.startPoint = CGPoint(x: 0, y: 0.5)
+            edgeFadeMask.endPoint = CGPoint(x: 1, y: 0.5)
+            edgeFadeMask.colors = [transparent, transparent, opaque, opaque, transparent, transparent]
+            edgeFadeMask.locations = [
+                0,
+                normalized(visibleMinX, within: layerBounds.width),
+                normalized(visibleMinX + fadeWidth, within: layerBounds.width),
+                normalized(visibleMaxX - fadeWidth, within: layerBounds.width),
+                normalized(visibleMaxX, within: layerBounds.width),
+                1
+            ]
+        } else {
+            let edgeTrim = min(14, max(6, videoRect.height * 0.03))
+            let visibleMinY = videoRect.minY + edgeTrim
+            let visibleMaxY = videoRect.maxY - edgeTrim
+            let fadeHeight = min(
+                min(36, max(20, videoRect.height * 0.09)),
+                max(0, (visibleMaxY - visibleMinY) * 0.45)
+            )
+            edgeFadeMask.startPoint = CGPoint(x: 0.5, y: 0)
+            edgeFadeMask.endPoint = CGPoint(x: 0.5, y: 1)
+            edgeFadeMask.colors = [transparent, transparent, opaque, opaque, transparent, transparent]
+            edgeFadeMask.locations = [
+                0,
+                normalized(visibleMinY, within: layerBounds.height),
+                normalized(visibleMinY + fadeHeight, within: layerBounds.height),
+                normalized(visibleMaxY - fadeHeight, within: layerBounds.height),
+                normalized(visibleMaxY, within: layerBounds.height),
+                1
+            ]
+        }
+
+        playerLayer.mask = edgeFadeMask
+    }
+
+    private func normalized(_ value: CGFloat, within extent: CGFloat) -> NSNumber {
+        NSNumber(value: min(max(value / extent, 0), 1))
     }
 
     private func notifyRenderReadiness(_ isReady: Bool) {

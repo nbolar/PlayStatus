@@ -29,7 +29,8 @@ struct AnimatedArtworkStreamPreviewSheet: View {
                 image: model.artwork,
                 tint: model.glassTint,
                 animatedArtworkURL: previewStreamURL,
-                animatedArtworkIsVisible: true
+                animatedArtworkIsVisible: true,
+                cropAnimatedArtworkToSquare: model.cropAnimatedArtworkToSquare
             )
             .frame(width: 256, height: 256)
             .frame(maxWidth: .infinity, alignment: .center)
@@ -106,6 +107,7 @@ struct HoverMotionStylePreviewSheet: View {
                         image: previewArtwork,
                         tint: previewTint,
                         animatedArtworkURL: previewAnimatedArtworkURL,
+                        cropAnimatedArtworkToSquare: model.cropAnimatedArtworkToSquare,
                         tileSide: previewTileSide,
                         isSelected: model.artworkMotionStyle == style,
                         onSelect: {
@@ -134,6 +136,7 @@ struct HoverMotionStylePreviewCard: View {
     let image: NSImage?
     let tint: Color
     let animatedArtworkURL: URL?
+    let cropAnimatedArtworkToSquare: Bool
     let tileSide: CGFloat
     let isSelected: Bool
     let onSelect: () -> Void
@@ -147,7 +150,8 @@ struct HoverMotionStylePreviewCard: View {
                 seed: "settings-motion-preview-\(style.rawValue)",
                 style: style,
                 animatedArtworkURL: animatedArtworkURL,
-                animatedArtworkIsVisible: true
+                animatedArtworkIsVisible: true,
+                cropAnimatedArtworkToSquare: cropAnimatedArtworkToSquare
             )
             .frame(width: tileSide, height: tileSide)
             .animatedArtworkMotion(

@@ -438,6 +438,7 @@ struct NowPlayingPopover: View {
             style: model.artworkMotionStyle,
             animatedArtworkURL: model.effectiveAnimatedArtworkURL,
             animatedArtworkIsVisible: model.isPopoverVisible,
+            cropAnimatedArtworkToSquare: model.cropAnimatedArtworkToSquare,
             animateOnFirstAppear: !modeTransitionActive
         )
         .frame(width: regularArtworkSize, height: regularArtworkSize)

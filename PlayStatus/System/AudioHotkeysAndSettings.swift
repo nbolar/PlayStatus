@@ -288,6 +288,12 @@ struct PlayStatusSettingsView: View {
                 )
 
                 if model.animatedArtworkStreamsEnabled {
+                    SettingsToggleRow(
+                        title: "Crop Streams to Square",
+                        caption: "Fills the artwork tile by cropping the edges of non-square animated streams. Turn this off to show the complete video frame.",
+                        isOn: $model.cropAnimatedArtworkToSquare
+                    )
+
                     Divider().padding(.vertical, 2)
 
                     SettingsControlRow(

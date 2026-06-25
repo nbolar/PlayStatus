@@ -75,7 +75,7 @@ final class AppleMusicAnimatedArtworkService {
         for descriptor: AnimatedArtworkTrackDescriptor,
         qualityPolicy: AnimatedArtworkQualityPolicy
     ) async -> AnimatedArtworkResolution {
-        let cacheKey = "\(descriptor.cacheKey)|\(qualityPolicy.rawValue)"
+        let cacheKey = "\(descriptor.cacheKey)|square-role-v1|\(qualityPolicy.rawValue)"
 
         if let cached = await PersistentMediaCache.shared.fetchAnimatedArtworkMetadata(forKey: cacheKey),
            let cachedAlbumURL = URL(string: cached.albumURLString),

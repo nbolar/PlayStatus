@@ -148,6 +148,11 @@ final class NowPlayingModel: ObservableObject {
             handleAnimatedArtworkSettingChanged()
         }
     }
+    @AppStorage("cropAnimatedArtworkToSquare") var cropAnimatedArtworkToSquare: Bool = true {
+        didSet {
+            objectWillChange.send()
+        }
+    }
     @AppStorage("reduceHiddenMemoryUsage") var reduceHiddenMemoryUsage: Bool = false {
         didSet {
             handleReducedMemoryUsageSettingChanged()

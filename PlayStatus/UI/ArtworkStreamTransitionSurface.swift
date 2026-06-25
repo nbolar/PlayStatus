@@ -5,6 +5,7 @@ struct ArtworkStreamTransitionSurface<StaticContent: View>: View {
     let image: NSImage?
     let animatedArtworkURL: URL?
     let isActive: Bool
+    var cropAnimatedArtworkToSquare: Bool = true
     var transitionKeyPrefix: String = ""
     var transitionAnimationsEnabled: Bool = true
     var animateOnFirstAppear: Bool = true
@@ -44,6 +45,7 @@ struct ArtworkStreamTransitionSurface<StaticContent: View>: View {
                 AnimatedArtworkPlayerView(
                     streamURL: animatedArtworkURL,
                     isActive: isActive,
+                    cropToSquare: cropAnimatedArtworkToSquare,
                     onRenderReadinessChanged: { isReady in
                         guard isReady != streamReadyForDisplay else { return }
                         withAnimation(streamCrossfadeAnimation) {

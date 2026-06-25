@@ -8,6 +8,11 @@ enum AnimatedArtworkCandidateExtractor {
             .replacingOccurrences(of: "\\/", with: "/")
             .replacingOccurrences(of: "&amp;", with: "&")
 
+        let preferredSquareCandidates = capturedMatches(
+            in: normalized,
+            pattern: #""motionDetailSquare"\s*:\s*\{[\s\S]{0,4000}?"video"\s*:\s*"(https://[^"]+\.(?:m3u8|mp4)[^"]*)"#
+        )
+
         let patterns = [
             #"https://[^\"'\s<>]+\.m3u8[^\"'\s<>]*"#,
             #"https://[^\"'\s<>]+\.mp4[^\"'\s<>]*"#
@@ -18,8 +23,7 @@ enum AnimatedArtworkCandidateExtractor {
             rawCandidates.append(contentsOf: regexMatches(in: normalized, pattern: pattern))
         }
 
-        let orderedUnique = deduplicatePreservingOrder(rawCandidates)
-        let scored = orderedUnique.sorted { lhs, rhs in
+        let scoredFallbacks = deduplicatePreservingOrder(rawCandidates).sorted { lhs, rhs in
             let lhsScore = candidateScore(lhs)
             let rhsScore = candidateScore(rhs)
             if lhsScore != rhsScore {
@@ -28,7 +32,8 @@ enum AnimatedArtworkCandidateExtractor {
             return lhs < rhs
         }
 
-        return scored.compactMap(URL.init(string:))
+        return deduplicatePreservingOrder(preferredSquareCandidates + scoredFallbacks)
+            .compactMap(URL.init(string:))
     }
 
     private static func candidateScore(_ candidate: String) -> Int {
@@ -54,6 +59,18 @@ enum AnimatedArtworkCandidateExtractor {
         let matches = regex.matches(in: input, range: searchRange)
         return matches.compactMap { match -> String? in
             guard let range = Range(match.range, in: input) else { return nil }
+            return String(input[range])
+        }
+    }
+
+    private static func capturedMatches(in input: String, pattern: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let searchRange = NSRange(input.startIndex..<input.endIndex, in: input)
+        return regex.matches(in: input, range: searchRange).compactMap { match -> String? in
+            guard match.numberOfRanges > 1,
+                  let range = Range(match.range(at: 1), in: input) else {
+                return nil
+            }
             return String(input[range])
         }
     }

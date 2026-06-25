@@ -309,6 +309,7 @@ struct MiniNowPlayingCard: View {
             animationsEnabled: model.animatedArtworkEnabled,
             transitionActive: transitionActive,
             animatedArtworkURL: model.effectiveAnimatedArtworkURL,
+            cropAnimatedArtworkToSquare: model.cropAnimatedArtworkToSquare,
             isPopoverVisible: model.isPopoverVisible
         )
         .matchedGeometryEffect(id: "heroArtwork", in: artworkMorphNamespace)
@@ -691,6 +692,7 @@ struct MiniArtworkTransitionSurface: View {
     let animationsEnabled: Bool
     let transitionActive: Bool
     let animatedArtworkURL: URL?
+    let cropAnimatedArtworkToSquare: Bool
     let isPopoverVisible: Bool
 
     var body: some View {
@@ -698,6 +700,7 @@ struct MiniArtworkTransitionSurface: View {
             image: artwork,
             animatedArtworkURL: animatedArtworkURL,
             isActive: isPopoverVisible,
+            cropAnimatedArtworkToSquare: cropAnimatedArtworkToSquare,
             transitionKeyPrefix: trackKey,
             transitionAnimationsEnabled: animationsEnabled && !transitionActive,
             animateOnFirstAppear: !transitionActive
