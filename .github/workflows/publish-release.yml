@@ -1,0 +1,107 @@
+name: Publish PlayStatus Update Channels
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Published vX.Y.Z release to retry
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: macos-15
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.release_tag || github.event.release.tag_name }}
+
+      - name: Validate published release tag
+        id: tag
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft | grep -Fx false >/dev/null
+          VERSION="$(scripts/validate-release-tag.sh "$RELEASE_TAG")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download and validate immutable release archive
+        id: archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          ARCHIVE_DIR="$RUNNER_TEMP/published-release-asset"
+          ARCHIVE_NAME="PlayStatus-$VERSION.zip"
+          mkdir -p "$ARCHIVE_DIR"
+          gh release download "$RELEASE_TAG" --pattern "$ARCHIVE_NAME" --dir "$ARCHIVE_DIR"
+          ARCHIVE_PATH="$ARCHIVE_DIR/$ARCHIVE_NAME"
+          test -f "$ARCHIVE_PATH"
+          VERIFY_DIR="$(mktemp -d)"
+          trap 'rm -rf "$VERIFY_DIR"' EXIT
+          ditto -x -k "$ARCHIVE_PATH" "$VERIFY_DIR"
+          VERIFY_APP="$VERIFY_DIR/PlayStatus.app"
+          test -d "$VERIFY_APP"
+          codesign --verify --deep --strict --verbose=4 "$VERIFY_APP"
+          spctl --assess --type execute --verbose=4 "$VERIFY_APP"
+          ARCHS="$(lipo -archs "$VERIFY_APP/Contents/MacOS/PlayStatus")"
+          for required_arch in arm64 x86_64; do
+            [[ " $ARCHS " == *" $required_arch "* ]]
+          done
+          echo "asset_path=$ARCHIVE_PATH" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(shasum -a 256 "$ARCHIVE_PATH" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Render published GitHub Release notes
+        id: release_notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
+          VERSION: ${{ steps.tag.outputs.version }}
+          RELEASE_NOTES_MARKDOWN: ${{ runner.temp }}/PlayStatus-release-notes.md
+          RELEASE_NOTES_HTML: ${{ runner.temp }}/PlayStatus-release-notes.html
+        run: scripts/render-github-release-notes.sh
+
+      - name: Configure AWS credentials for Sparkle publishing
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.SPARKLE_S3_ROLE_ARN }}
+          aws-region: ${{ vars.SPARKLE_S3_REGION }}
+
+      - name: Publish Sparkle payloads and appcast
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          RELEASE_ARCHIVE: ${{ steps.archive.outputs.asset_path }}
+          RELEASE_NOTES: ${{ steps.release_notes.outputs.html_path }}
+          DERIVED_DATA_PATH: ${{ runner.temp }}/PlayStatusDerivedData
+          SPARKLE_ED25519_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
+          SPARKLE_S3_URI: ${{ vars.SPARKLE_S3_URI }}
+          SPARKLE_PUBLIC_BASE_URL: ${{ vars.SPARKLE_PUBLIC_BASE_URL }}
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project PlayStatus.xcodeproj \
+            -scheme PlayStatus \
+            -configuration Release \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            -resolvePackageDependencies
+          scripts/publish-sparkle-appcast.sh
+
+      - name: Open vendor tap cask update pull request
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          SHA256: ${{ steps.archive.outputs.sha256 }}
+          TAP_REPOSITORY: nbolar/homebrew-playstatus
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: scripts/open-tap-cask-pr.sh

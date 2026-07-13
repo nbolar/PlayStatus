@@ -1,9 +1,10 @@
 # Releasing PlayStatus
 
-The `Release PlayStatus` workflow runs only for an annotated `vX.Y.Z` tag. It
-will reject a tag that does not exactly match the app's `MARKETING_VERSION`.
-`CURRENT_PROJECT_VERSION` must also be greater than every Sparkle build already
-in the appcast, because Sparkle uses the bundle build number to order updates.
+The `Prepare PlayStatus Release` workflow runs only for an annotated `vX.Y.Z`
+tag. It will reject a tag that does not exactly match the app's
+`MARKETING_VERSION`. `CURRENT_PROJECT_VERSION` must also be greater than every
+Sparkle build already in the appcast, because Sparkle uses the bundle build
+number to order updates.
 
 ## One-time GitHub setup
 
@@ -81,25 +82,25 @@ request that adds `Casks/playstatus.rb`.
 
 1. Update the marketing and build versions, then build and test locally as
    appropriate. Commit and push the source changes to `master`.
-2. Create an annotated tag with a concise Markdown body. Its body becomes both
-   the GitHub Release notes and the Sparkle HTML notes; no versioned note file
-   is committed to the repository:
+2. Create and push an annotated tag. The tag message is just an identifier;
+   release notes are written in GitHub's Release editor instead:
 
    ```sh
-   git tag -a vX.Y.Z -m "PlayStatus X.Y.Z" -m $'- Added a useful feature\n- Fixed a user-visible issue'
+   git tag -a vX.Y.Z -m "PlayStatus X.Y.Z"
    git push origin vX.Y.Z
    ```
 
-   The tag body is required for a new release. Use plain paragraphs and `-`
-   bullets; CI escapes and renders them into a minimal Sparkle-compatible HTML
-   document that is retained only in the Sparkle bucket.
-
-3. Do not create or commit `RELEASE_NOTES_X.Y.Z.html` files. Existing
-   published Sparkle notes remain in S3 for historical update entries.
-4. Approve the `release` environment. The workflow archives a universal app,
-   notarizes and staples it, verifies it, creates the GitHub Release, publishes
-   Sparkle payloads/appcast, and opens the vendor-tap cask pull request.
-5. Merge the tap PR only after its macOS cask audit and install/uninstall check
+3. Approve the `release` environment if prompted. The workflow archives a
+   universal app, notarizes and verifies it, then creates a private **draft**
+   GitHub Release containing the immutable ZIP.
+4. Open that draft under GitHub Releases, write the release description, and
+   click **Publish release**. The description must not be empty; use plain
+   paragraphs and `-` bullets for the cleanest Sparkle presentation.
+5. Publishing triggers `Publish PlayStatus Update Channels`, which safely
+   escapes the GitHub description into Sparkle HTML, updates the appcast, and
+   opens the vendor-tap cask pull request. No versioned release-note file is
+   committed to the repository; historical HTML remains only in S3.
+6. Merge the tap PR only after its macOS cask audit and install/uninstall check
    pass. Verify the published cask on clean Apple Silicon and Intel machines.
 
 If a tagged release fails before it creates a GitHub Release, correct the

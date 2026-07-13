@@ -14,12 +14,12 @@ require_value VERSION
 require_value RELEASE_NOTES_MARKDOWN
 require_value RELEASE_NOTES_HTML
 
-if ! git rev-parse --verify --quiet "refs/tags/$RELEASE_TAG^{tag}" >/dev/null; then
-  echo "Release notes must come from an annotated tag: $RELEASE_TAG" >&2
-  exit 1
+if [[ -n "${RELEASE_NOTES_SOURCE:-}" ]]; then
+  test -f "$RELEASE_NOTES_SOURCE"
+  cp "$RELEASE_NOTES_SOURCE" "$RELEASE_NOTES_MARKDOWN"
+else
+  gh release view "$RELEASE_TAG" --json body --jq .body > "$RELEASE_NOTES_MARKDOWN"
 fi
-
-git for-each-ref --format='%(contents:body)' "refs/tags/$RELEASE_TAG" > "$RELEASE_NOTES_MARKDOWN"
 
 ruby -r cgi - "$VERSION" "$RELEASE_NOTES_MARKDOWN" "$RELEASE_NOTES_HTML" <<'RUBY'
 version, markdown_path, html_path = ARGV
@@ -27,7 +27,7 @@ lines = File.readlines(markdown_path, chomp: true)
 lines.shift while lines.first&.strip&.empty?
 lines.pop while lines.last&.strip&.empty?
 
-abort "Annotated tag release notes must include a non-empty body." if lines.empty?
+abort "The published GitHub Release description must not be empty." if lines.empty?
 
 File.write(markdown_path, "#{lines.join("\n")}\n")
 

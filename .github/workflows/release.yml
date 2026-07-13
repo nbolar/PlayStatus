@@ -1,4 +1,4 @@
-name: Release PlayStatus
+name: Prepare PlayStatus Release
 
 on:
   push:
@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: write
-  id-token: write
 
 jobs:
   release:
@@ -72,31 +71,12 @@ jobs:
           DIST_DIR: ${{ runner.temp }}/PlayStatus-dist
         run: scripts/release-build.sh
 
-      - name: Render annotated tag release notes
-        id: release_notes
-        env:
-          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
-          VERSION: ${{ steps.package.outputs.version }}
-          RELEASE_NOTES_MARKDOWN: ${{ runner.temp }}/PlayStatus-release-notes.md
-          RELEASE_NOTES_HTML: ${{ runner.temp }}/PlayStatus-release-notes.html
-        run: |
-          if git for-each-ref --format='%(contents:body)' "refs/tags/$RELEASE_TAG" | grep -q '[^[:space:]]'; then
-            scripts/render-tag-release-notes.sh
-            echo "has_notes=true" >> "$GITHUB_OUTPUT"
-          else
-            # An existing release can be safely retried with the HTML already
-            # retained in S3. New releases must provide a tag-note body below.
-            echo "has_notes=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Create immutable GitHub Release
+      - name: Create immutable draft GitHub Release
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
           RELEASE_ASSET: ${{ steps.package.outputs.asset_path }}
-          RELEASE_NOTES_MARKDOWN: ${{ steps.release_notes.outputs.markdown_path }}
-          HAS_RELEASE_NOTES: ${{ steps.release_notes.outputs.has_notes }}
         run: |
           set -euo pipefail
           ASSET_NAME="$(basename "$RELEASE_ASSET")"
@@ -105,14 +85,10 @@ jobs:
             gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fx "$ASSET_NAME" >/dev/null
             echo "Retaining existing immutable GitHub Release asset: $ASSET_NAME"
           else
-            if [[ "$HAS_RELEASE_NOTES" != "true" ]]; then
-              echo "New release tags must include a non-empty annotated-tag body with release notes." >&2
-              exit 1
-            fi
             gh release create "$RELEASE_TAG" "$RELEASE_ASSET" \
               --verify-tag \
               --title "PlayStatus ${RELEASE_TAG#v}" \
-              --notes-file "$RELEASE_NOTES_MARKDOWN"
+              --draft
           fi
 
           PUBLISHED_ASSET_DIR="$RUNNER_TEMP/published-release-asset"
@@ -121,31 +97,7 @@ jobs:
           PUBLISHED_ASSET="$PUBLISHED_ASSET_DIR/$ASSET_NAME"
           test -f "$PUBLISHED_ASSET"
           echo "asset_path=$PUBLISHED_ASSET" >> "$GITHUB_OUTPUT"
-
-      - name: Configure AWS credentials for Sparkle publishing
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.SPARKLE_S3_ROLE_ARN }}
-          aws-region: ${{ vars.SPARKLE_S3_REGION }}
-
-      - name: Publish Sparkle payloads and appcast
-        env:
-          VERSION: ${{ steps.package.outputs.version }}
-          RELEASE_ARCHIVE: ${{ steps.release.outputs.asset_path }}
-          RELEASE_NOTES: ${{ steps.release_notes.outputs.html_path }}
-          DERIVED_DATA_PATH: ${{ steps.package.outputs.derived_data_path }}
-          SPARKLE_ED25519_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
-          SPARKLE_S3_URI: ${{ vars.SPARKLE_S3_URI }}
-          SPARKLE_PUBLIC_BASE_URL: ${{ vars.SPARKLE_PUBLIC_BASE_URL }}
-        run: scripts/publish-sparkle-appcast.sh
-
-      - name: Open vendor tap cask update pull request
-        env:
-          VERSION: ${{ steps.package.outputs.version }}
-          SHA256: ${{ steps.package.outputs.sha256 }}
-          TAP_REPOSITORY: nbolar/homebrew-playstatus
-          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: scripts/open-tap-cask-pr.sh
+          echo "Draft release ready: $(gh release view "$RELEASE_TAG" --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove temporary signing keychain
         if: always()

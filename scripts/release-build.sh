@@ -9,37 +9,17 @@ require_value() {
   fi
 }
 
-require_value RELEASE_TAG
 require_value APPLE_DEVELOPER_IDENTITY
 require_value APPLE_TEAM_ID
 require_value NOTARY_PROFILE
 
-if [[ ! "$RELEASE_TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-  echo "RELEASE_TAG must use the vX.Y.Z format; got: $RELEASE_TAG" >&2
-  exit 1
-fi
-
-if ! git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG^{}" >/dev/null; then
-  echo "Release tags must be annotated tags: $RELEASE_TAG" >&2
-  exit 1
-fi
-
-VERSION="${RELEASE_TAG#v}"
+require_value RELEASE_TAG
+VERSION="$(scripts/validate-release-tag.sh "$RELEASE_TAG")"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-$PWD/.build/release-derived-data}"
 ARCHIVE_PATH="${ARCHIVE_PATH:-$PWD/.build/PlayStatus.xcarchive}"
 DIST_DIR="${DIST_DIR:-$PWD/.build/dist}"
 
 mkdir -p "$DIST_DIR"
-
-MARKETING_VERSION="$(
-  xcodebuild -project PlayStatus.xcodeproj -scheme PlayStatus -configuration Release -showBuildSettings |
-    awk -F ' = ' '$1 ~ /MARKETING_VERSION$/ { print $2; exit }'
-)"
-
-if [[ "$MARKETING_VERSION" != "$VERSION" ]]; then
-  echo "Tag $RELEASE_TAG does not match MARKETING_VERSION $MARKETING_VERSION" >&2
-  exit 1
-fi
 
 xcodebuild \
   -project PlayStatus.xcodeproj \
