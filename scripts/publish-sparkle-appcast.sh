@@ -51,20 +51,8 @@ printf '%s' "$SPARKLE_ED25519_PRIVATE_KEY" |
 aws s3 sync "$WORK_DIR" "$SPARKLE_S3_URI" \
   --exclude "appcast.xml" \
   --exclude "old_updates/*" \
-  --acl public-read \
-  --cache-control "public,max-age=31536000,immutable"
-# `aws s3 sync` leaves an unchanged object's ACL untouched. Reapply public
-# readability to the current release lineage so a feed repair fixes existing
-# immutable ZIP and release-note objects as well as newly uploaded files.
-aws s3 cp "$WORK_DIR/PlayStatus-$VERSION.zip" "$SPARKLE_S3_URI/PlayStatus-$VERSION.zip" \
-  --acl public-read \
-  --cache-control "public,max-age=31536000,immutable"
-aws s3 cp "$WORK_DIR/PlayStatus-$VERSION.html" "$SPARKLE_S3_URI/PlayStatus-$VERSION.html" \
-  --acl public-read \
-  --content-type "text/html" \
   --cache-control "public,max-age=31536000,immutable"
 aws s3 cp "$WORK_DIR/appcast.xml" "$SPARKLE_S3_URI/appcast.xml" \
-  --acl public-read \
   --content-type "application/xml" \
   --cache-control "no-cache"
 

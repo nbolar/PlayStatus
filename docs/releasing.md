@@ -31,14 +31,36 @@ Add these repository or environment variables:
   trailing slash)
 
 The objects served from `SPARKLE_PUBLIC_BASE_URL` must permit anonymous
-`s3:GetObject` reads. The workflow uploads the payloads and appcast with the
-`public-read` ACL and verifies the public appcast URL before it succeeds. If
-your bucket blocks public ACLs, grant the equivalent read access through a
-bucket policy or use a public CDN URL as `SPARKLE_PUBLIC_BASE_URL`.
+`s3:GetObject` reads. Prefer a narrowly scoped bucket policy (or a public CDN)
+instead of object ACLs. For the default bucket layout, make only the appcast,
+release ZIPs, and HTML release notes public:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadSparkleUpdates",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": [
+        "arn:aws:s3:::com.bolar.playstatus/appcast.xml",
+        "arn:aws:s3:::com.bolar.playstatus/PlayStatus-*.zip",
+        "arn:aws:s3:::com.bolar.playstatus/PlayStatus-*.html"
+      ]
+    }
+  ]
+}
+```
+
+Ensure the bucket's Block Public Access settings permit this policy. The
+workflow probes the public appcast URL after publishing and fails if it is not
+reachable.
 
 Use a Team App Store Connect API key that can submit notarizations. Configure
 the AWS IAM role for GitHub Actions OIDC with only `ListBucket`, `GetObject`,
-`PutObject`, and `PutObjectAcl` permissions on the Sparkle bucket; do not use
+and `PutObject` permissions on the Sparkle bucket; do not use
 long-lived AWS access keys. The role trust policy must be restricted to this
 repository and the `release` environment.
 
