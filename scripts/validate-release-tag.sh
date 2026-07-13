@@ -19,9 +19,15 @@ fi
 
 VERSION="${RELEASE_TAG#v}"
 MARKETING_VERSION="$(
-  xcodebuild -project PlayStatus.xcodeproj -scheme PlayStatus -configuration Release -showBuildSettings |
-    awk -F ' = ' '$1 ~ /MARKETING_VERSION$/ { print $2; exit }'
+  git show "$RELEASE_TAG:PlayStatus.xcodeproj/project.pbxproj" |
+    sed -n 's/^[[:space:]]*MARKETING_VERSION = \([^;]*\);/\1/p' |
+    sort -u
 )"
+
+if [[ "$(printf '%s\n' "$MARKETING_VERSION" | sed '/^$/d' | wc -l | tr -d ' ')" != "1" ]]; then
+  echo "Expected one MARKETING_VERSION in $RELEASE_TAG; found: $MARKETING_VERSION" >&2
+  exit 1
+fi
 
 if [[ "$MARKETING_VERSION" != "$VERSION" ]]; then
   echo "Tag $RELEASE_TAG does not match MARKETING_VERSION $MARKETING_VERSION" >&2
