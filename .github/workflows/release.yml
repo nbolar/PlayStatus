@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing annotated vX.Y.Z tag to retry
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -17,6 +23,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Import Developer ID certificate
         env:
@@ -55,7 +62,7 @@ jobs:
       - name: Build, notarize, and verify release
         id: package
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           NOTARY_PROFILE: playstatus-notary
           DERIVED_DATA_PATH: ${{ runner.temp }}/PlayStatusDerivedData
@@ -66,7 +73,7 @@ jobs:
       - name: Create immutable GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
           RELEASE_ASSET: ${{ steps.package.outputs.asset_path }}
         run: |
           gh release create "$RELEASE_TAG" "$RELEASE_ASSET" \

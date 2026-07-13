@@ -63,6 +63,11 @@ request that adds `Casks/playstatus.rb`.
 5. Merge the tap PR only after its macOS cask audit and install/uninstall check
    pass. Verify the published cask on clean Apple Silicon and Intel machines.
 
+If a tagged release fails before it creates a GitHub Release, correct the
+workflow on `main` and use its manual dispatch with the existing annotated tag.
+The workflow still verifies that tag remotely before it can publish anything;
+never delete or retarget a published release tag.
+
 Release ZIPs, GitHub Release assets, and existing tags are immutable. If any
 post-release issue is discovered, publish a new version and build number rather
 than replacing an asset or retagging a release.

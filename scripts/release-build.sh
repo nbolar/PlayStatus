@@ -19,12 +19,7 @@ if [[ ! "$RELEASE_TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   exit 1
 fi
 
-if ! TAG_TYPE="$(git cat-file -t "$RELEASE_TAG" 2>/dev/null)"; then
-  echo "Release tag does not exist in this checkout: $RELEASE_TAG" >&2
-  exit 1
-fi
-
-if [[ "$TAG_TYPE" != "tag" ]]; then
+if ! git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG^{}" >/dev/null; then
   echo "Release tags must be annotated tags: $RELEASE_TAG" >&2
   exit 1
 fi
