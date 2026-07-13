@@ -62,6 +62,43 @@ if [[ ! -d "$APP_PATH" ]]; then
   exit 1
 fi
 
+sign_with_developer_id() {
+  codesign \
+    --force \
+    --options runtime \
+    --preserve-metadata=identifier,entitlements,flags \
+    --sign "$APPLE_DEVELOPER_IDENTITY" \
+    --timestamp \
+    "$1"
+}
+
+# Xcode signs the Sparkle framework itself but does not timestamp every nested
+# executable in its prebuilt XCFramework. Notarization requires each of these
+# components to carry this app's Developer ID signature and secure timestamp.
+SPARKLE_FRAMEWORK="$APP_PATH/Contents/Frameworks/Sparkle.framework"
+if [[ -d "$SPARKLE_FRAMEWORK" ]]; then
+  SPARKLE_VERSION="$SPARKLE_FRAMEWORK/Versions/Current"
+  SPARKLE_COMPONENTS=(
+    "$SPARKLE_VERSION/Updater.app/Contents/MacOS/Updater"
+    "$SPARKLE_VERSION/Autoupdate"
+    "$SPARKLE_VERSION/XPCServices/Downloader.xpc/Contents/MacOS/Downloader"
+    "$SPARKLE_VERSION/XPCServices/Installer.xpc/Contents/MacOS/Installer"
+    "$SPARKLE_VERSION/XPCServices/Downloader.xpc"
+    "$SPARKLE_VERSION/XPCServices/Installer.xpc"
+    "$SPARKLE_VERSION/Updater.app"
+    "$SPARKLE_FRAMEWORK"
+  )
+
+  for component in "${SPARKLE_COMPONENTS[@]}"; do
+    test -e "$component"
+    sign_with_developer_id "$component"
+    codesign -d --verbose=4 "$component" 2>&1 | grep -q 'Timestamp='
+  done
+fi
+
+# Re-seal the app after its embedded framework has been re-signed.
+sign_with_developer_id "$APP_PATH"
+codesign -d --verbose=4 "$APP_PATH" 2>&1 | grep -q 'Timestamp='
 codesign --verify --deep --strict --verbose=4 "$APP_PATH"
 
 ARCHS="$(lipo -archs "$APP_PATH/Contents/MacOS/PlayStatus")"
