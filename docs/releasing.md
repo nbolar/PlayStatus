@@ -30,11 +30,17 @@ Add these repository or environment variables:
 - `SPARKLE_PUBLIC_BASE_URL` (the public HTTPS base for that bucket, with a
   trailing slash)
 
+The objects served from `SPARKLE_PUBLIC_BASE_URL` must permit anonymous
+`s3:GetObject` reads. The workflow uploads the payloads and appcast with the
+`public-read` ACL and verifies the public appcast URL before it succeeds. If
+your bucket blocks public ACLs, grant the equivalent read access through a
+bucket policy or use a public CDN URL as `SPARKLE_PUBLIC_BASE_URL`.
+
 Use a Team App Store Connect API key that can submit notarizations. Configure
 the AWS IAM role for GitHub Actions OIDC with only `ListBucket`, `GetObject`,
-and `PutObject` permissions on the Sparkle bucket; do not use long-lived AWS
-access keys. The role trust policy must be restricted to this repository and
-the `release` environment.
+`PutObject`, and `PutObjectAcl` permissions on the Sparkle bucket; do not use
+long-lived AWS access keys. The role trust policy must be restricted to this
+repository and the `release` environment.
 
 ## Bootstrap the vendor tap
 

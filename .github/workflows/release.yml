@@ -73,15 +73,31 @@ jobs:
         run: scripts/release-build.sh
 
       - name: Create immutable GitHub Release
+        id: release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
           RELEASE_ASSET: ${{ steps.package.outputs.asset_path }}
         run: |
-          gh release create "$RELEASE_TAG" "$RELEASE_ASSET" \
-            --verify-tag \
-            --title "PlayStatus ${RELEASE_TAG#v}" \
-            --generate-notes
+          set -euo pipefail
+          ASSET_NAME="$(basename "$RELEASE_ASSET")"
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fx "$ASSET_NAME" >/dev/null
+            echo "Retaining existing immutable GitHub Release asset: $ASSET_NAME"
+          else
+            gh release create "$RELEASE_TAG" "$RELEASE_ASSET" \
+              --verify-tag \
+              --title "PlayStatus ${RELEASE_TAG#v}" \
+              --generate-notes
+          fi
+
+          PUBLISHED_ASSET_DIR="$RUNNER_TEMP/published-release-asset"
+          mkdir -p "$PUBLISHED_ASSET_DIR"
+          gh release download "$RELEASE_TAG" --pattern "$ASSET_NAME" --dir "$PUBLISHED_ASSET_DIR"
+          PUBLISHED_ASSET="$PUBLISHED_ASSET_DIR/$ASSET_NAME"
+          test -f "$PUBLISHED_ASSET"
+          echo "asset_path=$PUBLISHED_ASSET" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS credentials for Sparkle publishing
         uses: aws-actions/configure-aws-credentials@v4
@@ -92,7 +108,7 @@ jobs:
       - name: Publish Sparkle payloads and appcast
         env:
           VERSION: ${{ steps.package.outputs.version }}
-          RELEASE_ARCHIVE: ${{ steps.package.outputs.asset_path }}
+          RELEASE_ARCHIVE: ${{ steps.release.outputs.asset_path }}
           RELEASE_NOTES: RELEASE_NOTES_${{ steps.package.outputs.version }}.html
           DERIVED_DATA_PATH: ${{ steps.package.outputs.derived_data_path }}
           SPARKLE_ED25519_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
