@@ -15,11 +15,13 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Tap this checkout
+        run: brew tap --custom-remote nbolar/playstatus "$GITHUB_WORKSPACE"
       - name: Audit cask
-        run: brew audit --cask --strict Casks/playstatus.rb
+        run: brew audit --cask --strict nbolar/playstatus/playstatus
       - name: Install and uninstall cask
         run: |
-          brew install --cask ./Casks/playstatus.rb
+          brew install --cask nbolar/playstatus/playstatus
           test -d "/Applications/PlayStatus.app"
           brew uninstall --cask --force playstatus
           test ! -d "/Applications/PlayStatus.app"
