@@ -32,8 +32,9 @@ Add these repository or environment variables:
 
 The objects served from `SPARKLE_PUBLIC_BASE_URL` must permit anonymous
 `s3:GetObject` reads. Prefer a narrowly scoped bucket policy (or a public CDN)
-instead of object ACLs. For the default bucket layout, make only the appcast,
-release ZIPs, and HTML release notes public:
+instead of object ACLs. For the default bucket layout, make only the appcast
+and `PlayStatus`-named update artifacts (full archives, release notes, and
+delta updates) public:
 
 ```json
 {
@@ -46,8 +47,7 @@ release ZIPs, and HTML release notes public:
       "Action": "s3:GetObject",
       "Resource": [
         "arn:aws:s3:::com.bolar.playstatus/appcast.xml",
-        "arn:aws:s3:::com.bolar.playstatus/PlayStatus-*.zip",
-        "arn:aws:s3:::com.bolar.playstatus/PlayStatus-*.html"
+        "arn:aws:s3:::com.bolar.playstatus/PlayStatus*"
       ]
     }
   ]
