@@ -31,6 +31,19 @@ fi
 git -C "$WORK_DIR/tap" -c user.name="playstatus-release[bot]" -c user.email="playstatus-release[bot]@users.noreply.github.com" \
   commit -m "playstatus $VERSION"
 git -C "$WORK_DIR/tap" push --force-with-lease origin "$BRANCH"
+
+EXISTING_PR="$(GH_TOKEN="$TAP_TOKEN" gh pr list \
+  --repo "$TAP_REPOSITORY" \
+  --base main \
+  --head "$BRANCH" \
+  --state open \
+  --json url \
+  --jq '.[0].url')"
+if [[ -n "$EXISTING_PR" ]]; then
+  echo "Updated existing cask pull request: $EXISTING_PR"
+  exit 0
+fi
+
 GH_TOKEN="$TAP_TOKEN" gh pr create \
   --repo "$TAP_REPOSITORY" \
   --base main \
