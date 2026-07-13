@@ -50,7 +50,7 @@ struct MiniNowPlayingCard: View {
         let darkArtworkBoost = max(0, (0.52 - luminance) / 0.52)
         let effectiveHover = pointerHovering || forceExpandedUntilPointerExit
         let infoExpanded = effectiveHover
-        let miniDetachedControlScale = model.detachedMiniControlScaleFactor
+        let miniControlScale = model.miniControlScaleFactor
         let bottomShade = min(0.82, 0.34 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.18) + (effectiveHover ? 0.10 : 0.04))
         let topShade = min(0.34, 0.10 + (darkArtworkBoost * 0.14))
         let readabilityDarken = min(0.84, 0.42 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.24) + (effectiveHover ? 0.08 : 0.02))
@@ -68,10 +68,10 @@ struct MiniNowPlayingCard: View {
         let miniInfoBandSecondaryShadowOpacity = min(0.92, secondaryShadowOpacity + (pointerHovering ? 0.08 : 0))
         let miniInfoBandContrastBoost = min(1, 0.14 + (lightArtworkBoost * 0.56) + (veryLightBoost * 0.20) + (pointerHovering ? 0.30 : 0.02))
         let miniLowerPanelEmphasis = min(1, 0.50 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.12) + (pointerHovering ? 0.24 : 0.08))
-        let miniMetadataSpacing = (pointerHovering ? 8.0 : 5.0) * miniDetachedControlScale
-        let miniLowerPanelContentHorizontalPadding = (pointerHovering ? 12.0 : 10.0) * miniDetachedControlScale
-        let miniLowerPanelContentVerticalPadding = (pointerHovering ? 10.0 : 5.5) * miniDetachedControlScale
-        let infoBandHeight: CGFloat = (infoExpanded ? 196.0 : 94.0) * miniDetachedControlScale
+        let miniMetadataSpacing = (pointerHovering ? 8.0 : 5.0) * miniControlScale
+        let miniLowerPanelContentHorizontalPadding = (pointerHovering ? 12.0 : 10.0) * miniControlScale
+        let miniLowerPanelContentVerticalPadding = (pointerHovering ? 10.0 : 5.5) * miniControlScale
+        let infoBandHeight: CGFloat = (infoExpanded ? 196.0 : 94.0) * miniControlScale
         let resolvedCardHeight = resolvedHeight
         let liveCardHeight = min(resolvedCardHeight, max(model.miniBaseHeight, availableHeight))
         let visibleLyricsHeight = min(
@@ -82,10 +82,10 @@ struct MiniNowPlayingCard: View {
         let seamOpacity = min(1, max(0, visibleLyricsHeight / max(1, model.miniLyricsPaneHeight)))
         let miniMarqueeLaneWidth = max(120, model.miniPopoverWidth - 64)
         let miniTrackKey = "\(model.provider.rawValue)|\(model.artist)|\(model.albumArtist)|\(model.album)|\(model.title)"
-        let miniLowerPanelHorizontalInset = (pointerHovering ? 6.0 : 14.0) * miniDetachedControlScale
-        let miniLowerPanelBottomInset = (pointerHovering ? 15.0 : 8.0) * miniDetachedControlScale
-        let miniLowerPanelHoverLift = (pointerHovering ? 8.0 : 0) * miniDetachedControlScale
-        let miniInfoBandTopCornerRadius = 24 * miniDetachedControlScale
+        let miniLowerPanelHorizontalInset = (pointerHovering ? 6.0 : 14.0) * miniControlScale
+        let miniLowerPanelBottomInset = (pointerHovering ? 15.0 : 8.0) * miniControlScale
+        let miniLowerPanelHoverLift = (pointerHovering ? 8.0 : 0) * miniControlScale
+        let miniInfoBandTopCornerRadius = 24 * miniControlScale
         let showMiniControlRow = pointerHovering && primaryContentVisible
         let showMiniSecondaryControls = showMiniControlRow && secondaryContentVisible
         let cardShell = miniCardShell(
@@ -93,7 +93,7 @@ struct MiniNowPlayingCard: View {
             topShade: topShade,
             neutralWashOpacity: neutralWashOpacity,
             blueFogOpacity: blueFogOpacity,
-            miniDetachedControlScale: miniDetachedControlScale,
+            miniControlScale: miniControlScale,
             miniTrackKey: miniTrackKey,
             showMiniControlRow: showMiniControlRow,
             showMiniSecondaryControls: showMiniSecondaryControls,
@@ -145,7 +145,7 @@ struct MiniNowPlayingCard: View {
         topShade: Double,
         neutralWashOpacity: Double,
         blueFogOpacity: Double,
-        miniDetachedControlScale: CGFloat,
+        miniControlScale: CGFloat,
         miniTrackKey: String,
         showMiniControlRow: Bool,
         showMiniSecondaryControls: Bool,
@@ -173,14 +173,14 @@ struct MiniNowPlayingCard: View {
         let artworkBackdrop = miniCardArtworkBackdrop(bottomShade: bottomShade, topShade: topShade)
         let heroSurface = miniCardHeroSurface(miniTrackKey: miniTrackKey)
         let topControls = miniCardTopControls(
-            miniDetachedControlScale: miniDetachedControlScale,
+            miniControlScale: miniControlScale,
             showMiniControlRow: showMiniControlRow,
             showMiniSecondaryControls: showMiniSecondaryControls,
             neutralWashOpacity: neutralWashOpacity,
             blueFogOpacity: blueFogOpacity
         )
         let bottomPanel = miniCardBottomPanel(
-            miniDetachedControlScale: miniDetachedControlScale,
+            miniControlScale: miniControlScale,
             miniInfoBandBaseOpacity: miniInfoBandBaseOpacity,
             miniInfoBandReadabilityDarken: miniInfoBandReadabilityDarken,
             miniInfoBandNeutralWashOpacity: miniInfoBandNeutralWashOpacity,
@@ -331,17 +331,17 @@ struct MiniNowPlayingCard: View {
     }
 
     private func miniCardTopControls(
-        miniDetachedControlScale: CGFloat,
+        miniControlScale: CGFloat,
         showMiniControlRow: Bool,
         showMiniSecondaryControls: Bool,
         neutralWashOpacity: Double,
         blueFogOpacity: Double
     ) -> some View {
-        HStack(spacing: 6 * miniDetachedControlScale) {
+        HStack(spacing: 6 * miniControlScale) {
             ModeToggleControl(
                 isMiniMode: true,
                 transitionActive: transitionActive,
-                sizeScale: miniDetachedControlScale,
+                sizeScale: miniControlScale,
                 action: onToggleMode
             )
 
@@ -349,7 +349,7 @@ struct MiniNowPlayingCard: View {
                 DetachedSurfaceToggleControl(
                     isDetachedMode: model.surfaceMode == .detached,
                     transitionActive: transitionActive,
-                    sizeScale: miniDetachedControlScale
+                    sizeScale: miniControlScale
                 ) {
                     model.requestToggleDetachedMode()
                 }
@@ -359,7 +359,7 @@ struct MiniNowPlayingCard: View {
                     DetachedWindowPinControl(
                         isPinned: model.detachedWindowAlwaysOnTop,
                         transitionActive: transitionActive,
-                        sizeScale: miniDetachedControlScale
+                        sizeScale: miniControlScale
                     ) {
                         model.detachedWindowAlwaysOnTop.toggle()
                     }
@@ -367,7 +367,7 @@ struct MiniNowPlayingCard: View {
 
                     DetachedWindowCloseControl(
                         transitionActive: transitionActive,
-                        sizeScale: miniDetachedControlScale
+                        sizeScale: miniControlScale
                     ) {
                         model.requestCloseDetachedWindow()
                     }
@@ -381,7 +381,7 @@ struct MiniNowPlayingCard: View {
                     systemName: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics ? "quote.bubble.fill" : "quote.bubble",
                     helpText: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics ? "Hide lyrics" : "Show lyrics",
                     transitionActive: transitionActive,
-                    sizeScale: miniDetachedControlScale
+                    sizeScale: miniControlScale
                 ) {
                     toggleMiniDetails(tab: .lyrics)
                 }
@@ -393,7 +393,7 @@ struct MiniNowPlayingCard: View {
                     systemName: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits ? "info.circle.fill" : "info.circle",
                     helpText: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits ? "Hide credits" : "Show credits",
                     transitionActive: transitionActive,
-                    sizeScale: miniDetachedControlScale
+                    sizeScale: miniControlScale
                 ) {
                     toggleMiniDetails(tab: .credits)
                 }
@@ -402,11 +402,11 @@ struct MiniNowPlayingCard: View {
             if showMiniSecondaryControls {
                 SettingsOpenControl {
                     Image(systemName: "gearshape.fill")
-                        .font(.system(size: 16 * miniDetachedControlScale, weight: .semibold))
+                        .font(.system(size: 16 * miniControlScale, weight: .semibold))
                         .foregroundStyle(colorScheme == .dark ? .white.opacity(0.94) : .primary.opacity(0.80))
                         .frame(
-                            width: 26 * miniDetachedControlScale,
-                            height: 26 * miniDetachedControlScale
+                            width: 26 * miniControlScale,
+                            height: 26 * miniControlScale
                         )
                         .background(Circle().fill(colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.055)))
                         .overlay(
@@ -419,13 +419,13 @@ struct MiniNowPlayingCard: View {
             }
         }
         .miniControlClusterBackground(
-            sizeScale: miniDetachedControlScale,
+            sizeScale: miniControlScale,
             neutralWashOpacity: neutralWashOpacity * 0.65,
             blueFogOpacity: blueFogOpacity * 0.65
         )
         .fixedSize(horizontal: true, vertical: false)
-        .padding(.top, 10 * miniDetachedControlScale)
-        .padding(.trailing, 10 * miniDetachedControlScale)
+        .padding(.top, 10 * miniControlScale)
+        .padding(.trailing, 10 * miniControlScale)
         .opacity(showMiniControlRow ? 1 : 0)
         .offset(y: showMiniControlRow ? 0 : -6)
         .allowsHitTesting(showMiniControlRow)
@@ -435,7 +435,7 @@ struct MiniNowPlayingCard: View {
     }
 
     private func miniCardBottomPanel(
-        miniDetachedControlScale: CGFloat,
+        miniControlScale: CGFloat,
         miniInfoBandBaseOpacity: Double,
         miniInfoBandReadabilityDarken: Double,
         miniInfoBandNeutralWashOpacity: Double,
@@ -553,7 +553,7 @@ struct MiniNowPlayingCard: View {
                                 onNext: { model.nextTrack() },
                                 onRepeat: { model.cycleRepeatMode() },
                                 contrastBoost: miniInfoBandContrastBoost,
-                                controlScale: miniDetachedControlScale
+                                controlScale: miniControlScale
                             )
                             Spacer(minLength: 0)
                         }
@@ -563,7 +563,7 @@ struct MiniNowPlayingCard: View {
                             model: model,
                             showDeviceName: false,
                             contrastBoost: miniInfoBandContrastBoost,
-                            controlScale: miniDetachedControlScale,
+                            controlScale: miniControlScale,
                             showFavorite: model.canFavoriteCurrentTrack,
                             favoriteIsActive: model.isCurrentTrackFavorited,
                             favoritePulseToken: model.favoriteActionPulseToken,
@@ -578,7 +578,7 @@ struct MiniNowPlayingCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .miniBottomPanelBackground(
-                sizeScale: miniDetachedControlScale,
+                sizeScale: miniControlScale,
                 emphasis: miniLowerPanelEmphasis,
                 neutralWashOpacity: miniInfoBandNeutralWashOpacity,
                 blueFogOpacity: miniInfoBandBlueFogOpacity,

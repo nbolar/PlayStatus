@@ -257,6 +257,45 @@ enum DetachedWindowSizePreset: String, CaseIterable {
     }
 }
 
+enum PopoverSizePreset: String, CaseIterable {
+    case small
+    case medium
+    case large
+
+    var displayName: String {
+        switch self {
+        case .small: return "Small"
+        case .medium: return "Medium"
+        case .large: return "Large"
+        }
+    }
+
+    // Medium preserves the popover dimensions that shipped before this setting.
+    var miniScaleFactor: CGFloat {
+        switch self {
+        case .small: return 0.85
+        case .medium: return 1.00
+        case .large: return 1.15
+        }
+    }
+
+    var regularScaleFactor: CGFloat {
+        switch self {
+        case .small: return 0.90
+        case .medium: return 1.00
+        case .large: return 1.10
+        }
+    }
+
+    var regularControlScaleFactor: CGFloat {
+        regularScaleFactor
+    }
+
+    var miniControlScaleFactor: CGFloat {
+        miniScaleFactor
+    }
+}
+
 enum ProviderIconKind: Equatable {
     case sfSymbol(String)
     case iconifyAsset(String)

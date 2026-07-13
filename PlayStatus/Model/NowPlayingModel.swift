@@ -213,6 +213,11 @@ final class NowPlayingModel: ObservableObject {
             requestPopoverLayoutRefresh()
         }
     }
+    @AppStorage("popoverSizePreset") private var popoverSizePresetRaw: String = PopoverSizePreset.medium.rawValue {
+        didSet {
+            requestPopoverLayoutRefresh()
+        }
+    }
     // UI state
     @Published var surfaceMode: NowPlayingSurfaceMode = .popover
     @Published var provider: NowPlayingProvider = .none
@@ -455,24 +460,45 @@ final class NowPlayingModel: ObservableObject {
         set { detachedWindowSizePresetRaw = newValue.rawValue }
     }
 
-    private var detachedMiniScaleFactor: CGFloat {
-        guard surfaceMode == .detached else { return 1 }
-        return detachedWindowSizePreset.miniScaleFactor
+    var popoverSizePreset: PopoverSizePreset {
+        get { PopoverSizePreset(rawValue: popoverSizePresetRaw) ?? .medium }
+        set { popoverSizePresetRaw = newValue.rawValue }
     }
 
-    private var detachedRegularScaleFactor: CGFloat {
-        guard surfaceMode == .detached else { return 1 }
-        return detachedWindowSizePreset.regularScaleFactor
+    private var surfaceMiniScaleFactor: CGFloat {
+        switch surfaceMode {
+        case .popover:
+            popoverSizePreset.miniScaleFactor
+        case .detached:
+            detachedWindowSizePreset.miniScaleFactor
+        }
     }
 
-    var detachedRegularControlScaleFactor: CGFloat {
-        guard surfaceMode == .detached else { return 1 }
-        return detachedWindowSizePreset.regularControlScaleFactor
+    private var surfaceRegularScaleFactor: CGFloat {
+        switch surfaceMode {
+        case .popover:
+            popoverSizePreset.regularScaleFactor
+        case .detached:
+            detachedWindowSizePreset.regularScaleFactor
+        }
     }
 
-    var detachedMiniControlScaleFactor: CGFloat {
-        guard surfaceMode == .detached else { return 1 }
-        return detachedWindowSizePreset.miniControlScaleFactor
+    var regularControlScaleFactor: CGFloat {
+        switch surfaceMode {
+        case .popover:
+            popoverSizePreset.regularControlScaleFactor
+        case .detached:
+            detachedWindowSizePreset.regularControlScaleFactor
+        }
+    }
+
+    var miniControlScaleFactor: CGFloat {
+        switch surfaceMode {
+        case .popover:
+            popoverSizePreset.miniControlScaleFactor
+        case .detached:
+            detachedWindowSizePreset.miniControlScaleFactor
+        }
     }
 
     var statusTextWidth: CGFloat {
@@ -512,31 +538,31 @@ final class NowPlayingModel: ObservableObject {
 
     var artworkDisplaySize: CGFloat {
         let base = CGFloat(min(max(artworkDisplaySizeStorage, 120), 260))
-        let scale = miniMode ? detachedMiniScaleFactor : detachedRegularScaleFactor
+        let scale = miniMode ? surfaceMiniScaleFactor : surfaceRegularScaleFactor
         return base * scale
     }
 
     var regularArtworkDisplaySize: CGFloat {
         let base = CGFloat(min(max(artworkDisplaySizeStorage, 120), 260))
-        return base * detachedRegularScaleFactor
+        return base * surfaceRegularScaleFactor
     }
 
-    var miniPopoverWidth: CGFloat { 380 * detachedMiniScaleFactor }
+    var miniPopoverWidth: CGFloat { 380 * surfaceMiniScaleFactor }
 
     var regularPopoverWidth: CGFloat {
         // Artwork + spacing + readable text/controls column + container padding.
         let baseArtwork = CGFloat(min(max(artworkDisplaySizeStorage, 120), 260))
         let base = max(410, baseArtwork + 330)
-        return base * detachedRegularScaleFactor
+        return base * surfaceRegularScaleFactor
     }
 
     var popoverWidth: CGFloat {
         miniMode ? miniPopoverWidth : regularPopoverWidth
     }
 
-    var miniBaseHeight: CGFloat { 380 * detachedMiniScaleFactor }
+    var miniBaseHeight: CGFloat { 380 * surfaceMiniScaleFactor }
     var miniLyricsPaneHeight: CGFloat {
-        lyricsPaneSizePreset.miniContentHeight * detachedMiniScaleFactor
+        lyricsPaneSizePreset.miniContentHeight * surfaceMiniScaleFactor
     }
     var miniExpandedHeight: CGFloat { miniBaseHeight + miniLyricsPaneHeight }
 
@@ -545,13 +571,13 @@ final class NowPlayingModel: ObservableObject {
     }
 
     var regularLyricsPaneHeight: CGFloat {
-        1 + (lyricsPaneSizePreset.regularContentHeight * detachedRegularScaleFactor)
+        1 + (lyricsPaneSizePreset.regularContentHeight * surfaceRegularScaleFactor)
     }
 
     var estimatedRegularPopoverHeight: CGFloat {
         let baseArtwork = CGFloat(min(max(artworkDisplaySizeStorage, 120), 260))
         let base = max(220, baseArtwork + 54)
-        return base * detachedRegularScaleFactor
+        return base * surfaceRegularScaleFactor
     }
 
     var regularPopoverHeight: CGFloat {

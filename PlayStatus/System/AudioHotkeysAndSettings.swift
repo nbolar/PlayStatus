@@ -195,6 +195,23 @@ struct PlayStatusSettingsView: View {
                 .frame(width: 220, alignment: .trailing)
             }
 
+            SettingsControlRow(
+                title: "Popover size",
+                caption: "Chooses the size of the player shown from the menu bar."
+            ) {
+                Picker("Popover size", selection: Binding(
+                    get: { model.popoverSizePreset },
+                    set: { model.popoverSizePreset = $0 }
+                )) {
+                    ForEach(PopoverSizePreset.allCases, id: \.self) { preset in
+                        Text(preset.displayName).tag(preset)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(width: 220, alignment: .trailing)
+            }
+
             Divider().padding(.vertical, 2)
 
             SettingsSliderRow(

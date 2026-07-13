@@ -215,7 +215,7 @@ struct NowPlayingPopover: View {
         let regularControlContrastBoost = model.regularControlsContrastBoost
         let searchTrailingAlignmentNudge: CGFloat = 4
         let regularDetachedTransparencyMultiplier: Double = model.surfaceMode == .detached ? 0.80 : 1.0
-        let regularDetachedControlScale = model.detachedRegularControlScaleFactor
+        let regularControlScale = model.regularControlScaleFactor
         let restingRegularDetailTab = model.selectedRegularDetailsTab
         let restingRegularControlOpacity: Double = regularPointerHovering ? 1 : 0.44
         let showDetailsCoachmark = onboarding.isCoachmarkActive(.detailsToggle)
@@ -228,14 +228,14 @@ struct NowPlayingPopover: View {
             regularPrimaryCard(
                 regularMarqueeLaneWidth: regularMarqueeLaneWidth,
                 regularControlContrastBoost: regularControlContrastBoost,
-                regularDetachedControlScale: regularDetachedControlScale,
+                regularControlScale: regularControlScale,
                 searchTrailingAlignmentNudge: searchTrailingAlignmentNudge
             )
             .frame(height: baseRegularHeight, alignment: .top)
             .overlay(alignment: .topTrailing) {
                 regularTrailingControls(
                     contrastBoost: regularControlContrastBoost,
-                    controlScale: regularDetachedControlScale,
+                    controlScale: regularControlScale,
                     restingRegularDetailTab: restingRegularDetailTab,
                     restingRegularControlOpacity: restingRegularControlOpacity,
                     interactiveRegularControlsVisible: interactiveRegularControlsVisible,
@@ -279,7 +279,7 @@ struct NowPlayingPopover: View {
     private func regularPrimaryCard(
         regularMarqueeLaneWidth: CGFloat,
         regularControlContrastBoost: Double,
-        regularDetachedControlScale: CGFloat,
+        regularControlScale: CGFloat,
         searchTrailingAlignmentNudge: CGFloat
     ) -> some View {
         LiquidGlassCard(
@@ -292,12 +292,12 @@ struct NowPlayingPopover: View {
                 regularHeroRow(
                     regularMarqueeLaneWidth: regularMarqueeLaneWidth,
                     regularControlContrastBoost: regularControlContrastBoost,
-                    regularDetachedControlScale: regularDetachedControlScale
+                    regularControlScale: regularControlScale
                 )
 
                 regularSearchLane(
                     contrastBoost: regularControlContrastBoost,
-                    controlScale: regularDetachedControlScale,
+                    controlScale: regularControlScale,
                     searchTrailingAlignmentNudge: searchTrailingAlignmentNudge
                 )
             }
@@ -409,7 +409,7 @@ struct NowPlayingPopover: View {
     private func regularHeroRow(
         regularMarqueeLaneWidth: CGFloat,
         regularControlContrastBoost: Double,
-        regularDetachedControlScale: CGFloat
+        regularControlScale: CGFloat
     ) -> some View {
         HStack(alignment: .center, spacing: 16) {
             regularArtworkTile
@@ -422,7 +422,7 @@ struct NowPlayingPopover: View {
 
                 regularControlsColumn(
                     regularControlContrastBoost: regularControlContrastBoost,
-                    regularDetachedControlScale: regularDetachedControlScale
+                    regularControlScale: regularControlScale
                 )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -494,7 +494,7 @@ struct NowPlayingPopover: View {
 
     private func regularControlsColumn(
         regularControlContrastBoost: Double,
-        regularDetachedControlScale: CGFloat
+        regularControlScale: CGFloat
     ) -> some View {
         VStack(spacing: 0) {
             HStack {
@@ -510,7 +510,7 @@ struct NowPlayingPopover: View {
                     onNext: { model.nextTrack() },
                     onRepeat: { model.cycleRepeatMode() },
                     contrastBoost: regularControlContrastBoost,
-                    controlScale: regularDetachedControlScale
+                    controlScale: regularControlScale
                 )
                 Spacer(minLength: 0)
             }
@@ -520,7 +520,7 @@ struct NowPlayingPopover: View {
                 model: model,
                 showDeviceName: true,
                 contrastBoost: regularControlContrastBoost,
-                controlScale: regularDetachedControlScale,
+                controlScale: regularControlScale,
                 showFavorite: model.canFavoriteCurrentTrack,
                 favoriteIsActive: model.isCurrentTrackFavorited,
                 favoritePulseToken: model.favoriteActionPulseToken,

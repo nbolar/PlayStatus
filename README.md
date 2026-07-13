@@ -52,17 +52,19 @@ https://github.com/user-attachments/assets/e12a56e8-de6e-460d-b323-5db9d491533c
 
 ### Install with Homebrew
 
-Once the first Homebrew release is published, install PlayStatus with:
+PlayStatus is available from the official Homebrew tap. Install it with:
 
 ```sh
 brew install --cask nbolar/playstatus/playstatus
 ```
 
+Homebrew adds the `nbolar/playstatus` tap automatically.
+
 PlayStatus uses Sparkle for normal in-app updates. If you deliberately want
 Homebrew to replace an auto-updating cask, run:
 
 ```sh
-brew upgrade --cask --greedy playstatus
+brew upgrade --cask --greedy nbolar/playstatus/playstatus
 ```
 
 ## How people use PlayStatus day to day

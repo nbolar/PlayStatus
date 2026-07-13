@@ -17,6 +17,8 @@ cask "playstatus" do
 
   app "PlayStatus.app"
 
+  uninstall quit: "com.bolar.PlayStatus"
+
   zap trash: [
     "~/Library/Application Support/PlayStatus",
     "~/Library/Preferences/com.bolar.PlayStatus.plist",
