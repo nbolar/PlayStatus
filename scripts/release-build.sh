@@ -75,7 +75,23 @@ done
 NOTARY_ZIP="$DIST_DIR/PlayStatus-$VERSION-notary.zip"
 FINAL_ZIP="$DIST_DIR/PlayStatus-$VERSION.zip"
 ditto -c -k --keepParent "$APP_PATH" "$NOTARY_ZIP"
-xcrun notarytool submit "$NOTARY_ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
+
+set +e
+NOTARY_RESULT="$(xcrun notarytool submit "$NOTARY_ZIP" --keychain-profile "$NOTARY_PROFILE" --wait 2>&1)"
+NOTARY_EXIT_CODE=$?
+set -e
+printf '%s\n' "$NOTARY_RESULT"
+
+NOTARY_SUBMISSION_ID="$(printf '%s\n' "$NOTARY_RESULT" | sed -n 's/^[[:space:]]*id: //p' | head -n 1)"
+if [[ $NOTARY_EXIT_CODE -ne 0 || "$NOTARY_RESULT" != *"status: Accepted"* ]]; then
+  if [[ -n "$NOTARY_SUBMISSION_ID" ]]; then
+    echo "Apple notarization log for submission $NOTARY_SUBMISSION_ID:" >&2
+    xcrun notarytool log "$NOTARY_SUBMISSION_ID" --keychain-profile "$NOTARY_PROFILE" || true
+  fi
+  echo "Apple notarization did not accept $NOTARY_ZIP" >&2
+  exit 1
+fi
+
 xcrun stapler staple "$APP_PATH"
 xcrun stapler validate "$APP_PATH"
 
