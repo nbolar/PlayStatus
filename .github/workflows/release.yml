@@ -1,0 +1,102 @@
+name: Release PlayStatus
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Import Developer ID certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/playstatus-build.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)$(uuidgen)"
+          echo "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/developer-id.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$KEYCHAIN_PATH" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+      - name: Configure notarization credentials
+        env:
+          APP_STORE_CONNECT_API_KEY_P8_BASE64: ${{ secrets.APPSTORE_CONNECT_API_KEY_P8_BASE64 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ vars.APPSTORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ vars.APPSTORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          echo "$APP_STORE_CONNECT_API_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          xcrun notarytool store-credentials playstatus-notary \
+            --key "$RUNNER_TEMP/AuthKey.p8" \
+            --key-id "$APP_STORE_CONNECT_KEY_ID" \
+            --issuer "$APP_STORE_CONNECT_ISSUER_ID" \
+            --keychain "$KEYCHAIN_PATH"
+
+      - name: Build, notarize, and verify release
+        id: package
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          APPLE_DEVELOPER_IDENTITY: ${{ vars.APPLE_DEVELOPER_IDENTITY }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          NOTARY_PROFILE: playstatus-notary
+          DERIVED_DATA_PATH: ${{ runner.temp }}/PlayStatusDerivedData
+          ARCHIVE_PATH: ${{ runner.temp }}/PlayStatus.xcarchive
+          DIST_DIR: ${{ runner.temp }}/PlayStatus-dist
+        run: scripts/release-build.sh
+
+      - name: Create immutable GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_ASSET: ${{ steps.package.outputs.asset_path }}
+        run: |
+          gh release create "$RELEASE_TAG" "$RELEASE_ASSET" \
+            --verify-tag \
+            --title "PlayStatus ${RELEASE_TAG#v}" \
+            --generate-notes
+
+      - name: Configure AWS credentials for Sparkle publishing
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.SPARKLE_S3_ROLE_ARN }}
+          aws-region: ${{ vars.SPARKLE_S3_REGION }}
+
+      - name: Publish Sparkle payloads and appcast
+        env:
+          VERSION: ${{ steps.package.outputs.version }}
+          RELEASE_ARCHIVE: ${{ steps.package.outputs.asset_path }}
+          RELEASE_NOTES: RELEASE_NOTES_${{ steps.package.outputs.version }}.html
+          DERIVED_DATA_PATH: ${{ steps.package.outputs.derived_data_path }}
+          SPARKLE_ED25519_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
+          SPARKLE_S3_URI: ${{ vars.SPARKLE_S3_URI }}
+          SPARKLE_PUBLIC_BASE_URL: ${{ vars.SPARKLE_PUBLIC_BASE_URL }}
+        run: scripts/publish-sparkle-appcast.sh
+
+      - name: Open vendor tap cask update pull request
+        env:
+          VERSION: ${{ steps.package.outputs.version }}
+          SHA256: ${{ steps.package.outputs.sha256 }}
+          TAP_REPOSITORY: nbolar/homebrew-playstatus
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: scripts/open-tap-cask-pr.sh
+
+      - name: Remove temporary signing keychain
+        if: always()
+        run: security delete-keychain "$KEYCHAIN_PATH" || true

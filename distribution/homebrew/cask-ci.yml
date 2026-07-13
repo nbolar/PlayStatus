@@ -1,0 +1,25 @@
+name: Validate cask
+
+on:
+  pull_request:
+    paths:
+      - "Casks/playstatus.rb"
+      - ".github/workflows/cask.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Casks/playstatus.rb"
+
+jobs:
+  validate:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit cask
+        run: brew audit --cask --strict Casks/playstatus.rb
+      - name: Install and uninstall cask
+        run: |
+          brew install --cask ./Casks/playstatus.rb
+          test -d "/Applications/PlayStatus.app"
+          brew uninstall --cask --force playstatus
+          test ! -d "/Applications/PlayStatus.app"

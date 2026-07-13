@@ -1,0 +1,24 @@
+cask "playstatus" do
+  version "__VERSION__"
+  sha256 "__SHA256__"
+
+  url "https://github.com/nbolar/PlayStatus/releases/download/v#{version}/PlayStatus-#{version}.zip"
+  name "PlayStatus"
+  desc "Menu bar music controls and now-playing information"
+  homepage "https://github.com/nbolar/PlayStatus"
+
+  livecheck do
+    url :url
+    strategy :github_latest
+  end
+
+  auto_updates true
+  depends_on macos: :sequoia
+
+  app "PlayStatus.app"
+
+  zap trash: [
+    "~/Library/Application Support/PlayStatus",
+    "~/Library/Preferences/com.bolar.PlayStatus.plist",
+  ]
+end

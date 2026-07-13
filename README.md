@@ -1,7 +1,7 @@
 #![playstatus_header](https://user-images.githubusercontent.com/45484873/56880861-09cb3980-6a67-11e9-9d45-037a9165b212.png)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) 
-[![Version: 3.0.2](https://img.shields.io/badge/Version-3.0.2-green.svg)](https://github.com/nbolar/PlayStatus/releases) 
+[![Version: 3.0.3](https://img.shields.io/badge/Version-3.0.3-green.svg)](https://github.com/nbolar/PlayStatus/releases)
 [![Platform](http://img.shields.io/badge/platform-macOS-black.svg?style=flat)](https://developer.apple.com/resources/)
 [![Platform](https://img.shields.io/badge/swiftUI-blue.svg?style=flat)](https://developer.apple.com/swiftui/)
 [![Open Source Love svg1](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/nbolar/playstatus/)
@@ -49,6 +49,21 @@ https://github.com/user-attachments/assets/e12a56e8-de6e-460d-b323-5db9d491533c
 3. When macOS asks for Automation permission, allow PlayStatus to control Music and/or Spotify.
 4. If no prompt appears, retry once and then check `System Settings -> Privacy & Security -> Automation`.
 5. Use the walkthrough to set your preferred provider, display mode, theme, animated artwork, and launch-at-login behavior before closing the window.
+
+### Install with Homebrew
+
+Once the first Homebrew release is published, install PlayStatus with:
+
+```sh
+brew install --cask nbolar/playstatus/playstatus
+```
+
+PlayStatus uses Sparkle for normal in-app updates. If you deliberately want
+Homebrew to replace an auto-updating cask, run:
+
+```sh
+brew upgrade --cask --greedy playstatus
+```
 
 ## How people use PlayStatus day to day
 
@@ -162,4 +177,3 @@ The new SwiftUI version includes a dedicated walkthrough window for both first-r
 - Supported providers: `Apple Music`, `Spotify`
 - Update flow: Sparkle-based in-app update checks remain supported
 - License: `MIT`
-
