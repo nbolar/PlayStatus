@@ -11,14 +11,13 @@ require_value() {
 
 require_value VERSION
 require_value RELEASE_ARCHIVE
-require_value RELEASE_NOTES
 require_value DERIVED_DATA_PATH
 require_value SPARKLE_ED25519_PRIVATE_KEY
 require_value SPARKLE_S3_URI
 require_value SPARKLE_PUBLIC_BASE_URL
 
-if [[ ! -f "$RELEASE_ARCHIVE" || ! -f "$RELEASE_NOTES" ]]; then
-  echo "Release archive and matching HTML release notes must exist" >&2
+if [[ ! -f "$RELEASE_ARCHIVE" ]]; then
+  echo "Release archive must exist" >&2
   exit 1
 fi
 
@@ -35,7 +34,16 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 # generate delta updates. Never use --delete against the production bucket.
 aws s3 sync "$SPARKLE_S3_URI" "$WORK_DIR" --exclude "old_updates/*"
 cp "$RELEASE_ARCHIVE" "$WORK_DIR/PlayStatus-$VERSION.zip"
-cp "$RELEASE_NOTES" "$WORK_DIR/PlayStatus-$VERSION.html"
+if [[ -n "${RELEASE_NOTES:-}" ]]; then
+  if [[ ! -f "$RELEASE_NOTES" ]]; then
+    echo "Specified release notes file does not exist: $RELEASE_NOTES" >&2
+    exit 1
+  fi
+  cp "$RELEASE_NOTES" "$WORK_DIR/PlayStatus-$VERSION.html"
+elif [[ ! -f "$WORK_DIR/PlayStatus-$VERSION.html" ]]; then
+  echo "Release notes are required for a new release; add a body to the annotated $VERSION tag" >&2
+  exit 1
+fi
 
 printf '%s' "$SPARKLE_ED25519_PRIVATE_KEY" |
   "$GENERATE_APPCAST" \

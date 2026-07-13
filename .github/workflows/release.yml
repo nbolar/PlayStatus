@@ -72,12 +72,31 @@ jobs:
           DIST_DIR: ${{ runner.temp }}/PlayStatus-dist
         run: scripts/release-build.sh
 
+      - name: Render annotated tag release notes
+        id: release_notes
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+          VERSION: ${{ steps.package.outputs.version }}
+          RELEASE_NOTES_MARKDOWN: ${{ runner.temp }}/PlayStatus-release-notes.md
+          RELEASE_NOTES_HTML: ${{ runner.temp }}/PlayStatus-release-notes.html
+        run: |
+          if git for-each-ref --format='%(contents:body)' "refs/tags/$RELEASE_TAG" | grep -q '[^[:space:]]'; then
+            scripts/render-tag-release-notes.sh
+            echo "has_notes=true" >> "$GITHUB_OUTPUT"
+          else
+            # An existing release can be safely retried with the HTML already
+            # retained in S3. New releases must provide a tag-note body below.
+            echo "has_notes=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create immutable GitHub Release
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
           RELEASE_ASSET: ${{ steps.package.outputs.asset_path }}
+          RELEASE_NOTES_MARKDOWN: ${{ steps.release_notes.outputs.markdown_path }}
+          HAS_RELEASE_NOTES: ${{ steps.release_notes.outputs.has_notes }}
         run: |
           set -euo pipefail
           ASSET_NAME="$(basename "$RELEASE_ASSET")"
@@ -86,10 +105,14 @@ jobs:
             gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fx "$ASSET_NAME" >/dev/null
             echo "Retaining existing immutable GitHub Release asset: $ASSET_NAME"
           else
+            if [[ "$HAS_RELEASE_NOTES" != "true" ]]; then
+              echo "New release tags must include a non-empty annotated-tag body with release notes." >&2
+              exit 1
+            fi
             gh release create "$RELEASE_TAG" "$RELEASE_ASSET" \
               --verify-tag \
               --title "PlayStatus ${RELEASE_TAG#v}" \
-              --generate-notes
+              --notes-file "$RELEASE_NOTES_MARKDOWN"
           fi
 
           PUBLISHED_ASSET_DIR="$RUNNER_TEMP/published-release-asset"
@@ -109,7 +132,7 @@ jobs:
         env:
           VERSION: ${{ steps.package.outputs.version }}
           RELEASE_ARCHIVE: ${{ steps.release.outputs.asset_path }}
-          RELEASE_NOTES: RELEASE_NOTES_${{ steps.package.outputs.version }}.html
+          RELEASE_NOTES: ${{ steps.release_notes.outputs.html_path }}
           DERIVED_DATA_PATH: ${{ steps.package.outputs.derived_data_path }}
           SPARKLE_ED25519_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
           SPARKLE_S3_URI: ${{ vars.SPARKLE_S3_URI }}
