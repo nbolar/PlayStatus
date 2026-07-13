@@ -47,8 +47,11 @@ xcodebuild \
   -configuration Release \
   -derivedDataPath "$DERIVED_DATA_PATH" \
   -archivePath "$ARCHIVE_PATH" \
-  -xcconfig config/Distribution.xcconfig \
   archive \
+  ARCHS="arm64 x86_64" \
+  ONLY_ACTIVE_ARCH=NO \
+  CODE_SIGN_STYLE=Manual \
+  ENABLE_HARDENED_RUNTIME=YES \
   APPLE_DEVELOPER_IDENTITY="$APPLE_DEVELOPER_IDENTITY" \
   CODE_SIGN_IDENTITY="$APPLE_DEVELOPER_IDENTITY" \
   DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
