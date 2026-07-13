@@ -33,7 +33,10 @@ jobs:
           security import "$RUNNER_TEMP/developer-id.p12" -k "$KEYCHAIN_PATH" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          APPLE_DEVELOPER_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -n 1)"
+          test -n "$APPLE_DEVELOPER_IDENTITY"
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "APPLE_DEVELOPER_IDENTITY=$APPLE_DEVELOPER_IDENTITY" >> "$GITHUB_ENV"
 
       - name: Configure notarization credentials
         env:
@@ -53,7 +56,6 @@ jobs:
         id: package
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-          APPLE_DEVELOPER_IDENTITY: ${{ vars.APPLE_DEVELOPER_IDENTITY }}
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           NOTARY_PROFILE: playstatus-notary
           DERIVED_DATA_PATH: ${{ runner.temp }}/PlayStatusDerivedData
