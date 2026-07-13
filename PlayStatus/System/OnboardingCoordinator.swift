@@ -123,6 +123,7 @@ enum CoachmarkID: String, CaseIterable, Hashable {
 
 }
 
+@MainActor
 final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate {
     static let shared = OnboardingCoordinator()
 
