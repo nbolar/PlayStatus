@@ -14,6 +14,9 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private let iconView = PassthroughImageView()
     private let marqueeView = StatusBarMarqueeView()
     private let iconSize: CGFloat = 13
+    private let statusIconLeadingInset: CGFloat = 4
+    private let statusIconTextSpacing: CGFloat = 5
+    private let statusTextTrailingInset: CGFloat = 4
     private var lastStatusLength: CGFloat = -1
     private var lastStatusIcon: ProviderIconKind?
     private var lastAppliedPopoverSize: NSSize = .zero
@@ -372,20 +375,27 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         )
         let effectiveLaneWidth = floor(min(configuredLaneWidth, max(24, actualTextWidth + 2)))
 
-        let desiredLength = effectiveLaneWidth + 8
+        // The icon and marquee are custom button subviews, so their complete
+        // horizontal layout must fit inside the status item. Reserving only the
+        // text lane clips long titles as soon as they reach the configured width.
+        let desiredLength = statusIconLeadingInset
+            + iconSize
+            + statusIconTextSpacing
+            + effectiveLaneWidth
+            + statusTextTrailingInset
         if abs(lastStatusLength - desiredLength) > 0.1 {
             statusItem.length = desiredLength
             lastStatusLength = desiredLength
         }
         let iconY = floor((button.bounds.height - iconSize) / 2)
-        iconView.frame = CGRect(x: 4, y: iconY, width: iconSize, height: iconSize)
+        iconView.frame = CGRect(x: statusIconLeadingInset, y: iconY, width: iconSize, height: iconSize)
         marqueeView.isHidden = false
         button.image = nil
         button.attributedTitle = NSAttributedString(string: "")
         button.title = ""
 
         let laneHeight: CGFloat = 16
-        let x = floor(iconView.frame.maxX + 5)
+        let x = floor(iconView.frame.maxX + statusIconTextSpacing)
         let y = floor((button.bounds.height - laneHeight) / 2)
         let targetFrame = CGRect(x: x, y: y, width: effectiveLaneWidth, height: laneHeight)
         if !marqueeView.frame.equalTo(targetFrame) {

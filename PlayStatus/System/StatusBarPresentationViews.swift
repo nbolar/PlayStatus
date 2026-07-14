@@ -11,6 +11,7 @@ final class StatusBarMarqueeView: NSView {
     private let contentLayer = CALayer()
     private let primaryTextLayer = CATextLayer()
     private let secondaryTextLayer = CATextLayer()
+    private let staticTextLabel = NSTextField(labelWithString: "")
 
     private let font = NSFont.systemFont(ofSize: 13, weight: .regular)
     private let gap: CGFloat = 36
@@ -40,6 +41,10 @@ final class StatusBarMarqueeView: NSView {
         contentLayer.addSublayer(primaryTextLayer)
         contentLayer.addSublayer(secondaryTextLayer)
         secondaryTextLayer.isHidden = true
+
+        configureStaticTextLabel()
+        addSubview(staticTextLabel)
+        staticTextLabel.isHidden = true
         updateContentsScale()
     }
 
@@ -100,7 +105,9 @@ final class StatusBarMarqueeView: NSView {
         currentSignature = ""
         shouldScroll = false
         contentLayer.frame = CGRect(x: 0, y: floor((bounds.height - textHeight) / 2), width: laneWidth, height: textHeight)
+        primaryTextLayer.isHidden = true
         secondaryTextLayer.isHidden = true
+        staticTextLabel.isHidden = true
         updateLayerFrames()
     }
 
@@ -111,30 +118,49 @@ final class StatusBarMarqueeView: NSView {
         textLayer.foregroundColor = resolvedTextColor().cgColor
     }
 
+    private func configureStaticTextLabel() {
+        staticTextLabel.font = font
+        staticTextLabel.isBezeled = false
+        staticTextLabel.isEditable = false
+        staticTextLabel.isSelectable = false
+        staticTextLabel.drawsBackground = false
+        staticTextLabel.usesSingleLineMode = true
+        staticTextLabel.maximumNumberOfLines = 1
+        staticTextLabel.alignment = .left
+        staticTextLabel.lineBreakMode = .byTruncatingTail
+        staticTextLabel.cell?.truncatesLastVisibleLine = true
+        staticTextLabel.wantsLayer = true
+    }
+
     private func applyText(animateTransition: Bool) {
         let textColor = resolvedTextColor()
-        let primaryAttributes = textAttributes(truncates: !shouldScroll, textColor: textColor)
-        let scrollingAttributes = textAttributes(truncates: false, textColor: textColor)
+        let attributes = textAttributes(textColor: textColor)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         primaryTextLayer.foregroundColor = textColor.cgColor
         secondaryTextLayer.foregroundColor = textColor.cgColor
+        primaryTextLayer.isHidden = !shouldScroll
         primaryTextLayer.string = NSAttributedString(
             string: resolvedText,
-            attributes: shouldScroll ? scrollingAttributes : primaryAttributes
+            attributes: attributes
         )
         secondaryTextLayer.string = NSAttributedString(
             string: resolvedText,
-            attributes: scrollingAttributes
+            attributes: attributes
         )
         CATransaction.commit()
+
+        staticTextLabel.stringValue = resolvedText
+        staticTextLabel.textColor = textColor
+        staticTextLabel.isHidden = shouldScroll
 
         if animateTransition {
             let transition = CATransition()
             transition.duration = 0.20
             transition.type = .fade
             transition.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            contentLayer.add(transition, forKey: titleChangeAnimationKey)
+            let animatedLayer = shouldScroll ? contentLayer : staticTextLabel.layer
+            animatedLayer?.add(transition, forKey: titleChangeAnimationKey)
         }
     }
 
@@ -153,11 +179,13 @@ final class StatusBarMarqueeView: NSView {
             primaryTextLayer.frame = CGRect(x: 0, y: 0, width: textWidth + 2, height: textHeight)
             secondaryTextLayer.frame = CGRect(x: cycle, y: 0, width: textWidth + 2, height: textHeight)
             secondaryTextLayer.isHidden = false
+            staticTextLabel.frame = .zero
         } else {
             contentLayer.frame = CGRect(x: 0, y: y, width: laneWidth, height: textHeight)
-            primaryTextLayer.frame = CGRect(x: 0, y: 0, width: laneWidth, height: textHeight)
+            primaryTextLayer.frame = .zero
             secondaryTextLayer.frame = .zero
             secondaryTextLayer.isHidden = true
+            staticTextLabel.frame = CGRect(x: 0, y: y, width: laneWidth, height: textHeight)
         }
         CATransaction.commit()
     }
@@ -206,13 +234,10 @@ final class StatusBarMarqueeView: NSView {
         secondaryTextLayer.contentsScale = scale
     }
 
-    private func textAttributes(truncates: Bool, textColor: NSColor) -> [NSAttributedString.Key: Any] {
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineBreakMode = truncates ? .byTruncatingTail : .byClipping
+    private func textAttributes(textColor: NSColor) -> [NSAttributedString.Key: Any] {
         return [
             .font: font,
-            .foregroundColor: textColor,
-            .paragraphStyle: paragraph
+            .foregroundColor: textColor
         ]
     }
 
