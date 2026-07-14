@@ -1,4 +1,4 @@
-#![playstatus_header](https://user-images.githubusercontent.com/45484873/56880861-09cb3980-6a67-11e9-9d45-037a9165b212.png)
+![playstatus_header](https://user-images.githubusercontent.com/45484873/56880861-09cb3980-6a67-11e9-9d45-037a9165b212.png)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) 
 [![Version: 3.0.5](https://img.shields.io/badge/Version-3.0.5-green.svg)](https://github.com/nbolar/PlayStatus/releases)
