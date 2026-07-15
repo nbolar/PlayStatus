@@ -143,7 +143,6 @@ struct ControlsRow: View {
 
 struct OutputControlsRow: View {
     @ObservedObject var model: NowPlayingModel
-    let showDeviceName: Bool
     var contrastBoost: Double = 0
     var controlScale: CGFloat = 1
     var showFavorite: Bool = false
@@ -203,7 +202,6 @@ struct OutputControlsRow: View {
                 .foregroundStyle(controlForeground.opacity(0.90))
                 .padding(.horizontal, 8 * clampedControlScale)
                 .padding(.vertical, 5 * clampedControlScale)
-                .frame(maxWidth: showDeviceName ? (168 * clampedControlScale) : nil, alignment: .leading)
                 .background(Capsule().fill(Color.primary.opacity(controlFillOpacity)))
                 .overlay(Capsule().stroke(.white.opacity(controlStrokeOpacity), lineWidth: 1))
             }

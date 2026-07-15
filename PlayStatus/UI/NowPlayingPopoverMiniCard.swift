@@ -561,7 +561,6 @@ struct MiniNowPlayingCard: View {
 
                         OutputControlsRow(
                             model: model,
-                            showDeviceName: false,
                             contrastBoost: miniInfoBandContrastBoost,
                             controlScale: miniControlScale,
                             showFavorite: model.canFavoriteCurrentTrack,

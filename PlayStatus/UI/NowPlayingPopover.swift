@@ -518,7 +518,6 @@ struct NowPlayingPopover: View {
 
             OutputControlsRow(
                 model: model,
-                showDeviceName: true,
                 contrastBoost: regularControlContrastBoost,
                 controlScale: regularControlScale,
                 showFavorite: model.canFavoriteCurrentTrack,
