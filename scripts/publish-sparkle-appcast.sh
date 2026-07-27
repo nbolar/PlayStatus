@@ -30,6 +30,7 @@ fi
 
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
+RELEASE_NOTES_FILENAME="PlayStatus-$VERSION-build$BUILD_NUMBER.html"
 
 # Keep historical archives locally: Sparkle uses them to preserve history and
 # generate delta updates. Never use --delete against the production bucket.
@@ -40,8 +41,8 @@ if [[ -n "${RELEASE_NOTES:-}" ]]; then
     echo "Specified release notes file does not exist: $RELEASE_NOTES" >&2
     exit 1
   fi
-  cp "$RELEASE_NOTES" "$WORK_DIR/PlayStatus-$VERSION.html"
-elif [[ ! -f "$WORK_DIR/PlayStatus-$VERSION.html" ]]; then
+  cp "$RELEASE_NOTES" "$WORK_DIR/$RELEASE_NOTES_FILENAME"
+elif [[ ! -f "$WORK_DIR/$RELEASE_NOTES_FILENAME" ]]; then
   echo "Release notes are required for a new release; add a body to the annotated $VERSION tag" >&2
   exit 1
 fi
@@ -58,12 +59,11 @@ printf '%s' "$SPARKLE_ED25519_PRIVATE_KEY" |
 # Release-note files are immutable artifacts and therefore cache aggressively.
 # Point the appcast at the content hash so a corrected document is never hidden
 # behind an earlier WebKit/S3 cache entry using the same object key.
-RELEASE_NOTES_PATH="$WORK_DIR/PlayStatus-$VERSION.html"
+RELEASE_NOTES_PATH="$WORK_DIR/$RELEASE_NOTES_FILENAME"
 RELEASE_NOTES_HASH="$(shasum -a 256 "$RELEASE_NOTES_PATH" | awk '{print $1}')"
-ruby - "$WORK_DIR/appcast.xml" "$VERSION" "$RELEASE_NOTES_HASH" <<'RUBY'
-appcast_path, version, notes_hash = ARGV
+ruby - "$WORK_DIR/appcast.xml" "$RELEASE_NOTES_FILENAME" "$RELEASE_NOTES_HASH" <<'RUBY'
+appcast_path, filename, notes_hash = ARGV
 xml = File.read(appcast_path)
-filename = "PlayStatus-#{version}.html"
 cache_busted_filename = "#{filename}?notes=#{notes_hash}"
 abort "Current release notes link was not found in appcast." unless xml.sub!(filename, cache_busted_filename)
 File.write(appcast_path, xml)
