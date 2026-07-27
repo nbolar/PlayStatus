@@ -37,7 +37,6 @@ struct MiniNowPlayingCard: View {
     let startExpandedOnAppear: Bool
     let onInitialExpandConsumed: () -> Void
     let onToggleMode: () -> Void
-    @Environment(\.colorScheme) private var colorScheme
     @State private var pointerHovering = false
     @State private var forceExpandedUntilPointerExit = false
     @State private var showMiniLyricsPane = false
@@ -403,14 +402,14 @@ struct MiniNowPlayingCard: View {
                 SettingsOpenControl {
                     Image(systemName: "gearshape.fill")
                         .font(.system(size: 16 * miniControlScale, weight: .semibold))
-                        .foregroundStyle(colorScheme == .dark ? .white.opacity(0.94) : .primary.opacity(0.80))
+                        .foregroundStyle(ArtworkPlayerControlPalette.icon())
                         .frame(
                             width: 26 * miniControlScale,
                             height: 26 * miniControlScale
                         )
-                        .background(Circle().fill(colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.055)))
+                        .background(Circle().fill(ArtworkPlayerControlPalette.fill()))
                         .overlay(
-                            Circle().stroke(colorScheme == .dark ? Color.white.opacity(0.18) : Color.black.opacity(0.09), lineWidth: 1)
+                            Circle().stroke(ArtworkPlayerControlPalette.stroke(), lineWidth: 1)
                         )
                 }
                 .buttonStyle(.plain)

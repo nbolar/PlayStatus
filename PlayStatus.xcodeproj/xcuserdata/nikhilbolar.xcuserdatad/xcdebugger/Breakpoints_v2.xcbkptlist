@@ -16,7 +16,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "810"
             endingLineNumber = "810"
-            landmarkName = "makeNSView(context:)"
+            landmarkName = "updateNSView(_:context:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

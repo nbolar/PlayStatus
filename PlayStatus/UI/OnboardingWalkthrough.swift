@@ -280,11 +280,9 @@ struct OnboardingWalkthroughView: View {
 
     private func connect(_ provider: NowPlayingProvider) {
         setConnectionState(.testing, for: provider)
-        coordinator.openProvider(provider)
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) {
-            let connected = coordinator.probeAutomation(for: provider)
+        coordinator.connectAndProbeAutomation(for: provider) { connected in
             if connected {
+                NowPlayingModel.shared.refresh()
                 setConnectionState(.connected("Connected and ready for \(provider.displayName)."), for: provider)
             } else if !coordinator.providerIsInstalled(provider) {
                 setConnectionState(.attention("\(provider.displayName) is not installed on this Mac."), for: provider)

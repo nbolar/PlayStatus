@@ -1,6 +1,26 @@
 import SwiftUI
 import AppKit
 
+enum ArtworkPlayerControlPalette {
+    static let activeAccent = Color(red: 0.68, green: 0.88, blue: 1.0)
+
+    static func icon(isActive: Bool = false) -> Color {
+        isActive ? activeAccent : .white.opacity(0.94)
+    }
+
+    static func fill(isActive: Bool = false, contrastBoost: Double = 0) -> Color {
+        let clampedContrast = min(max(contrastBoost, 0), 1)
+        let opacity = min(0.36, (isActive ? 0.18 : 0.24) + (0.10 * clampedContrast))
+        return (isActive ? activeAccent : .black).opacity(opacity)
+    }
+
+    static func stroke(isActive: Bool = false, isHovering: Bool = false, contrastBoost: Double = 0) -> Color {
+        let clampedContrast = min(max(contrastBoost, 0), 1)
+        let opacity = min(0.42, (isHovering ? 0.34 : 0.20) + (0.08 * clampedContrast))
+        return (isActive ? activeAccent : .white).opacity(opacity)
+    }
+}
+
 private struct DetailPaneSurfaceAppearance {
     let colorScheme: ColorScheme
     let glassTint: Color
@@ -404,12 +424,12 @@ struct ModeToggleControl: View {
         Button(action: action) {
             Image(systemName: isMiniMode ? "rectangle.compress.vertical" : "rectangle.expand.vertical")
                 .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.94))
+                .foregroundStyle(ArtworkPlayerControlPalette.icon())
                 .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
-                .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
+                .background(Circle().fill(ArtworkPlayerControlPalette.fill(contrastBoost: clampedContrast)))
                 .overlay(
                     Circle()
-                        .stroke(.white.opacity(min(0.32, (hovering ? 0.24 : 0.16) + (0.08 * clampedContrast))), lineWidth: 1)
+                        .stroke(ArtworkPlayerControlPalette.stroke(isHovering: hovering, contrastBoost: clampedContrast), lineWidth: 1)
                 )
                 .scaleEffect(hovering ? 1.06 : 1.0)
         }
@@ -447,12 +467,12 @@ struct DetachedSurfaceToggleControl: View {
         Button(action: action) {
             Image(systemName: isDetachedMode ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                 .font(.system(size: 15 * clampedSizeScale, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.94))
+                .foregroundStyle(ArtworkPlayerControlPalette.icon())
                 .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
-                .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
+                .background(Circle().fill(ArtworkPlayerControlPalette.fill(contrastBoost: clampedContrast)))
                 .overlay(
                     Circle()
-                        .stroke(.white.opacity(min(0.32, (hovering ? 0.24 : 0.16) + (0.08 * clampedContrast))), lineWidth: 1)
+                        .stroke(ArtworkPlayerControlPalette.stroke(isHovering: hovering, contrastBoost: clampedContrast), lineWidth: 1)
                 )
                 .scaleEffect(hovering ? 1.06 : 1.0)
         }
@@ -488,12 +508,12 @@ struct DetachedWindowPinControl: View {
         Button(action: action) {
             Image(systemName: isPinned ? "pin.fill" : "pin")
                 .font(.system(size: 14 * clampedSizeScale, weight: .semibold))
-                .foregroundStyle(.white.opacity(isPinned ? 0.98 : 0.90))
+                .foregroundStyle(ArtworkPlayerControlPalette.icon(isActive: isPinned))
                 .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
-                .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
+                .background(Circle().fill(ArtworkPlayerControlPalette.fill(isActive: isPinned, contrastBoost: clampedContrast)))
                 .overlay(
                     Circle()
-                        .stroke(.white.opacity(min(0.32, (hovering ? 0.24 : 0.16) + (0.08 * clampedContrast))), lineWidth: 1)
+                        .stroke(ArtworkPlayerControlPalette.stroke(isActive: isPinned, isHovering: hovering, contrastBoost: clampedContrast), lineWidth: 1)
                 )
                 .scaleEffect(hovering ? 1.06 : 1.0)
         }
@@ -528,12 +548,12 @@ struct DetachedWindowCloseControl: View {
         Button(action: action) {
             Image(systemName: "xmark")
                 .font(.system(size: 14 * clampedSizeScale, weight: .bold))
-                .foregroundStyle(.white.opacity(0.94))
+                .foregroundStyle(ArtworkPlayerControlPalette.icon())
                 .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
-                .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
+                .background(Circle().fill(ArtworkPlayerControlPalette.fill(contrastBoost: clampedContrast)))
                 .overlay(
                     Circle()
-                        .stroke(.white.opacity(min(0.32, (hovering ? 0.24 : 0.16) + (0.08 * clampedContrast))), lineWidth: 1)
+                        .stroke(ArtworkPlayerControlPalette.stroke(isHovering: hovering, contrastBoost: clampedContrast), lineWidth: 1)
                 )
                 .scaleEffect(hovering ? 1.06 : 1.0)
         }
@@ -559,35 +579,22 @@ struct MiniDetailToggleControl: View {
     let transitionActive: Bool
     var sizeScale: CGFloat = 1
     let action: () -> Void
-    @Environment(\.colorScheme) private var colorScheme
     @State private var hovering = false
 
     private var clampedSizeScale: CGFloat {
         min(max(sizeScale, 0.80), 1.20)
     }
 
-    private var iconStyle: Color {
-        colorScheme == .dark ? .white.opacity(isOn ? 0.98 : 0.90) : .primary.opacity(isOn ? 0.90 : 0.74)
-    }
-
-    private var fillStyle: Color {
-        colorScheme == .dark ? .white.opacity(0.14) : .black.opacity(isOn ? 0.075 : 0.045)
-    }
-
-    private var strokeStyle: Color {
-        colorScheme == .dark ? .white.opacity(hovering ? 0.24 : 0.16) : .black.opacity(hovering ? 0.14 : 0.08)
-    }
-
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
-                .foregroundStyle(iconStyle)
+                .foregroundStyle(ArtworkPlayerControlPalette.icon(isActive: isOn))
                 .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
-                .background(Circle().fill(fillStyle))
+                .background(Circle().fill(ArtworkPlayerControlPalette.fill(isActive: isOn)))
                 .overlay(
                     Circle()
-                        .stroke(strokeStyle, lineWidth: 1)
+                        .stroke(ArtworkPlayerControlPalette.stroke(isActive: isOn, isHovering: hovering), lineWidth: 1)
                 )
                 .scaleEffect(hovering ? 1.06 : 1.0)
         }

@@ -450,16 +450,7 @@ struct SettingsSidebar: View {
             .padding(12)
         }
         .frame(width: 230, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(nsColor: .underPageBackgroundColor).opacity(0.85),
-                    Color(nsColor: .controlBackgroundColor).opacity(0.80)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 

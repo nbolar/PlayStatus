@@ -9,6 +9,8 @@
 	</dict>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>PlayStatus needs permission to read playback information from and control Music and Spotify.</string>
 	<key>SUFeedURL</key>
 	<string>https://s3.us-east-2.amazonaws.com/com.bolar.playstatus/appcast.xml</string>
 	<key>SUPublicEDKey</key>

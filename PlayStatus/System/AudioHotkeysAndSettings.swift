@@ -80,16 +80,7 @@ struct PlayStatusSettingsView: View {
                         scrollProxy.scrollTo("settings-top", anchor: .top)
                     }
                 }
-                .background(
-                    LinearGradient(
-                        colors: [
-                            Color(nsColor: .windowBackgroundColor),
-                            Color(nsColor: .underPageBackgroundColor).opacity(0.65)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .background(Color(nsColor: .windowBackgroundColor))
             }
         }
     }

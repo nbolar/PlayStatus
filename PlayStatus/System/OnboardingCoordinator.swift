@@ -139,6 +139,9 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
     private let dismissedCoachmarksKey = "playstatus.onboarding.dismissedCoachmarks"
     private let debugCoachmarksEnabledKey = "playstatus.onboarding.debugCoachmarksEnabled"
     private let windowAutosaveName = "PlayStatusOnboardingWindow"
+    private let automationProbeInitialDelay: TimeInterval = 0.35
+    private let automationProbeRetryDelay: TimeInterval = 0.50
+    private let automationProbeMaximumAttempts = 10
     private let settingsMarkerKeys = [
         "enableMusic",
         "enableSpotify",
@@ -332,16 +335,68 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
         NSWorkspace.shared.openApplication(at: url, configuration: .init(), completionHandler: nil)
     }
 
+    func connectAndProbeAutomation(
+        for provider: NowPlayingProvider,
+        completion: @escaping (Bool) -> Void
+    ) {
+        guard providerIsInstalled(provider) else {
+            completion(false)
+            return
+        }
+
+        openProvider(provider)
+        probeAutomationWhenReady(for: provider, attempt: 0, completion: completion)
+    }
+
     func probeAutomation(for provider: NowPlayingProvider) -> Bool {
         let script: String
         switch provider {
         case .music, .none:
-            script = #"tell application "Music" to get player state as string"#
+            script = #"tell application id "com.apple.Music" to get player state as string"#
         case .spotify:
-            script = #"tell application "Spotify" to get player state as string"#
+            script = #"tell application id "com.spotify.client" to get player state as string"#
         }
 
         return runAppleScriptDescriptor(script) != nil
+    }
+
+    private func probeAutomationWhenReady(
+        for provider: NowPlayingProvider,
+        attempt: Int,
+        completion: @escaping (Bool) -> Void
+    ) {
+        let delay = attempt == 0 ? automationProbeInitialDelay : automationProbeRetryDelay
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self else { return }
+
+            let isReady = self.providerIsRunning(provider)
+            let isConnected = isReady && self.probeAutomation(for: provider)
+            if isConnected || attempt >= self.automationProbeMaximumAttempts {
+                completion(isConnected)
+                return
+            }
+
+            self.probeAutomationWhenReady(
+                for: provider,
+                attempt: attempt + 1,
+                completion: completion
+            )
+        }
+    }
+
+    private func providerIsRunning(_ provider: NowPlayingProvider) -> Bool {
+        NSRunningApplication
+            .runningApplications(withBundleIdentifier: bundleIdentifier(for: provider))
+            .contains(where: { !$0.isTerminated })
+    }
+
+    private func bundleIdentifier(for provider: NowPlayingProvider) -> String {
+        switch provider {
+        case .music, .none:
+            return "com.apple.Music"
+        case .spotify:
+            return "com.spotify.client"
+        }
     }
 
     func shouldForceModeCoachmarkControls() -> Bool {
