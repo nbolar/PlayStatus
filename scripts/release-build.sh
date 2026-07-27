@@ -85,6 +85,10 @@ sign_app_with_developer_id() {
     "$APP_PATH"
 }
 
+require_automation_entitlement "$APP_PATH"
+APP_ENTITLEMENTS="$DIST_DIR/PlayStatus.app.entitlements.plist"
+export_entitlements "$APP_PATH" "$APP_ENTITLEMENTS"
+
 # Xcode signs the Sparkle framework itself but does not timestamp every nested
 # executable in its prebuilt XCFramework. Notarization requires each of these
 # components to carry this app's Developer ID signature and secure timestamp.
@@ -110,9 +114,6 @@ if [[ -d "$SPARKLE_FRAMEWORK" ]]; then
 fi
 
 # Re-seal the app after its embedded framework has been re-signed.
-require_automation_entitlement "$APP_PATH"
-APP_ENTITLEMENTS="$DIST_DIR/PlayStatus.app.entitlements.plist"
-export_entitlements "$APP_PATH" "$APP_ENTITLEMENTS"
 sign_app_with_developer_id
 codesign -d --verbose=4 "$APP_PATH" 2>&1 | grep -q 'Timestamp='
 codesign --verify --deep --strict --verbose=4 "$APP_PATH"
