@@ -23,7 +23,7 @@ jobs:
         with:
           fetch-depth: 0
           # Render with the current, reviewed release automation. Tag/version
-          # validation below still reads the immutable tag itself.
+          # validation below still reads the tagged source itself.
           ref: ${{ github.event.repository.default_branch }}
 
       - name: Validate published release tag
@@ -36,17 +36,19 @@ jobs:
           gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft | grep -Fx false >/dev/null
           VERSION="$(scripts/validate-release-tag.sh "$RELEASE_TAG")"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build_number=$(scripts/release-build-number.sh "$RELEASE_TAG")" >> "$GITHUB_OUTPUT"
 
-      - name: Download and validate immutable release archive
+      - name: Download and validate the release archive
         id: archive
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
           VERSION: ${{ steps.tag.outputs.version }}
+          BUILD_NUMBER: ${{ steps.tag.outputs.build_number }}
         run: |
           set -euo pipefail
           ARCHIVE_DIR="$RUNNER_TEMP/published-release-asset"
-          ARCHIVE_NAME="PlayStatus-$VERSION.zip"
+          ARCHIVE_NAME="PlayStatus-$VERSION-build$BUILD_NUMBER.zip"
           mkdir -p "$ARCHIVE_DIR"
           gh release download "$RELEASE_TAG" --pattern "$ARCHIVE_NAME" --dir "$ARCHIVE_DIR"
           ARCHIVE_PATH="$ARCHIVE_DIR/$ARCHIVE_NAME"
@@ -84,6 +86,7 @@ jobs:
       - name: Publish Sparkle payloads and appcast
         env:
           VERSION: ${{ steps.tag.outputs.version }}
+          BUILD_NUMBER: ${{ steps.tag.outputs.build_number }}
           RELEASE_ARCHIVE: ${{ steps.archive.outputs.asset_path }}
           RELEASE_NOTES: ${{ steps.release_notes.outputs.html_path }}
           DERIVED_DATA_PATH: ${{ runner.temp }}/PlayStatusDerivedData
@@ -103,6 +106,7 @@ jobs:
       - name: Open vendor tap cask update pull request
         env:
           VERSION: ${{ steps.tag.outputs.version }}
+          BUILD_NUMBER: ${{ steps.tag.outputs.build_number }}
           SHA256: ${{ steps.archive.outputs.sha256 }}
           TAP_REPOSITORY: nbolar/homebrew-playstatus
           TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

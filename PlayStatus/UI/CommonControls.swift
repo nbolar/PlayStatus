@@ -209,6 +209,10 @@ struct OutputControlsRow: View {
             .menuIndicator(.hidden)
             .tint(controlForeground.opacity(0.90))
             .buttonStyle(.plain)
+            // Menu derives a wide ideal width from its item content. Keep its
+            // hit target aligned to the icon control so it cannot consume the
+            // volume slider's lane in compact player surfaces.
+            .fixedSize(horizontal: true, vertical: false)
 
             Button {
                 model.toggleOutputMute()
@@ -230,8 +234,10 @@ struct OutputControlsRow: View {
                 in: 0...1
             )
             .frame(minWidth: 84 * clampedControlScale, maxWidth: .infinity)
+            .layoutPriority(1)
             .tint(controlForeground.opacity(0.88))
             .opacity(model.outputMuted ? 0.55 : 1.0)
+            .accessibilityLabel("Output volume")
 
             if showFavorite, let onFavorite {
                 GlassButton(

@@ -10,6 +10,7 @@ require_value() {
 }
 
 require_value VERSION
+require_value BUILD_NUMBER
 require_value RELEASE_ARCHIVE
 require_value DERIVED_DATA_PATH
 require_value SPARKLE_ED25519_PRIVATE_KEY
@@ -33,7 +34,7 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 # Keep historical archives locally: Sparkle uses them to preserve history and
 # generate delta updates. Never use --delete against the production bucket.
 aws s3 sync "$SPARKLE_S3_URI" "$WORK_DIR" --exclude "old_updates/*"
-cp "$RELEASE_ARCHIVE" "$WORK_DIR/PlayStatus-$VERSION.zip"
+cp "$RELEASE_ARCHIVE" "$WORK_DIR/PlayStatus-$VERSION-build$BUILD_NUMBER.zip"
 if [[ -n "${RELEASE_NOTES:-}" ]]; then
   if [[ ! -f "$RELEASE_NOTES" ]]; then
     echo "Specified release notes file does not exist: $RELEASE_NOTES" >&2

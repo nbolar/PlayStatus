@@ -71,23 +71,34 @@ jobs:
           DIST_DIR: ${{ runner.temp }}/PlayStatus-dist
         run: scripts/release-build.sh
 
-      - name: Create immutable draft GitHub Release
+      - name: Create or replace the GitHub Release build asset
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
           RELEASE_ASSET: ${{ steps.package.outputs.asset_path }}
+          BUILD_NUMBER: ${{ steps.package.outputs.build_number }}
         run: |
           set -euo pipefail
           ASSET_NAME="$(basename "$RELEASE_ASSET")"
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fx "$ASSET_NAME" >/dev/null
-            echo "Retaining existing immutable GitHub Release asset: $ASSET_NAME"
+            # Build-qualified payload names prevent an updated build from sharing
+            # the immutable cache key of an earlier payload with the same
+            # marketing version. Keep only the current release archive.
+            while IFS= read -r existing_asset; do
+              case "$existing_asset" in
+                "PlayStatus-${RELEASE_TAG#v}.zip"|"PlayStatus-${RELEASE_TAG#v}-build"*.zip)
+                  gh release delete-asset "$RELEASE_TAG" "$existing_asset" --yes
+                  ;;
+              esac
+            done < <(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
+            gh release upload "$RELEASE_TAG" "$RELEASE_ASSET" --clobber
+            gh release edit "$RELEASE_TAG" --title "PlayStatus ${RELEASE_TAG#v} (Build $BUILD_NUMBER)"
           else
             gh release create "$RELEASE_TAG" "$RELEASE_ASSET" \
               --verify-tag \
-              --title "PlayStatus ${RELEASE_TAG#v}" \
+              --title "PlayStatus ${RELEASE_TAG#v} (Build $BUILD_NUMBER)" \
               --draft
           fi
 
@@ -97,7 +108,7 @@ jobs:
           PUBLISHED_ASSET="$PUBLISHED_ASSET_DIR/$ASSET_NAME"
           test -f "$PUBLISHED_ASSET"
           echo "asset_path=$PUBLISHED_ASSET" >> "$GITHUB_OUTPUT"
-          echo "Draft release ready: $(gh release view "$RELEASE_TAG" --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Release asset ready: $(gh release view "$RELEASE_TAG" --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove temporary signing keychain
         if: always()

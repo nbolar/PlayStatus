@@ -15,6 +15,7 @@ require_value NOTARY_PROFILE
 
 require_value RELEASE_TAG
 VERSION="$(scripts/validate-release-tag.sh "$RELEASE_TAG")"
+BUILD_NUMBER="$(scripts/release-build-number.sh "$RELEASE_TAG")"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-$PWD/.build/release-derived-data}"
 ARCHIVE_PATH="${ARCHIVE_PATH:-$PWD/.build/PlayStatus.xcarchive}"
 DIST_DIR="${DIST_DIR:-$PWD/.build/dist}"
@@ -90,7 +91,7 @@ for required_arch in arm64 x86_64; do
 done
 
 NOTARY_ZIP="$DIST_DIR/PlayStatus-$VERSION-notary.zip"
-FINAL_ZIP="$DIST_DIR/PlayStatus-$VERSION.zip"
+FINAL_ZIP="$DIST_DIR/PlayStatus-$VERSION-build$BUILD_NUMBER.zip"
 ditto -c -k --keepParent "$APP_PATH" "$NOTARY_ZIP"
 
 set +e
@@ -112,6 +113,12 @@ fi
 xcrun stapler staple "$APP_PATH"
 xcrun stapler validate "$APP_PATH"
 
+APP_BUILD_NUMBER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Contents/Info.plist")"
+if [[ "$APP_BUILD_NUMBER" != "$BUILD_NUMBER" ]]; then
+  echo "Archive build number $APP_BUILD_NUMBER does not match tagged build number $BUILD_NUMBER" >&2
+  exit 1
+fi
+
 rm -f "$FINAL_ZIP"
 ditto -c -k --keepParent "$APP_PATH" "$FINAL_ZIP"
 
@@ -130,6 +137,7 @@ echo "SHA-256: $SHA256"
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   {
     echo "version=$VERSION"
+    echo "build_number=$BUILD_NUMBER"
     echo "asset_path=$FINAL_ZIP"
     echo "sha256=$SHA256"
     echo "derived_data_path=$DERIVED_DATA_PATH"

@@ -1,8 +1,8 @@
 cask "playstatus" do
-  version "__VERSION__"
+  version "__VERSION__,__BUILD_NUMBER__"
   sha256 "__SHA256__"
 
-  url "https://github.com/nbolar/PlayStatus/releases/download/v#{version}/PlayStatus-#{version}.zip"
+  url "https://github.com/nbolar/PlayStatus/releases/download/v__VERSION__/PlayStatus-__VERSION__-build__BUILD_NUMBER__.zip"
   name "PlayStatus"
   desc "Menu bar music controls and now-playing information"
   homepage "https://github.com/nbolar/PlayStatus"
