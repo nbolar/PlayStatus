@@ -43,6 +43,10 @@ if [[ ! -d "$APP_PATH" ]]; then
   exit 1
 fi
 
+RELEASE_ENTITLEMENTS="$PWD/PlayStatus/PlayStatus.entitlements"
+test -f "$RELEASE_ENTITLEMENTS"
+plutil -lint "$RELEASE_ENTITLEMENTS" >/dev/null
+
 sign_with_developer_id() {
   codesign \
     --force \
@@ -56,22 +60,12 @@ sign_with_developer_id() {
 require_automation_entitlement() {
   local app_path="$1"
 
-  if ! codesign -d --entitlements :- "$app_path" 2>&1 |
-    sed -n '/<?xml/,$p' |
-    plutil -p - |
-    grep -Fqx '  "com.apple.security.automation.apple-events" => true'; then
+  if ! codesign -d --entitlements - "$app_path" 2>&1 |
+    grep -A 3 -F 'com.apple.security.automation.apple-events' |
+    grep -Fq '[Bool] true'; then
     echo "Release app is missing com.apple.security.automation.apple-events: $app_path" >&2
     exit 1
   fi
-}
-
-export_entitlements() {
-  local app_path="$1"
-  local output_path="$2"
-
-  codesign -d --entitlements :- "$app_path" 2>&1 |
-    sed -n '/<?xml/,$p' > "$output_path"
-  plutil -lint "$output_path" >/dev/null
 }
 
 sign_app_with_developer_id() {
@@ -79,15 +73,13 @@ sign_app_with_developer_id() {
     --force \
     --options runtime \
     --preserve-metadata=identifier,flags \
-    --entitlements "$APP_ENTITLEMENTS" \
+    --entitlements "$RELEASE_ENTITLEMENTS" \
     --sign "$APPLE_DEVELOPER_IDENTITY" \
     --timestamp \
     "$APP_PATH"
 }
 
 require_automation_entitlement "$APP_PATH"
-APP_ENTITLEMENTS="$DIST_DIR/PlayStatus.app.entitlements.plist"
-export_entitlements "$APP_PATH" "$APP_ENTITLEMENTS"
 
 # Xcode signs the Sparkle framework itself but does not timestamp every nested
 # executable in its prebuilt XCFramework. Notarization requires each of these
