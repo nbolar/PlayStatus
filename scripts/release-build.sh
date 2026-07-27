@@ -53,6 +53,18 @@ sign_with_developer_id() {
     "$1"
 }
 
+require_automation_entitlement() {
+  local app_path="$1"
+
+  if ! codesign -d --entitlements :- "$app_path" 2>&1 |
+    sed -n '/<?xml/,$p' |
+    plutil -p - |
+    grep -Fqx '  "com.apple.security.automation.apple-events" => true'; then
+    echo "Release app is missing com.apple.security.automation.apple-events: $app_path" >&2
+    exit 1
+  fi
+}
+
 # Xcode signs the Sparkle framework itself but does not timestamp every nested
 # executable in its prebuilt XCFramework. Notarization requires each of these
 # components to carry this app's Developer ID signature and secure timestamp.
@@ -81,6 +93,7 @@ fi
 sign_with_developer_id "$APP_PATH"
 codesign -d --verbose=4 "$APP_PATH" 2>&1 | grep -q 'Timestamp='
 codesign --verify --deep --strict --verbose=4 "$APP_PATH"
+require_automation_entitlement "$APP_PATH"
 
 ARCHS="$(lipo -archs "$APP_PATH/Contents/MacOS/PlayStatus")"
 for required_arch in arm64 x86_64; do
@@ -129,6 +142,7 @@ VERIFY_APP="$VERIFY_DIR/PlayStatus.app"
 test -d "$VERIFY_APP"
 codesign --verify --deep --strict --verbose=4 "$VERIFY_APP"
 spctl --assess --type execute --verbose=4 "$VERIFY_APP"
+require_automation_entitlement "$VERIFY_APP"
 
 SHA256="$(shasum -a 256 "$FINAL_ZIP" | awk '{print $1}')"
 echo "Built $FINAL_ZIP"

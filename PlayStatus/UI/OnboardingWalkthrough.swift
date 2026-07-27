@@ -280,15 +280,14 @@ struct OnboardingWalkthroughView: View {
 
     private func connect(_ provider: NowPlayingProvider) {
         setConnectionState(.testing, for: provider)
-        coordinator.connectAndProbeAutomation(for: provider) { connected in
-            if connected {
+        coordinator.connectAndProbeAutomation(for: provider) { result in
+            switch result {
+            case .connected:
                 NowPlayingModel.shared.refresh()
                 setConnectionState(.connected("Connected and ready for \(provider.displayName)."), for: provider)
-            } else if !coordinator.providerIsInstalled(provider) {
-                setConnectionState(.attention("\(provider.displayName) is not installed on this Mac."), for: provider)
-            } else {
+            case .failed(let diagnostic):
                 setConnectionState(
-                    .attention("Access still needs attention. Retry once, then check Privacy & Security > Automation."),
+                    .attention("Couldn’t verify \(provider.displayName). \(diagnostic)"),
                     for: provider
                 )
             }

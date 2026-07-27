@@ -60,6 +60,13 @@ jobs:
           test -d "$VERIFY_APP"
           codesign --verify --deep --strict --verbose=4 "$VERIFY_APP"
           spctl --assess --type execute --verbose=4 "$VERIFY_APP"
+          if ! codesign -d --entitlements :- "$VERIFY_APP" 2>&1 |
+            sed -n '/<?xml/,$p' |
+            plutil -p - |
+            grep -Fqx '  "com.apple.security.automation.apple-events" => true'; then
+            echo "Published release app is missing com.apple.security.automation.apple-events" >&2
+            exit 1
+          fi
           ARCHS="$(lipo -archs "$VERIFY_APP/Contents/MacOS/PlayStatus")"
           for required_arch in arm64 x86_64; do
             [[ " $ARCHS " == *" $required_arch "* ]]
