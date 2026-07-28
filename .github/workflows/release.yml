@@ -16,7 +16,9 @@ permissions:
 
 jobs:
   release:
-    runs-on: macos-15
+    # Keep release artifacts linked against Xcode 26's current macOS SDK.
+    # MACOSX_DEPLOYMENT_TARGET remains 15.0 in the Xcode project.
+    runs-on: macos-26
     environment: release
     steps:
       - uses: actions/checkout@v4

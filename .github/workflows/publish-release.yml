@@ -16,7 +16,9 @@ permissions:
 
 jobs:
   publish:
-    runs-on: macos-15
+    # Match the release builder so Sparkle deltas are made with Xcode 26's
+    # current macOS SDK. The app's deployment target remains macOS 15.0.
+    runs-on: macos-26
     environment: release
     steps:
       - uses: actions/checkout@v4
