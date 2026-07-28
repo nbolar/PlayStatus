@@ -101,6 +101,7 @@ jobs:
             gh release create "$RELEASE_TAG" "$RELEASE_ASSET" \
               --verify-tag \
               --title "PlayStatus ${RELEASE_TAG#v} (Build $BUILD_NUMBER)" \
+              --notes-from-tag \
               --draft
           fi
 
