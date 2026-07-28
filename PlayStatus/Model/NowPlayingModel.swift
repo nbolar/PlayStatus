@@ -193,10 +193,20 @@ final class NowPlayingModel: ObservableObject {
     }
     @AppStorage("miniMode") var miniMode: Bool = false {
         didSet {
+            if oldValue != miniMode {
+                // Claimed synchronously, before either notification below is delivered.
+                // The layout pass runs off an async hop and would otherwise race ahead
+                // and snap the window to its new size with no animation at all.
+                modeMorphDeadline = CFAbsoluteTimeGetCurrent() + modeTransitionDuration
+            }
             bumpStatusBarConfigRevision()
             notifyPopoverModeTransition()
         }
     }
+    /// While this is in the future, the surface frame belongs to the mode morph and the
+    /// ordinary layout pass must not touch it. Not @Published — it gates layout rather
+    /// than causing it.
+    var modeMorphDeadline: CFAbsoluteTime = 0
     @AppStorage("miniLyricsEnabled") var miniLyricsEnabled: Bool = false {
         didSet {
             miniLyricsTransitionToken &+= 1

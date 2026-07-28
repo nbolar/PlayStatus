@@ -1,39 +1,75 @@
 import SwiftUI
 import AppKit
 
-private let modeMorphAnimation = Animation.interactiveSpring(response: 0.36, dampingFraction: 0.88, blendDuration: 0.10)
-
 struct NowPlayingPopover: View {
     @ObservedObject var model: NowPlayingModel
     @ObservedObject private var onboarding = OnboardingCoordinator.shared
-    @Namespace private var artworkMorphNamespace
     @State private var searchText = ""
     @State private var isSearchExpanded = false
     @FocusState private var isSearchFocused: Bool
     @State private var searchSectionFrame: CGRect = .zero
     @State private var modeTransitionActive = false
-    @State private var pendingMiniInitialExpand = false
     @State private var displayedMiniMode = false
+    @State private var regularBranchVisible = true
+    @State private var miniBranchVisible = false
+    @State private var modeTransitionEndWorkItem: DispatchWorkItem?
+    @State private var modeArtworkFrames: [ModeArtworkSlot: CGRect] = [:]
+    /// Mounts both branches for one layout pass when the surface opens, so the artwork
+    /// anchors for the mode you are *not* in are already known. Preferences only
+    /// propagate after layout, so without this the shared artwork has no target on the
+    /// first frames of a morph and blinks out just as it should be taking over.
+    @State private var primingModeAnchors = false
+    /// True for the single render pass in which the branches take their artwork back
+    /// from the shared morph node. The remounting artwork views read it to skip their
+    /// first-appear fade — without this the artwork blinked out at the exact frame the
+    /// morph settled and faded back in from nothing.
+    @State private var modeHandoffSettling = false
     @State private var modePrimaryContentVisible = true
     @State private var modeSecondaryContentVisible = true
     @State private var showRegularDetailsPane = false
     @State private var regularDetailsHideWorkItem: DispatchWorkItem?
     @State private var regularPointerHovering = false
+    @State private var regularSettingsHovering = false
     @State private var coachmarkTargetFrames: [CoachmarkID: CGRect] = [:]
 
-    private var renderedPopoverWidth: CGFloat {
-        popoverWidth(for: displayedMiniMode)
-    }
-
-    private var renderedPopoverHeight: CGFloat {
-        cappedPopoverHeight(
-            popoverHeight(for: displayedMiniMode),
-            miniMode: displayedMiniMode
+    private func surfaceSize(for miniMode: Bool) -> CGSize {
+        CGSize(
+            width: popoverWidth(for: miniMode),
+            height: cappedPopoverHeight(popoverHeight(for: miniMode), miniMode: miniMode)
         )
     }
 
-    private var shouldFillLiveDetachedHostHeight: Bool {
-        model.surfaceMode == .detached && model.isPopoverVisible
+    /// Where the surface currently sits between the two modes, read back from the width
+    /// the host actually is. Derived rather than animated, so it is by definition
+    /// consistent with what is on screen at that instant — there is no second timeline
+    /// that can drift away from the window.
+    private func morphProgress(forSurfaceWidth width: CGFloat) -> Double {
+        let regularWidth = popoverWidth(for: false)
+        let span = popoverWidth(for: true) - regularWidth
+        guard abs(span) > 0.5 else { return model.miniMode ? 1 : 0 }
+        return min(max(Double((width - regularWidth) / span), 0), 1)
+    }
+
+    private var renderedPopoverWidth: CGFloat {
+        surfaceSize(for: model.miniMode).width
+    }
+
+    private var renderedPopoverHeight: CGFloat {
+        surfaceSize(for: model.miniMode).height
+    }
+
+    /// True whenever the shared morph node owns the artwork, or while anchors are being
+    /// primed — in both cases the branches' own artwork subtrees are pure cost.
+    private var artworkHandedOff: Bool {
+        modeTransitionActive || primingModeAnchors
+    }
+
+    private var renderRegularBranch: Bool {
+        !model.miniMode || modeTransitionActive || primingModeAnchors
+    }
+
+    private var renderMiniBranch: Bool {
+        model.miniMode || modeTransitionActive || primingModeAnchors
     }
 
     private var regularArtworkSize: CGFloat {
@@ -70,27 +106,41 @@ struct NowPlayingPopover: View {
 
     var body: some View {
         GeometryReader { geometry in
-            modeContent(
-                miniMode: displayedMiniMode,
-                availableHeight: max(0, geometry.size.height)
-            )
-            .frame(
-                width: renderedPopoverWidth,
-                height: renderedPopoverHeight,
-                alignment: .topLeading
-            )
-            .clipped()
+            // The content fills whatever the host currently is rather than animating a
+            // size of its own. Core Animation moves the window, AppKit resizes the host
+            // under it, and the layout simply follows — so the content cannot slide
+            // against its own window the way it does when both sides animate separately.
+            // This is the same model the lyrics pane has always used.
+            modeContent(surfaceSize: geometry.size)
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+                // The travelling artwork lives on this overlay, not inside the branch
+                // ZStack. The ZStack is as wide as its widest branch — wider than the
+                // host mid-morph — so `.position()` coordinates inside it are shifted
+                // left of host coordinates by half the overhang: zero at the wide end
+                // of a morph, 75pt by the narrow end. The artwork drifted left along
+                // exactly that curve and then snapped right at handoff. This overlay is
+                // clamped to the host frame, so positions here mean host coordinates.
+                .overlay(alignment: .topLeading) {
+                    if modeTransitionActive {
+                        sharedMorphingArtwork(
+                            progress: morphProgress(forSurfaceWidth: geometry.size.width),
+                            surface: geometry.size,
+                            regularSize: surfaceSize(for: false),
+                            miniSize: surfaceSize(for: true)
+                        )
+                    }
+                }
+                .clipped()
         }
-        .frame(
-            width: renderedPopoverWidth,
-            // Keep the NSPopover root fixed to avoid AppKit re-entrant sizing,
-            // but let the detached host fill its animating window so the player
-            // stays top-aligned while lyrics expands or collapses.
-            height: shouldFillLiveDetachedHostHeight ? nil : renderedPopoverHeight,
-            alignment: .topLeading
-        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .clipped()
         .coordinateSpace(name: "popoverRoot")
+        .onPreferenceChange(ModeArtworkFramePreferenceKey.self) { frames in
+            // Merge rather than replace: an unmounted branch contributes nothing, and
+            // dropping its last known anchor would leave the next morph with no target.
+            guard !frames.isEmpty else { return }
+            modeArtworkFrames.merge(frames) { _, latest in latest }
+        }
         .onPreferenceChange(PlayerCoachmarkFramePreferenceKey.self) { frames in
             coachmarkTargetFrames = frames
         }
@@ -109,10 +159,7 @@ struct NowPlayingPopover: View {
             }
         }
         .onChange(of: model.miniMode) { _, miniMode in
-            beginModeTransition()
-            withAnimation(modeMorphAnimation) {
-                displayedMiniMode = miniMode
-            }
+            runModeMorph(toMini: miniMode)
 
             var immediate = Transaction(animation: nil)
             immediate.disablesAnimations = true
@@ -137,15 +184,21 @@ struct NowPlayingPopover: View {
             syncRenderedRegularDetailsPane(for: regularDetailsRequested)
         }
         .onAppear {
-            displayedMiniMode = model.miniMode
+            settleModeMorphImmediately()
             modePrimaryContentVisible = true
             modeSecondaryContentVisible = true
             syncRenderedRegularDetailsPaneImmediately()
             updateCoachmarkAvailability()
+            primingModeAnchors = true
+            DispatchQueue.main.async {
+                primingModeAnchors = false
+            }
         }
         .onDisappear {
             regularDetailsHideWorkItem?.cancel()
             regularDetailsHideWorkItem = nil
+            modeTransitionEndWorkItem?.cancel()
+            modeTransitionEndWorkItem = nil
             regularPointerHovering = false
             clearCoachmarkAvailability()
         }
@@ -165,48 +218,164 @@ struct NowPlayingPopover: View {
                 isSearchFocused = false
             }
         )
-        .onAnimationCompleted(for: displayedMiniMode ? 1.0 : 0.0) {
-            guard modeTransitionActive else { return }
-            guard displayedMiniMode == model.miniMode else { return }
-            modeTransitionActive = false
+    }
+
+    /// Both layouts live in one ZStack rather than an if/else. A branch swap gave the
+    /// two modes separate view identities, which is why nothing could morph across them
+    /// and both layouts ended up cross-dissolving at full strength. Here each branch
+    /// renders at its own natural size, clipped by the morphing container, and the
+    /// inactive one is retired only once the transition has settled.
+    private func modeContent(surfaceSize surface: CGSize) -> some View {
+        let regularSize = surfaceSize(for: false)
+        let miniSize = surfaceSize(for: true)
+        let progress = morphProgress(forSurfaceWidth: surface.width)
+        let availableHeight = max(0, surface.height)
+
+        return ZStack(alignment: .top) {
+            modeMorphBackdrop(progress: progress, surface: surface)
+
+            if renderRegularBranch {
+                regularContent(availableHeight: model.miniMode ? regularSize.height : availableHeight)
+                    .frame(width: regularSize.width, height: regularSize.height, alignment: .top)
+                    .coordinateSpace(name: modeRegularBranchSpace)
+                    .opacity(regularBranchVisible ? 1 : 0)
+                    .allowsHitTesting(!model.miniMode && !modeTransitionActive)
+            }
+
+            if renderMiniBranch {
+                MiniNowPlayingCard(
+                    model: model,
+                    transitionActive: artworkHandedOff,
+                    handoffSettling: modeHandoffSettling,
+                    availableHeight: model.miniMode ? availableHeight : miniSize.height,
+                    resolvedHeight: miniSize.height,
+                    primaryContentVisible: modePrimaryContentVisible,
+                    secondaryContentVisible: modeSecondaryContentVisible,
+                    onToggleMode: {
+                        requestModeChange(toMini: false)
+                    }
+                )
+                .frame(width: miniSize.width, height: miniSize.height, alignment: .top)
+                .coordinateSpace(name: modeMiniBranchSpace)
+                .opacity(miniBranchVisible ? 1 : 0)
+                .allowsHitTesting(model.miniMode && !modeTransitionActive)
+            }
+
         }
     }
 
+    /// Fills the surface while a morph is in flight. Both branches sit at their own
+    /// natural size inside a host that is between sizes, so without this the gap would
+    /// show bare window backing.
+    private func modeMorphBackdrop(progress: Double, surface: CGSize) -> some View {
+        // Deliberately a flat gradient rather than LiquidGlassBackground. This only
+        // exists for the ~300ms of a morph, which is precisely when the frame budget is
+        // tightest — a third full-size glass layer on top of two live branches was
+        // enough to stall the main thread outright.
+        LinearGradient(
+            colors: model.cardBackgroundPalette,
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .frame(width: surface.width, height: surface.height)
+        // Solid almost immediately and held there for the body of the morph, so the
+        // panel never looks hollow while the layouts trade places. Still exactly zero at
+        // both rest states, so neither settled mode picks up a fill it did not have.
+        .opacity(min(1, min(progress, 1 - progress) * 10))
+        .allowsHitTesting(false)
+    }
+
+    /// One artwork node that travels between the two layouts' artwork slots. Each branch
+    /// hides its own artwork for the duration, so the image the eye tracks is continuous
+    /// instead of two copies fading past each other.
     @ViewBuilder
-    private func modeContent(miniMode: Bool, availableHeight: CGFloat) -> some View {
-        if miniMode {
-            MiniNowPlayingCard(
-                model: model,
-                artworkMorphNamespace: artworkMorphNamespace,
-                transitionActive: modeTransitionActive,
-                availableHeight: availableHeight,
-                resolvedHeight: renderedPopoverHeight,
-                primaryContentVisible: modePrimaryContentVisible,
-                secondaryContentVisible: modeSecondaryContentVisible,
-                startExpandedOnAppear: pendingMiniInitialExpand,
-                onInitialExpandConsumed: {
-                    pendingMiniInitialExpand = false
-                },
-                onToggleMode: {
-                    prepareModeTransition(to: false)
-                    withAnimation(modeMorphAnimation) {
-                        if model.miniLyricsEnabled {
-                            model.miniLyricsEnabled = false
-                        }
-                        model.miniMode = false
-                    }
-                }
+    private func sharedMorphingArtwork(
+        progress: Double,
+        surface: CGSize,
+        regularSize: CGSize,
+        miniSize: CGSize
+    ) -> some View {
+        if let regularAnchor = modeArtworkFrames[.regular],
+           let miniAnchor = modeArtworkFrames[.mini] {
+            // Each branch is centred in the host, so its anchor has to be shifted by the
+            // same amount the host centres it before the two are interpolated.
+            let regularShellRect = regularAnchor
+                .offsetBy(dx: (surface.width - regularSize.width) / 2, dy: 0)
+            let regularPlateRect = regularShellRect
+                .insetBy(dx: regularArtworkShellInset, dy: regularArtworkShellInset)
+            let miniRect = miniAnchor
+                .offsetBy(dx: (surface.width - miniSize.width) / 2, dy: 0)
+            let plateRect = CGRect(
+                x: lerp(regularPlateRect.minX, miniRect.minX, progress),
+                y: lerp(regularPlateRect.minY, miniRect.minY, progress),
+                width: lerp(regularPlateRect.width, miniRect.width, progress),
+                height: lerp(regularPlateRect.height, miniRect.height, progress)
             )
-        } else {
-            regularContent(availableHeight: availableHeight)
+            // The shell travels with the plate, converging onto it as it dissolves.
+            let shellRect = CGRect(
+                x: lerp(regularShellRect.minX, miniRect.minX, progress),
+                y: lerp(regularShellRect.minY, miniRect.minY, progress),
+                width: lerp(regularShellRect.width, miniRect.width, progress),
+                height: lerp(regularShellRect.height, miniRect.height, progress)
+            )
+            let plateRadius = lerp(regularArtworkCornerRadius, miniArtworkCornerRadius, progress)
+            let shellRadius = lerp(regularArtworkShellCornerRadius, miniArtworkCornerRadius, progress)
+            let plateShape = RoundedRectangle(cornerRadius: plateRadius, style: .continuous)
+            let shellShape = RoundedRectangle(cornerRadius: shellRadius, style: .continuous)
+            let shellOpacity = 1 - progress
+            let tint = model.glassTint
+
+            ZStack {
+                // The regular tile's glass shell, mirrored from ArtworkView and dissolved
+                // over the morph. Without it the ring, gloss, and drop shadow vanished in
+                // a single frame the instant the branch handed its artwork off.
+                shellShape
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.18),
+                                Color.white.opacity(0.10),
+                                tint.opacity(0.14)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(shellShape.stroke(.white.opacity(0.22), lineWidth: 1.2))
+                    .overlay(shellShape.stroke(tint.opacity(0.2), lineWidth: 1))
+                    .frame(width: max(0, shellRect.width), height: max(0, shellRect.height))
+                    .position(x: shellRect.midX, y: shellRect.midY)
+                    .opacity(shellOpacity)
+                    .shadow(
+                        color: .black.opacity(0.28 * shellOpacity),
+                        radius: 16,
+                        x: 0,
+                        y: 10
+                    )
+
+                MorphingArtworkImage(image: model.artwork, tint: tint)
+                    .frame(width: max(0, plateRect.width), height: max(0, plateRect.height))
+                    .clipShape(plateShape)
+                    .overlay(plateShape.stroke(.white.opacity(0.12), lineWidth: 1))
+                    .position(x: plateRect.midX, y: plateRect.midY)
+            }
+            .allowsHitTesting(false)
         }
+    }
+
+    private func lerp(_ from: CGFloat, _ to: CGFloat, _ progress: Double) -> CGFloat {
+        from + ((to - from) * progress)
     }
 
     private func regularContent(availableHeight: CGFloat) -> some View {
+        // The branch always lays out at its own settled size; the morphing container
+        // clips it. Reflowing this layout mid-transition would be both expensive and
+        // visibly unstable.
+        let regularSurfaceSize = surfaceSize(for: false)
         let baseRegularHeight = model.estimatedRegularPopoverHeight
-        let resolvedRegularHeight = renderedPopoverHeight
+        let resolvedRegularHeight = regularSurfaceSize.height
         let liveRegularHeight = min(resolvedRegularHeight, max(baseRegularHeight, availableHeight))
-        let regularMarqueeLaneWidth = min(272, max(130, renderedPopoverWidth - regularArtworkSize - 78))
+        let regularMarqueeLaneWidth = min(272, max(130, regularSurfaceSize.width - regularArtworkSize - 78))
         let visibleRegularDetailsHeight = min(
             model.regularLyricsPaneHeight,
             max(0, liveRegularHeight - baseRegularHeight)
@@ -216,8 +385,9 @@ struct NowPlayingPopover: View {
         let searchTrailingAlignmentNudge: CGFloat = 4
         let regularDetachedTransparencyMultiplier: Double = model.surfaceMode == .detached ? 0.80 : 1.0
         let regularControlScale = model.regularControlScaleFactor
-        let restingRegularDetailTab = model.selectedRegularDetailsTab
-        let restingRegularControlOpacity: Double = regularPointerHovering ? 1 : 0.44
+        let restingRegularControlOpacity: Double = model.lyricsPanelExpanded
+            ? playerControlClusterActiveRestingOpacity
+            : playerControlClusterRestingOpacity
         let showDetailsCoachmark = onboarding.isCoachmarkActive(.detailsToggle)
         let showDetachedModeCoachmark = onboarding.isCoachmarkActive(.detachedMode)
         let showDetachedControlsCoachmark = onboarding.isCoachmarkActive(.detachedControls)
@@ -236,7 +406,6 @@ struct NowPlayingPopover: View {
                 regularTrailingControls(
                     contrastBoost: regularControlContrastBoost,
                     controlScale: regularControlScale,
-                    restingRegularDetailTab: restingRegularDetailTab,
                     restingRegularControlOpacity: restingRegularControlOpacity,
                     interactiveRegularControlsVisible: interactiveRegularControlsVisible,
                     showDetailsCoachmark: showDetailsCoachmark,
@@ -261,7 +430,7 @@ struct NowPlayingPopover: View {
                 .allowsHitTesting(regularDetailsRequested && visibleRegularDetailsHeight > 0.5)
             }
         }
-        .frame(width: renderedPopoverWidth, height: resolvedRegularHeight, alignment: .topLeading)
+        .frame(width: regularSurfaceSize.width, height: resolvedRegularHeight, alignment: .topLeading)
         .background(
             ZStack {
                 LiquidGlassBackground(
@@ -429,29 +598,41 @@ struct NowPlayingPopover: View {
         }
     }
 
+    @ViewBuilder
     private var regularArtworkTile: some View {
-        AnimatedArtworkView(
-            image: model.artwork,
-            tint: model.glassTint,
-            isEnabled: false,
-            seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.albumArtist)|\(model.album)|\(model.title)",
-            style: model.artworkMotionStyle,
-            animatedArtworkURL: model.effectiveAnimatedArtworkURL,
-            animatedArtworkIsVisible: model.isPopoverVisible,
-            cropAnimatedArtworkToSquare: model.cropAnimatedArtworkToSquare,
-            animateOnFirstAppear: !modeTransitionActive
-        )
-        .frame(width: regularArtworkSize, height: regularArtworkSize)
-        .animatedArtworkMotion(
-            isEnabled: model.animatedArtworkEnabled,
-            seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.albumArtist)|\(model.album)|\(model.title)",
-            style: model.artworkMotionStyle,
-            isPlaying: model.isPlaying,
-            hasAnimatedStream: model.effectiveAnimatedArtworkURL != nil,
-            tint: model.glassTint,
-            artworkImage: model.artwork
-        )
-        .matchedGeometryEffect(id: "heroArtwork", in: artworkMorphNamespace)
+        if artworkHandedOff {
+            // Handed off to the shared morph node. Left out of the tree entirely rather
+            // than hidden: `.opacity(0)` still rasterises, and this subtree carries two
+            // blurs that the morph cannot afford to keep paying for. The placeholder
+            // holds the same frame, so the anchor stays measurable and the surrounding
+            // layout does not reflow.
+            Color.clear
+                .frame(width: regularArtworkSize, height: regularArtworkSize)
+                .modeArtworkAnchor(.regular, in: modeRegularBranchSpace)
+        } else {
+            AnimatedArtworkView(
+                image: model.artwork,
+                tint: model.glassTint,
+                isEnabled: false,
+                seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.albumArtist)|\(model.album)|\(model.title)",
+                style: model.artworkMotionStyle,
+                animatedArtworkURL: model.effectiveAnimatedArtworkURL,
+                animatedArtworkIsVisible: model.isPopoverVisible,
+                cropAnimatedArtworkToSquare: model.cropAnimatedArtworkToSquare,
+                animateOnFirstAppear: !modeTransitionActive && !modeHandoffSettling
+            )
+            .frame(width: regularArtworkSize, height: regularArtworkSize)
+            .animatedArtworkMotion(
+                isEnabled: model.animatedArtworkEnabled,
+                seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.albumArtist)|\(model.album)|\(model.title)",
+                style: model.artworkMotionStyle,
+                isPlaying: model.isPlaying,
+                hasAnimatedStream: model.effectiveAnimatedArtworkURL != nil,
+                tint: model.glassTint,
+                artworkImage: model.artwork
+            )
+            .modeArtworkAnchor(.regular, in: modeRegularBranchSpace)
+        }
     }
 
     private func regularMetadataColumn(
@@ -559,91 +740,66 @@ struct NowPlayingPopover: View {
     private func regularTrailingControls(
         contrastBoost: Double,
         controlScale: CGFloat,
-        restingRegularDetailTab: DetailsPaneTab,
         restingRegularControlOpacity: Double,
         interactiveRegularControlsVisible: Bool,
         showDetailsCoachmark: Bool,
         showDetachedModeCoachmark: Bool,
         showDetachedControlsCoachmark: Bool
     ) -> some View {
-        HStack(spacing: 6 * controlScale) {
-            regularModeToggle(
-                contrastBoost: contrastBoost,
-                controlScale: controlScale,
-                restingRegularControlOpacity: restingRegularControlOpacity
-            )
+        let coachmarkForcesReveal = showDetailsCoachmark || showDetachedModeCoachmark || showDetachedControlsCoachmark
+        let clusterRevealed = interactiveRegularControlsVisible || coachmarkForcesReveal
 
-            regularDetachedControls(
-                contrastBoost: contrastBoost,
-                controlScale: controlScale,
-                showDetachedModeCoachmark: showDetachedModeCoachmark,
-                showDetachedControlsCoachmark: showDetachedControlsCoachmark
-            )
+        return HStack(spacing: 2 * controlScale) {
+            regularModeToggle(contrastBoost: contrastBoost, controlScale: controlScale)
 
-            regularDetailControls(
-                contrastBoost: contrastBoost,
-                controlScale: controlScale,
-                restingRegularDetailTab: restingRegularDetailTab,
-                restingRegularControlOpacity: restingRegularControlOpacity,
-                interactiveRegularControlsVisible: interactiveRegularControlsVisible,
-                showDetailsCoachmark: showDetailsCoachmark
-            )
+            regularDetachedControls(contrastBoost: contrastBoost, controlScale: controlScale)
 
-            if regularPointerHovering {
-                regularSettingsControl(contrastBoost: contrastBoost, controlScale: controlScale)
-            }
+            regularDetailControls(contrastBoost: contrastBoost, controlScale: controlScale)
+
+            regularSettingsControl(contrastBoost: contrastBoost, controlScale: controlScale)
         }
-        .padding(.top, 8 * controlScale)
+        .playerControlClusterBackground(
+            sizeScale: controlScale,
+            neutralWashOpacity: 0,
+            blueFogOpacity: 0,
+            contrastBoost: contrastBoost,
+            artworkBacking: 0
+        )
+        .fixedSize(horizontal: true, vertical: false)
+        .padding(.top, 6 * controlScale)
         .padding(.trailing, 14 * controlScale)
-        .opacity(modeSecondaryContentVisible ? 1 : 0)
+        .opacity(modeSecondaryContentVisible ? (clusterRevealed ? 1 : restingRegularControlOpacity) : 0)
         .offset(y: modeSecondaryContentVisible ? 0 : -8)
         .allowsHitTesting(modeSecondaryContentVisible)
-        .animation(.easeInOut(duration: 0.16), value: interactiveRegularControlsVisible)
+        .animation(.easeInOut(duration: 0.16), value: clusterRevealed)
         .animation(modeSecondaryRevealAnimation, value: modeSecondaryContentVisible)
     }
 
-    private func regularModeToggle(
-        contrastBoost: Double,
-        controlScale: CGFloat,
-        restingRegularControlOpacity: Double
-    ) -> some View {
+    private func regularModeToggle(contrastBoost: Double, controlScale: CGFloat) -> some View {
         ModeToggleControl(
             isMiniMode: false,
             transitionActive: modeTransitionActive,
             contrastBoost: contrastBoost,
             sizeScale: controlScale
         ) {
-            prepareModeTransition(to: true)
-            withAnimation(modeMorphAnimation) {
-                pendingMiniInitialExpand = true
-                model.miniMode = true
-            }
+            requestModeChange(toMini: true)
         }
         .playerCoachmarkTarget(.modeToggle)
-        .opacity(restingRegularControlOpacity)
     }
 
     @ViewBuilder
-    private func regularDetachedControls(
-        contrastBoost: Double,
-        controlScale: CGFloat,
-        showDetachedModeCoachmark: Bool,
-        showDetachedControlsCoachmark: Bool
-    ) -> some View {
-        if regularPointerHovering || showDetachedModeCoachmark || showDetachedControlsCoachmark {
-            DetachedSurfaceToggleControl(
-                isDetachedMode: model.surfaceMode == .detached,
-                transitionActive: modeTransitionActive,
-                contrastBoost: contrastBoost,
-                sizeScale: controlScale
-            ) {
-                model.requestToggleDetachedMode()
-            }
-            .playerCoachmarkTarget(.detachedMode)
-            .transition(.opacity.combined(with: .move(edge: .trailing)))
+    private func regularDetachedControls(contrastBoost: Double, controlScale: CGFloat) -> some View {
+        DetachedSurfaceToggleControl(
+            isDetachedMode: model.surfaceMode == .detached,
+            transitionActive: modeTransitionActive,
+            contrastBoost: contrastBoost,
+            sizeScale: controlScale
+        ) {
+            model.requestToggleDetachedMode()
         }
+        .playerCoachmarkTarget(.detachedMode)
 
-        if model.surfaceMode == .detached && (regularPointerHovering || showDetachedControlsCoachmark) {
+        if model.surfaceMode == .detached {
             DetachedWindowPinControl(
                 isPinned: model.detachedWindowAlwaysOnTop,
                 transitionActive: modeTransitionActive,
@@ -653,7 +809,6 @@ struct NowPlayingPopover: View {
                 model.detachedWindowAlwaysOnTop.toggle()
             }
             .playerCoachmarkTarget(.detachedControls)
-            .transition(.opacity.combined(with: .move(edge: .trailing)))
 
             DetachedWindowCloseControl(
                 transitionActive: modeTransitionActive,
@@ -662,46 +817,32 @@ struct NowPlayingPopover: View {
             ) {
                 model.requestCloseDetachedWindow()
             }
-            .transition(.opacity.combined(with: .move(edge: .trailing)))
         }
     }
 
     @ViewBuilder
-    private func regularDetailControls(
-        contrastBoost: Double,
-        controlScale: CGFloat,
-        restingRegularDetailTab: DetailsPaneTab,
-        restingRegularControlOpacity: Double,
-        interactiveRegularControlsVisible: Bool,
-        showDetailsCoachmark: Bool
-    ) -> some View {
-        if regularPointerHovering || restingRegularDetailTab == .lyrics || showDetailsCoachmark {
-            RegularDetailToggleControl(
-                isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .lyrics,
-                systemName: model.selectedRegularDetailsTab == .lyrics && model.lyricsPanelExpanded ? "quote.bubble.fill" : "quote.bubble",
-                helpText: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .lyrics ? "Hide lyrics" : "Show lyrics",
-                transitionActive: modeTransitionActive,
-                contrastBoost: contrastBoost,
-                sizeScale: controlScale
-            ) {
-                toggleRegularDetails(tab: .lyrics)
-            }
-            .playerCoachmarkTarget(.detailsToggle)
-            .opacity(interactiveRegularControlsVisible ? 1 : restingRegularControlOpacity)
+    private func regularDetailControls(contrastBoost: Double, controlScale: CGFloat) -> some View {
+        RegularDetailToggleControl(
+            isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .lyrics,
+            systemName: model.selectedRegularDetailsTab == .lyrics && model.lyricsPanelExpanded ? "quote.bubble.fill" : "quote.bubble",
+            helpText: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .lyrics ? "Hide lyrics" : "Show lyrics",
+            transitionActive: modeTransitionActive,
+            contrastBoost: contrastBoost,
+            sizeScale: controlScale
+        ) {
+            toggleRegularDetails(tab: .lyrics)
         }
+        .playerCoachmarkTarget(.detailsToggle)
 
-        if regularPointerHovering || restingRegularDetailTab == .credits {
-            RegularDetailToggleControl(
-                isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits,
-                systemName: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits ? "info.circle.fill" : "info.circle",
-                helpText: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits ? "Hide credits" : "Show credits",
-                transitionActive: modeTransitionActive,
-                contrastBoost: contrastBoost,
-                sizeScale: controlScale
-            ) {
-                toggleRegularDetails(tab: .credits)
-            }
-            .opacity(regularPointerHovering ? 1 : restingRegularControlOpacity)
+        RegularDetailToggleControl(
+            isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits,
+            systemName: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits ? "info.circle.fill" : "info.circle",
+            helpText: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .credits ? "Hide credits" : "Show credits",
+            transitionActive: modeTransitionActive,
+            contrastBoost: contrastBoost,
+            sizeScale: controlScale
+        ) {
+            toggleRegularDetails(tab: .credits)
         }
     }
 
@@ -709,17 +850,22 @@ struct NowPlayingPopover: View {
         SettingsOpenControl {
             Image(systemName: "gearshape.fill")
                 .font(.system(size: 16 * controlScale, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.94))
-                .frame(width: 24 * controlScale, height: 24 * controlScale)
-                .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * contrastBoost)))))
-                .overlay(
-                    Circle()
-                        .stroke(.white.opacity(min(0.28, 0.16 + (0.08 * contrastBoost))), lineWidth: 1)
+                .foregroundStyle(ArtworkPlayerControlPalette.icon())
+                .playerClusterGlyphChrome(
+                    diameter: 24 * controlScale,
+                    isHovering: regularSettingsHovering,
+                    contrastBoost: contrastBoost
                 )
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            guard !modeTransitionActive else {
+                if regularSettingsHovering { regularSettingsHovering = false }
+                return
+            }
+            regularSettingsHovering = hovering
+        }
         .hoverHint("Settings", enabled: !modeTransitionActive)
-        .transition(.opacity.combined(with: .move(edge: .trailing)))
     }
 
     private var regularPointerTrackingOverlay: some View {
@@ -879,13 +1025,65 @@ struct NowPlayingPopover: View {
         searchText = ""
     }
 
-    private func prepareModeTransition(to targetMiniMode: Bool) {
+    /// Entry point for a mode change originating inside the popover. Marks the transition
+    /// active before flipping the model so both branches are mounted for the first frame.
+    private func requestModeChange(toMini targetMiniMode: Bool) {
         guard targetMiniMode != model.miniMode else { return }
         modeTransitionActive = true
+        if !targetMiniMode, model.miniLyricsEnabled {
+            model.miniLyricsEnabled = false
+        }
+        model.miniMode = targetMiniMode
     }
 
-    private func beginModeTransition() {
+    /// Geometry is not animated here at all. The window resize is the only timeline; the
+    /// content follows the host it is given and derives its morph progress from it. All
+    /// this schedules is the cross-fade between the two layouts.
+    private func runModeMorph(toMini miniMode: Bool) {
+        modeTransitionEndWorkItem?.cancel()
         modeTransitionActive = true
+        displayedMiniMode = miniMode
+
+        // The layout that is leaving fades out fast and does not move.
+        withAnimation(modeOutgoingFadeAnimation) {
+            if miniMode {
+                regularBranchVisible = false
+            } else {
+                miniBranchVisible = false
+            }
+        }
+
+        withAnimation(modeIncomingFadeAnimation.delay(modeIncomingFadeDelay)) {
+            if miniMode {
+                miniBranchVisible = true
+            } else {
+                regularBranchVisible = true
+            }
+        }
+
+        let finish = DispatchWorkItem {
+            guard displayedMiniMode == model.miniMode else { return }
+            // Both flips land in one render pass: the shared morph node unmounts and the
+            // branch artwork remounts — with its appear fade suppressed — on the same
+            // frame, so the image never has a frame where nobody is drawing it.
+            modeHandoffSettling = true
+            modeTransitionActive = false
+            modeTransitionEndWorkItem = nil
+            DispatchQueue.main.async {
+                modeHandoffSettling = false
+            }
+        }
+        modeTransitionEndWorkItem = finish
+        DispatchQueue.main.asyncAfter(deadline: .now() + modeTransitionDuration, execute: finish)
+    }
+
+    private func settleModeMorphImmediately() {
+        modeTransitionEndWorkItem?.cancel()
+        modeTransitionEndWorkItem = nil
+        modeTransitionActive = false
+        displayedMiniMode = model.miniMode
+        regularBranchVisible = !model.miniMode
+        miniBranchVisible = model.miniMode
     }
 
     private var regularDetailsRequested: Bool {

@@ -4,6 +4,7 @@ import AppKit
 struct PlayStatusSettingsView: View {
     @ObservedObject var model: NowPlayingModel
     @ObservedObject var onboarding: OnboardingCoordinator
+    @ObservedObject private var connectionInspector = ProviderConnectionInspector.shared
     @State private var selectedTab: SettingsTab = .display
     @State private var tabDirection: SettingsTabDirection = .forward
     @State private var showAnimatedStreamPreview = false
@@ -450,6 +451,10 @@ struct PlayStatusSettingsView: View {
                 caption: "Allow Spotify to provide now playing data.",
                 isOn: $model.enableSpotify
             )
+
+            Divider().padding(.vertical, 2)
+
+            ProviderConnectionSection(model: model, inspector: connectionInspector)
 
             Divider().padding(.vertical, 2)
 

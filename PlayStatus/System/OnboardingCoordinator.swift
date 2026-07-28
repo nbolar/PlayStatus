@@ -129,11 +129,6 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
 
     static let experienceVersion = "2.8-relaunch-v1"
 
-    enum AutomationProbeResult: Sendable {
-        case connected
-        case failed(String)
-    }
-
     @Published private(set) var presentedMode: OnboardingMode?
     @Published var currentStep: OnboardingStep = .welcome
     @Published private(set) var activeCoachmark: CoachmarkID?
@@ -144,13 +139,6 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
     private let dismissedCoachmarksKey = "playstatus.onboarding.dismissedCoachmarks"
     private let debugCoachmarksEnabledKey = "playstatus.onboarding.debugCoachmarksEnabled"
     private let windowAutosaveName = "PlayStatusOnboardingWindow"
-    private let automationProbeInitialDelay: TimeInterval = 0.75
-    private let automationProbeRetryDelay: TimeInterval = 0.75
-    private let automationProbeMaximumAttempts = 20
-    private let automationProbeQueue = DispatchQueue(
-        label: "com.bolar.PlayStatus.automation-probe",
-        qos: .userInitiated
-    )
     private let settingsMarkerKeys = [
         "enableMusic",
         "enableSpotify",
@@ -342,85 +330,6 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
     func openProvider(_ provider: NowPlayingProvider) {
         guard let url = applicationURL(for: provider) else { return }
         NSWorkspace.shared.openApplication(at: url, configuration: .init(), completionHandler: nil)
-    }
-
-    func connectAndProbeAutomation(
-        for provider: NowPlayingProvider,
-        completion: @escaping (AutomationProbeResult) -> Void
-    ) {
-        guard providerIsInstalled(provider) else {
-            completion(.failed("\(provider.displayName) is not installed on this Mac."))
-            return
-        }
-
-        openProvider(provider)
-        probeAutomationWhenReady(for: provider, attempt: 0, completion: completion)
-    }
-
-    private nonisolated static func probeAutomation(for provider: NowPlayingProvider) -> AutomationProbeResult {
-        let script: String
-        let providerName: String
-        switch provider {
-        case .music, .none:
-            script = #"tell application id "com.apple.Music" to get player state as string"#
-            providerName = "Music"
-        case .spotify:
-            script = #"tell application id "com.spotify.client" to get player state as string"#
-            providerName = "Spotify"
-        }
-
-        var error: NSDictionary?
-        let descriptor = NSAppleScript(source: script)?.executeAndReturnError(&error)
-        guard descriptor != nil, error == nil else {
-            let errorNumber = (error?[NSAppleScript.errorNumber] as? NSNumber)?.intValue
-            let errorMessage = (error?[NSAppleScript.errorMessage] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let diagnostic: String
-            if let errorNumber, let errorMessage, !errorMessage.isEmpty {
-                diagnostic = "\(errorMessage) (error \(errorNumber))."
-            } else if let errorNumber {
-                diagnostic = "AppleScript error \(errorNumber)."
-            } else {
-                diagnostic = "Spotify did not answer the Automation request yet."
-            }
-            NSLog("PlayStatus automation probe for %@ failed: %@", providerName, diagnostic)
-            return .failed(diagnostic)
-        }
-
-        return .connected
-    }
-
-    private func probeAutomationWhenReady(
-        for provider: NowPlayingProvider,
-        attempt: Int,
-        completion: @escaping (AutomationProbeResult) -> Void
-    ) {
-        let delay = attempt == 0 ? automationProbeInitialDelay : automationProbeRetryDelay
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self else { return }
-
-            self.automationProbeQueue.async {
-                let result = Self.probeAutomation(for: provider)
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { return }
-
-                    switch result {
-                    case .connected:
-                        completion(.connected)
-                    case .failed:
-                        guard attempt < self.automationProbeMaximumAttempts else {
-                            completion(result)
-                            return
-                        }
-                        self.probeAutomationWhenReady(
-                            for: provider,
-                            attempt: attempt + 1,
-                            completion: completion
-                        )
-                    }
-                }
-            }
-        }
     }
 
     func shouldForceModeCoachmarkControls() -> Bool {

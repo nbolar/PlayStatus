@@ -17,6 +17,13 @@ private struct ArtworkMotionModifier: ViewModifier {
     @State private var hovering = false
     @State private var pointerLocation: CGPoint = .zero
     @State private var viewSize: CGSize = .zero
+    /// Ramps 0→1 shortly after mount and scales every pointer-driven transform, so a
+    /// freshly mounted artwork never snaps straight into a full parallax pose.
+    @State private var motionEngagement: Double = 0
+    /// Where the pointer was first seen while not hovering. Parallax engages only once
+    /// the pointer moves meaningfully away from this point — presence alone is not
+    /// intent, and the artwork often arrives under a cursor that never moved.
+    @State private var hoverEntryAnchor: CGPoint?
     @State private var filmDriftPhase = false
     @State private var vinylBaseTurns: Double = 0
     @State private var vinylSpinStartDate: Date? = nil
@@ -81,24 +88,24 @@ private struct ArtworkMotionModifier: ViewModifier {
 
     private var parallaxScale: CGFloat {
         guard parallaxEnabled, hovering else { return 1.0 }
-        return 1.018
+        return 1.0 + (0.018 * motionEngagement)
     }
 
     private var parallaxOffset: CGSize {
         guard parallaxEnabled else { return .zero }
-        let x = centeredPointerX * 14
-        let y = centeredPointerY * 12
+        let x = centeredPointerX * 14 * motionEngagement
+        let y = centeredPointerY * 12 * motionEngagement
         return CGSize(width: x, height: y)
     }
 
     private var parallaxTiltX: Double {
         guard parallaxEnabled else { return 0 }
-        return Double(-centeredPointerY * 9)
+        return Double(-centeredPointerY * 9) * motionEngagement
     }
 
     private var parallaxTiltY: Double {
         guard parallaxEnabled else { return 0 }
-        return Double(centeredPointerX * 11)
+        return Double(centeredPointerX * 11) * motionEngagement
     }
 
     private var filmDriftScale: CGFloat {
@@ -147,10 +154,24 @@ private struct ArtworkMotionModifier: ViewModifier {
             .onContinuousHover { phase in
                 switch phase {
                 case .active(let location):
-                    pointerLocation = location
-                    hovering = true
+                    if hovering {
+                        pointerLocation = location
+                    } else if let anchor = hoverEntryAnchor {
+                        // Engage only on deliberate movement. The artwork frequently
+                        // arrives *under* a stationary cursor — the popover opening, or
+                        // a mode morph landing the hero beneath the pointer — and
+                        // engaging parallax on mere presence made it lurch toward the
+                        // cursor the moment it settled.
+                        if hypot(location.x - anchor.x, location.y - anchor.y) > 5 {
+                            hovering = true
+                            pointerLocation = location
+                        }
+                    } else {
+                        hoverEntryAnchor = location
+                    }
                 case .ended:
                     hovering = false
+                    hoverEntryAnchor = nil
                     pointerLocation = CGPoint(x: viewSize.width / 2, y: viewSize.height / 2)
                 }
             }
@@ -159,6 +180,9 @@ private struct ArtworkMotionModifier: ViewModifier {
                     pointerLocation = CGPoint(x: viewSize.width / 2, y: viewSize.height / 2)
                 }
                 synchronizeAnimationState(allowVinylSettle: false)
+                withAnimation(.easeOut(duration: 0.5).delay(0.15)) {
+                    motionEngagement = 1
+                }
             }
             .onDisappear {
                 stopVinylMotion(allowSettle: false)

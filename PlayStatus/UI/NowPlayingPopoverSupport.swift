@@ -3,6 +3,99 @@ import AppKit
 
 let modePrimaryRevealAnimation = Animation.easeOut(duration: 0.20)
 let modeSecondaryRevealAnimation = Animation.easeOut(duration: 0.24)
+/// The curve the window resize runs on, and therefore the curve the whole morph runs on.
+/// The content has no animation of its own: it lays out into whatever size the host
+/// currently is and derives its morph progress from that width, so there is exactly one
+/// timeline and nothing that can drift against it.
+let modeMorphControlPoints: (Double, Double, Double, Double) = (0.30, 0.90, 0.35, 1.00)
+
+/// Steps the window through a mode morph, one display frame at a time.
+///
+/// `NSAnimationContext` + `window.animator().setFrame` does not animate the popover's
+/// backing window — measured frame by frame, it snapped to the new width in a single
+/// frame every time. Since the content sizes itself from the host, the content snapped
+/// with it. Stepping the frame ourselves is what actually produces motion here.
+///
+/// Ticks must not touch SwiftUI state: a display-link callback is outside the render
+/// pass, which is what keeps this safe, whereas resizing from inside a SwiftUI animation
+/// callback re-enters layout and trips an AttributeGraph precondition.
+@MainActor
+final class ModeMorphDriver: NSObject {
+    private var displayLink: CADisplayLink?
+    private var startTime: CFTimeInterval = 0
+    private var onFrame: ((Double) -> Void)?
+    private var onFinish: (() -> Void)?
+
+    var isRunning: Bool { displayLink != nil }
+
+    func start(onFrame: @escaping (Double) -> Void, onFinish: @escaping () -> Void) {
+        cancel()
+        self.onFrame = onFrame
+        self.onFinish = onFinish
+        startTime = CACurrentMediaTime()
+
+        guard let link = NSScreen.main?.displayLink(target: self, selector: #selector(tick)) else {
+            finish()
+            return
+        }
+        displayLink = link
+        link.add(to: .main, forMode: .common)
+    }
+
+    func cancel() {
+        displayLink?.invalidate()
+        displayLink = nil
+        onFrame = nil
+        onFinish = nil
+    }
+
+    @objc private func tick() {
+        let elapsed = (CACurrentMediaTime() - startTime) / modeTransitionDuration
+        guard elapsed < 1 else {
+            finish()
+            return
+        }
+        onFrame?(Self.ease(elapsed))
+    }
+
+    private func finish() {
+        let completion = onFinish
+        cancel()
+        completion?()
+    }
+
+    /// y for a given x on cubic-bezier(modeMorphControlPoints), bisected. Cheap enough at
+    /// one evaluation per display frame, and keeps the shape documented in one place.
+    static func ease(_ x: Double) -> Double {
+        let (x1, y1, x2, y2) = modeMorphControlPoints
+        var low = 0.0
+        var high = 1.0
+        var t = x
+        for _ in 0..<24 {
+            t = (low + high) / 2
+            let inv = 1 - t
+            let sampled = (3 * t * inv * inv * x1) + (3 * t * t * inv * x2) + (t * t * t)
+            if sampled < x {
+                low = t
+            } else {
+                high = t
+            }
+        }
+        let inv = 1 - t
+        return (3 * t * inv * inv * y1) + (3 * t * t * inv * y2) + (t * t * t)
+    }
+}
+/// The layouts cross-fade with a deliberate overlap. Retiring the outgoing one before
+/// the incoming one arrives leaves a window where neither is on screen — roughly 250ms
+/// of bare artwork on an empty panel, which reads as a glitch rather than as a
+/// transition. Fading out still leads, it just no longer finishes first.
+let modeOutgoingFadeAnimation = Animation.easeOut(duration: 0.14)
+let modeIncomingFadeAnimation = Animation.easeOut(duration: 0.16)
+let modeIncomingFadeDelay: Double = 0.06
+/// Opacity of the top-row control capsule when the pointer is elsewhere. The row keeps
+/// its full width at rest so nothing shifts when the cluster comes up on hover.
+let playerControlClusterRestingOpacity: Double = 0
+let playerControlClusterActiveRestingOpacity: Double = 0.62
 let miniSeamBlendHeight: CGFloat = 1
 let miniSeamBlurRadius: CGFloat = 10
 
@@ -14,66 +107,86 @@ struct SearchSectionFramePreferenceKey: PreferenceKey {
     }
 }
 
-private struct MiniControlClusterChrome: View {
+/// Backing for the top-row control cluster.
+///
+/// The capsule has two jobs depending on what it sits on, so `artworkBacking` blends
+/// between them. At 0 it rests on the player's own tinted glass and uses the same
+/// recipe as `GlassButton` — a light `primary` wash, no material, no shadow — so it
+/// reads as one of the player's controls. At 1 it floats over album artwork and has to
+/// supply its own scrim instead, because white glyphs need to darken against a bright
+/// photo, not lighten. `contrastBoost` strengthens whichever job is in play.
+private struct PlayerControlClusterChrome: View {
     let sizeScale: CGFloat
     let neutralWashOpacity: Double
     let blueFogOpacity: Double
+    let contrastBoost: Double
+    let artworkBacking: Double
+
+    private var clampedContrastBoost: Double {
+        min(max(contrastBoost, 0), 1)
+    }
+
+    private var clampedArtworkBacking: Double {
+        min(max(artworkBacking, 0), 1)
+    }
 
     private var capsule: RoundedRectangle {
         RoundedRectangle(cornerRadius: 12 * sizeScale, style: .continuous)
     }
 
-    private var shadowWash: some View {
-        capsule.fill(Color.black.opacity(0.30))
+    private var glassWash: some View {
+        let strength = min(0.34, 0.09 + (0.20 * clampedContrastBoost))
+        return capsule.fill(Color.primary.opacity(strength * (1 - clampedArtworkBacking)))
+    }
+
+    private var artworkScrim: some View {
+        let strength = 0.28 + (0.16 * clampedContrastBoost)
+        return capsule.fill(Color.black.opacity(strength * clampedArtworkBacking))
     }
 
     private var neutralWash: some View {
         capsule.fill(
             Color(red: 0.60, green: 0.66, blue: 0.74)
-                .opacity(neutralWashOpacity * 0.62)
+                .opacity(neutralWashOpacity * 0.42)
         )
     }
 
     private var blueWash: some View {
         capsule.fill(
             Color(red: 0.52, green: 0.61, blue: 0.76)
-                .opacity(blueFogOpacity * 0.58)
+                .opacity(blueFogOpacity * 0.38)
         )
     }
 
-    private var lowerShade: some View {
-        capsule.fill(
-            LinearGradient(
-                colors: [
-                    .black.opacity(0.12),
-                    .black.opacity(0.03),
-                    .clear
-                ],
-                startPoint: .bottom,
-                endPoint: .top
+    private var diagonalHighlight: some View {
+        capsule
+            .fill(
+                LinearGradient(
+                    colors: [.white.opacity(max(0.03, 0.10 - (0.06 * clampedContrastBoost))), .clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
             )
-        )
+            .blendMode(.plusLighter)
     }
 
-    private var upperGloss: some View {
-        capsule.fill(
-            LinearGradient(
-                colors: [.white.opacity(0.16), .white.opacity(0.03), .clear],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+    private var hairline: some View {
+        capsule.stroke(
+            .white.opacity(min(0.30, 0.13 + (0.05 * clampedArtworkBacking) + (0.08 * clampedContrastBoost))),
+            lineWidth: 1
         )
     }
 
     var body: some View {
         capsule
             .fill(.ultraThinMaterial)
-            .overlay(shadowWash)
+            .opacity(clampedArtworkBacking)
+            .overlay(artworkScrim)
+            .overlay(glassWash)
             .overlay(neutralWash)
             .overlay(blueWash)
-            .overlay(lowerShade)
-            .overlay(upperGloss)
-            .overlay(capsule.stroke(.white.opacity(0.18), lineWidth: 1))
+            .overlay(diagonalHighlight)
+            .overlay(hairline)
     }
 }
 
@@ -160,22 +273,32 @@ extension View {
         modifier(HoverHintModifier(text: text, enabled: enabled))
     }
 
-    func miniControlClusterBackground(
+    func playerControlClusterBackground(
         sizeScale: CGFloat,
         neutralWashOpacity: Double,
-        blueFogOpacity: Double
+        blueFogOpacity: Double,
+        contrastBoost: Double,
+        artworkBacking: Double
     ) -> some View {
-        self
+        let clampedArtworkBacking = min(max(artworkBacking, 0), 1)
+        return self
             .padding(.horizontal, 6 * sizeScale)
-            .padding(.vertical, 5 * sizeScale)
+            .padding(.vertical, 4 * sizeScale)
             .background(
-                MiniControlClusterChrome(
+                PlayerControlClusterChrome(
                     sizeScale: sizeScale,
                     neutralWashOpacity: neutralWashOpacity,
-                    blueFogOpacity: blueFogOpacity
+                    blueFogOpacity: blueFogOpacity,
+                    contrastBoost: contrastBoost,
+                    artworkBacking: clampedArtworkBacking
                 )
             )
-            .shadow(color: .black.opacity(0.26), radius: 7 * sizeScale, x: 0, y: 2 * sizeScale)
+            .shadow(
+                color: .black.opacity(0.26 * clampedArtworkBacking),
+                radius: 7 * sizeScale,
+                x: 0,
+                y: 2 * sizeScale
+            )
     }
 
     func miniBottomPanelBackground(
@@ -210,6 +333,67 @@ extension View {
         perform action: @escaping () -> Void
     ) -> some View {
         modifier(AnimationCompletionObserverModifier(observedValue: value, completion: action))
+    }
+
+    /// Publishes where a mode's artwork sits inside its own branch. Measured in the
+    /// branch's local space, not the popover root, so the value stays constant while the
+    /// container morphs and does not churn state on every animation frame.
+    func modeArtworkAnchor(_ slot: ModeArtworkSlot, in space: String) -> some View {
+        background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: ModeArtworkFramePreferenceKey.self,
+                    value: [slot: proxy.frame(in: .named(space))]
+                )
+            }
+        }
+    }
+}
+
+enum ModeArtworkSlot: Hashable {
+    case regular
+    case mini
+}
+
+let modeRegularBranchSpace = "modeRegularBranch"
+let modeMiniBranchSpace = "modeMiniBranch"
+/// Geometry of the regular tile, mirrored from ArtworkView: a glass shell at radius 22
+/// with a 12pt allowance, so the image plate sits inset 6 at radius 16 (22 − 6). The
+/// mini hero is the bare artwork at radius 13. The shared morph node interpolates plate
+/// to plate and dissolves the shell along the way.
+let regularArtworkShellInset: CGFloat = 6
+let regularArtworkShellCornerRadius: CGFloat = 22
+let regularArtworkCornerRadius: CGFloat = 16
+let miniArtworkCornerRadius: CGFloat = 13
+
+/// The bare album art, with no per-mode chrome. Used only by the shared morph node —
+/// each mode still draws its own full treatment when settled.
+struct MorphingArtworkImage: View {
+    let image: NSImage?
+    let tint: Color
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [tint.opacity(0.34), .black.opacity(0.26)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            }
+        }
+    }
+}
+
+struct ModeArtworkFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [ModeArtworkSlot: CGRect] = [:]
+
+    static func reduce(value: inout [ModeArtworkSlot: CGRect], nextValue: () -> [ModeArtworkSlot: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, next in next })
     }
 }
 

@@ -19,6 +19,64 @@ enum ArtworkPlayerControlPalette {
         let opacity = min(0.42, (isHovering ? 0.34 : 0.20) + (0.08 * clampedContrast))
         return (isActive ? activeAccent : .white).opacity(opacity)
     }
+
+    static func clusterItemFill(isActive: Bool, isHovering: Bool, contrastBoost: Double = 0) -> Color {
+        let clampedContrast = min(max(contrastBoost, 0), 1)
+        if isActive {
+            return activeAccent.opacity(isHovering ? 0.32 : 0.22)
+        }
+        guard isHovering else { return .clear }
+        return .white.opacity(min(0.26, 0.16 + (0.08 * clampedContrast)))
+    }
+
+    static func clusterItemStroke(isActive: Bool) -> Color {
+        isActive ? activeAccent.opacity(0.44) : .clear
+    }
+}
+
+/// Chrome for a control that lives inside the shared top-row capsule. The capsule
+/// carries the glass, so each glyph stays bare until it is hovered or switched on.
+private struct PlayerClusterGlyphChrome: ViewModifier {
+    let diameter: CGFloat
+    let isActive: Bool
+    let isHovering: Bool
+    let contrastBoost: Double
+
+    func body(content: Content) -> some View {
+        content
+            .frame(width: diameter, height: diameter)
+            .background(
+                Circle().fill(
+                    ArtworkPlayerControlPalette.clusterItemFill(
+                        isActive: isActive,
+                        isHovering: isHovering,
+                        contrastBoost: contrastBoost
+                    )
+                )
+            )
+            .overlay(
+                Circle().stroke(ArtworkPlayerControlPalette.clusterItemStroke(isActive: isActive), lineWidth: 1)
+            )
+            .animation(.easeOut(duration: 0.14), value: isHovering)
+    }
+}
+
+extension View {
+    func playerClusterGlyphChrome(
+        diameter: CGFloat,
+        isActive: Bool = false,
+        isHovering: Bool,
+        contrastBoost: Double = 0
+    ) -> some View {
+        modifier(
+            PlayerClusterGlyphChrome(
+                diameter: diameter,
+                isActive: isActive,
+                isHovering: isHovering,
+                contrastBoost: contrastBoost
+            )
+        )
+    }
 }
 
 private struct DetailPaneSurfaceAppearance {
@@ -425,13 +483,11 @@ struct ModeToggleControl: View {
             Image(systemName: isMiniMode ? "rectangle.compress.vertical" : "rectangle.expand.vertical")
                 .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
                 .foregroundStyle(ArtworkPlayerControlPalette.icon())
-                .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
-                .background(Circle().fill(ArtworkPlayerControlPalette.fill(contrastBoost: clampedContrast)))
-                .overlay(
-                    Circle()
-                        .stroke(ArtworkPlayerControlPalette.stroke(isHovering: hovering, contrastBoost: clampedContrast), lineWidth: 1)
+                .playerClusterGlyphChrome(
+                    diameter: 24 * clampedSizeScale,
+                    isHovering: hovering,
+                    contrastBoost: clampedContrast
                 )
-                .scaleEffect(hovering ? 1.06 : 1.0)
         }
         .buttonStyle(.plain)
         .disabled(transitionActive)
@@ -468,13 +524,11 @@ struct DetachedSurfaceToggleControl: View {
             Image(systemName: isDetachedMode ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                 .font(.system(size: 15 * clampedSizeScale, weight: .semibold))
                 .foregroundStyle(ArtworkPlayerControlPalette.icon())
-                .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
-                .background(Circle().fill(ArtworkPlayerControlPalette.fill(contrastBoost: clampedContrast)))
-                .overlay(
-                    Circle()
-                        .stroke(ArtworkPlayerControlPalette.stroke(isHovering: hovering, contrastBoost: clampedContrast), lineWidth: 1)
+                .playerClusterGlyphChrome(
+                    diameter: 24 * clampedSizeScale,
+                    isHovering: hovering,
+                    contrastBoost: clampedContrast
                 )
-                .scaleEffect(hovering ? 1.06 : 1.0)
         }
         .buttonStyle(.plain)
         .disabled(transitionActive)
@@ -509,13 +563,12 @@ struct DetachedWindowPinControl: View {
             Image(systemName: isPinned ? "pin.fill" : "pin")
                 .font(.system(size: 14 * clampedSizeScale, weight: .semibold))
                 .foregroundStyle(ArtworkPlayerControlPalette.icon(isActive: isPinned))
-                .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
-                .background(Circle().fill(ArtworkPlayerControlPalette.fill(isActive: isPinned, contrastBoost: clampedContrast)))
-                .overlay(
-                    Circle()
-                        .stroke(ArtworkPlayerControlPalette.stroke(isActive: isPinned, isHovering: hovering, contrastBoost: clampedContrast), lineWidth: 1)
+                .playerClusterGlyphChrome(
+                    diameter: 24 * clampedSizeScale,
+                    isActive: isPinned,
+                    isHovering: hovering,
+                    contrastBoost: clampedContrast
                 )
-                .scaleEffect(hovering ? 1.06 : 1.0)
         }
         .buttonStyle(.plain)
         .disabled(transitionActive)
@@ -549,13 +602,11 @@ struct DetachedWindowCloseControl: View {
             Image(systemName: "xmark")
                 .font(.system(size: 14 * clampedSizeScale, weight: .bold))
                 .foregroundStyle(ArtworkPlayerControlPalette.icon())
-                .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
-                .background(Circle().fill(ArtworkPlayerControlPalette.fill(contrastBoost: clampedContrast)))
-                .overlay(
-                    Circle()
-                        .stroke(ArtworkPlayerControlPalette.stroke(isHovering: hovering, contrastBoost: clampedContrast), lineWidth: 1)
+                .playerClusterGlyphChrome(
+                    diameter: 24 * clampedSizeScale,
+                    isHovering: hovering,
+                    contrastBoost: clampedContrast
                 )
-                .scaleEffect(hovering ? 1.06 : 1.0)
         }
         .buttonStyle(.plain)
         .disabled(transitionActive)
@@ -590,13 +641,11 @@ struct MiniDetailToggleControl: View {
             Image(systemName: systemName)
                 .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
                 .foregroundStyle(ArtworkPlayerControlPalette.icon(isActive: isOn))
-                .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
-                .background(Circle().fill(ArtworkPlayerControlPalette.fill(isActive: isOn)))
-                .overlay(
-                    Circle()
-                        .stroke(ArtworkPlayerControlPalette.stroke(isActive: isOn, isHovering: hovering), lineWidth: 1)
+                .playerClusterGlyphChrome(
+                    diameter: 24 * clampedSizeScale,
+                    isActive: isOn,
+                    isHovering: hovering
                 )
-                .scaleEffect(hovering ? 1.06 : 1.0)
         }
         .contentShape(Rectangle())
         .buttonStyle(.plain)
@@ -694,14 +743,13 @@ struct RegularDetailToggleControl: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
-                .foregroundStyle(.white.opacity(isOn ? 0.98 : 0.90))
-                .frame(width: 24 * clampedSizeScale, height: 24 * clampedSizeScale)
-                .background(Circle().fill(Color.primary.opacity(min(0.34, 0.08 + (0.18 * clampedContrast)))))
-                .overlay(
-                    Circle()
-                        .stroke(.white.opacity(min(0.32, (hovering ? 0.24 : 0.16) + (0.08 * clampedContrast))), lineWidth: 1)
+                .foregroundStyle(ArtworkPlayerControlPalette.icon(isActive: isOn))
+                .playerClusterGlyphChrome(
+                    diameter: 24 * clampedSizeScale,
+                    isActive: isOn,
+                    isHovering: hovering,
+                    contrastBoost: clampedContrast
                 )
-                .scaleEffect(hovering ? 1.06 : 1.0)
         }
         .buttonStyle(.plain)
         .disabled(transitionActive)

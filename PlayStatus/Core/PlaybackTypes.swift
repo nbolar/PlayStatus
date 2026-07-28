@@ -2,7 +2,9 @@ import Foundation
 import AppKit
 import SwiftUI
 
-let modeTransitionDuration: Double = 0.38
+/// How long a mode morph takes. Also the point at which the outgoing layout and the
+/// shared artwork node are retired.
+let modeTransitionDuration: Double = 0.30
 let miniLyricsTransitionDuration: Double = 0.26
 
 enum NowPlayingSurfaceMode: String {

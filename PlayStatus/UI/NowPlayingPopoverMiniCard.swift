@@ -28,19 +28,20 @@ struct TopRoundedBandShape: Shape {
 
 struct MiniNowPlayingCard: View {
     @ObservedObject var model: NowPlayingModel
-    let artworkMorphNamespace: Namespace.ID
     let transitionActive: Bool
+    /// True on the render pass where this card takes its artwork back from the shared
+    /// morph node; the hero skips its first-appear fade so the swap is invisible.
+    let handoffSettling: Bool
     let availableHeight: CGFloat
     let resolvedHeight: CGFloat
     let primaryContentVisible: Bool
     let secondaryContentVisible: Bool
-    let startExpandedOnAppear: Bool
-    let onInitialExpandConsumed: () -> Void
     let onToggleMode: () -> Void
     @State private var pointerHovering = false
     @State private var forceExpandedUntilPointerExit = false
     @State private var showMiniLyricsPane = false
     @State private var miniLyricsHideWorkItem: DispatchWorkItem?
+    @State private var settingsHovering = false
 
     var body: some View {
         let luminance = artworkLuminance
@@ -86,7 +87,6 @@ struct MiniNowPlayingCard: View {
         let miniLowerPanelHoverLift = (pointerHovering ? 8.0 : 0) * miniControlScale
         let miniInfoBandTopCornerRadius = 24 * miniControlScale
         let showMiniControlRow = pointerHovering && primaryContentVisible
-        let showMiniSecondaryControls = showMiniControlRow && secondaryContentVisible
         let cardShell = miniCardShell(
             bottomShade: bottomShade,
             topShade: topShade,
@@ -95,7 +95,6 @@ struct MiniNowPlayingCard: View {
             miniControlScale: miniControlScale,
             miniTrackKey: miniTrackKey,
             showMiniControlRow: showMiniControlRow,
-            showMiniSecondaryControls: showMiniSecondaryControls,
             miniInfoBandBaseOpacity: miniInfoBandBaseOpacity,
             miniInfoBandReadabilityDarken: miniInfoBandReadabilityDarken,
             miniInfoBandNeutralWashOpacity: miniInfoBandNeutralWashOpacity,
@@ -147,7 +146,6 @@ struct MiniNowPlayingCard: View {
         miniControlScale: CGFloat,
         miniTrackKey: String,
         showMiniControlRow: Bool,
-        showMiniSecondaryControls: Bool,
         miniInfoBandBaseOpacity: Double,
         miniInfoBandReadabilityDarken: Double,
         miniInfoBandNeutralWashOpacity: Double,
@@ -174,9 +172,9 @@ struct MiniNowPlayingCard: View {
         let topControls = miniCardTopControls(
             miniControlScale: miniControlScale,
             showMiniControlRow: showMiniControlRow,
-            showMiniSecondaryControls: showMiniSecondaryControls,
             neutralWashOpacity: neutralWashOpacity,
-            blueFogOpacity: blueFogOpacity
+            blueFogOpacity: blueFogOpacity,
+            clusterContrastBoost: miniInfoBandContrastBoost
         )
         let bottomPanel = miniCardBottomPanel(
             miniControlScale: miniControlScale,
@@ -235,10 +233,6 @@ struct MiniNowPlayingCard: View {
         }
         .onAppear {
             syncRenderedMiniLyricsPaneImmediately()
-            if startExpandedOnAppear {
-                forceExpandedUntilPointerExit = true
-                onInitialExpandConsumed()
-            }
         }
         .onDisappear {
             miniLyricsHideWorkItem?.cancel()
@@ -272,6 +266,11 @@ struct MiniNowPlayingCard: View {
             .blendMode(.screen)
             .opacity(0.82)
 
+            // Mounted for the whole life of the branch, morph included. This was once
+            // skipped mid-morph to save its 34pt blur, but remounting it at handoff
+            // popped a full-card blurred-artwork layer into existence in a single frame
+            // — visible in the margins and through every translucent layer above it.
+            // It rides the branch's own cross-fade in, so nothing snaps.
             ArtworkBackdropCrossfadeView(
                 image: model.artwork,
                 animationKey: model.artwork?.artworkTransitionIdentity ?? "art:none",
@@ -300,43 +299,59 @@ struct MiniNowPlayingCard: View {
         )
     }
 
+    @ViewBuilder
     private func miniCardHeroSurface(miniTrackKey: String) -> some View {
-        MiniArtworkTransitionSurface(
-            artwork: model.artwork,
-            tint: model.glassTint,
-            trackKey: miniTrackKey,
-            animationsEnabled: model.animatedArtworkEnabled,
-            transitionActive: transitionActive,
-            animatedArtworkURL: model.effectiveAnimatedArtworkURL,
-            cropAnimatedArtworkToSquare: model.cropAnimatedArtworkToSquare,
-            isPopoverVisible: model.isPopoverVisible
-        )
-        .matchedGeometryEffect(id: "heroArtwork", in: artworkMorphNamespace)
-        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .stroke(.white.opacity(0.12), lineWidth: 1)
-        )
-        .animatedArtworkMotion(
-            isEnabled: model.animatedArtworkEnabled,
-            seed: "mini|\(model.provider.rawValue)|\(model.artist)|\(model.albumArtist)|\(model.album)|\(model.title)",
-            style: model.artworkMotionStyle,
-            isPlaying: model.isPlaying,
-            hasAnimatedStream: model.effectiveAnimatedArtworkURL != nil,
-            tint: model.glassTint,
-            artworkImage: model.artwork
-        )
-        .padding(8)
+        if transitionActive {
+            // Handed off to the shared morph node. Dropped from the tree rather than
+            // hidden — `.opacity(0)` still rasterises, and this is the single most
+            // expensive subtree in the card.
+            Color.clear
+                .modeArtworkAnchor(.mini, in: modeMiniBranchSpace)
+                .padding(8)
+        } else {
+            MiniArtworkTransitionSurface(
+                artwork: model.artwork,
+                tint: model.glassTint,
+                trackKey: miniTrackKey,
+                animationsEnabled: model.animatedArtworkEnabled,
+                transitionActive: transitionActive,
+                suppressAppearAnimation: handoffSettling,
+                animatedArtworkURL: model.effectiveAnimatedArtworkURL,
+                cropAnimatedArtworkToSquare: model.cropAnimatedArtworkToSquare,
+                isPopoverVisible: model.isPopoverVisible
+            )
+            .clipShape(RoundedRectangle(cornerRadius: miniArtworkCornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: miniArtworkCornerRadius, style: .continuous)
+                    .stroke(.white.opacity(0.12), lineWidth: 1)
+            )
+            .modeArtworkAnchor(.mini, in: modeMiniBranchSpace)
+            .animatedArtworkMotion(
+                isEnabled: model.animatedArtworkEnabled,
+                seed: "mini|\(model.provider.rawValue)|\(model.artist)|\(model.albumArtist)|\(model.album)|\(model.title)",
+                style: model.artworkMotionStyle,
+                isPlaying: model.isPlaying,
+                hasAnimatedStream: model.effectiveAnimatedArtworkURL != nil,
+                tint: model.glassTint,
+                artworkImage: model.artwork
+            )
+            .padding(8)
+        }
     }
 
     private func miniCardTopControls(
         miniControlScale: CGFloat,
         showMiniControlRow: Bool,
-        showMiniSecondaryControls: Bool,
         neutralWashOpacity: Double,
-        blueFogOpacity: Double
+        blueFogOpacity: Double,
+        clusterContrastBoost: Double
     ) -> some View {
-        HStack(spacing: 6 * miniControlScale) {
+        let miniDetailTabActive = model.miniLyricsEnabled
+        let restingOpacity = miniDetailTabActive
+            ? playerControlClusterActiveRestingOpacity
+            : playerControlClusterRestingOpacity
+
+        return HStack(spacing: 2 * miniControlScale) {
             ModeToggleControl(
                 isMiniMode: true,
                 transitionActive: transitionActive,
@@ -344,90 +359,83 @@ struct MiniNowPlayingCard: View {
                 action: onToggleMode
             )
 
-            if showMiniSecondaryControls {
-                DetachedSurfaceToggleControl(
-                    isDetachedMode: model.surfaceMode == .detached,
+            DetachedSurfaceToggleControl(
+                isDetachedMode: model.surfaceMode == .detached,
+                transitionActive: transitionActive,
+                sizeScale: miniControlScale
+            ) {
+                model.requestToggleDetachedMode()
+            }
+
+            if model.surfaceMode == .detached {
+                DetachedWindowPinControl(
+                    isPinned: model.detachedWindowAlwaysOnTop,
                     transitionActive: transitionActive,
                     sizeScale: miniControlScale
                 ) {
-                    model.requestToggleDetachedMode()
+                    model.detachedWindowAlwaysOnTop.toggle()
                 }
-                .transition(.opacity.combined(with: .move(edge: .trailing)))
 
-                if model.surfaceMode == .detached {
-                    DetachedWindowPinControl(
-                        isPinned: model.detachedWindowAlwaysOnTop,
-                        transitionActive: transitionActive,
-                        sizeScale: miniControlScale
-                    ) {
-                        model.detachedWindowAlwaysOnTop.toggle()
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
-
-                    DetachedWindowCloseControl(
-                        transitionActive: transitionActive,
-                        sizeScale: miniControlScale
-                    ) {
-                        model.requestCloseDetachedWindow()
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
-                }
-            }
-
-            if showMiniControlRow {
-                MiniDetailToggleControl(
-                    isOn: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics,
-                    systemName: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics ? "quote.bubble.fill" : "quote.bubble",
-                    helpText: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics ? "Hide lyrics" : "Show lyrics",
+                DetachedWindowCloseControl(
                     transitionActive: transitionActive,
                     sizeScale: miniControlScale
                 ) {
-                    toggleMiniDetails(tab: .lyrics)
+                    model.requestCloseDetachedWindow()
                 }
             }
 
-            if showMiniControlRow {
-                MiniDetailToggleControl(
-                    isOn: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits,
-                    systemName: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits ? "info.circle.fill" : "info.circle",
-                    helpText: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits ? "Hide credits" : "Show credits",
-                    transitionActive: transitionActive,
-                    sizeScale: miniControlScale
-                ) {
-                    toggleMiniDetails(tab: .credits)
-                }
+            MiniDetailToggleControl(
+                isOn: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics,
+                systemName: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics ? "quote.bubble.fill" : "quote.bubble",
+                helpText: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .lyrics ? "Hide lyrics" : "Show lyrics",
+                transitionActive: transitionActive,
+                sizeScale: miniControlScale
+            ) {
+                toggleMiniDetails(tab: .lyrics)
             }
 
-            if showMiniSecondaryControls {
-                SettingsOpenControl {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 16 * miniControlScale, weight: .semibold))
-                        .foregroundStyle(ArtworkPlayerControlPalette.icon())
-                        .frame(
-                            width: 26 * miniControlScale,
-                            height: 26 * miniControlScale
-                        )
-                        .background(Circle().fill(ArtworkPlayerControlPalette.fill()))
-                        .overlay(
-                            Circle().stroke(ArtworkPlayerControlPalette.stroke(), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-                .hoverHint("Settings", enabled: !transitionActive)
-                .transition(.opacity.combined(with: .move(edge: .trailing)))
+            MiniDetailToggleControl(
+                isOn: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits,
+                systemName: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits ? "info.circle.fill" : "info.circle",
+                helpText: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .credits ? "Hide credits" : "Show credits",
+                transitionActive: transitionActive,
+                sizeScale: miniControlScale
+            ) {
+                toggleMiniDetails(tab: .credits)
             }
+
+            SettingsOpenControl {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 16 * miniControlScale, weight: .semibold))
+                    .foregroundStyle(ArtworkPlayerControlPalette.icon())
+                    .playerClusterGlyphChrome(
+                        diameter: 24 * miniControlScale,
+                        isHovering: settingsHovering
+                    )
+            }
+            .buttonStyle(.plain)
+            .onHover { hovering in
+                guard !transitionActive else {
+                    if settingsHovering { settingsHovering = false }
+                    return
+                }
+                settingsHovering = hovering
+            }
+            .hoverHint("Settings", enabled: !transitionActive)
         }
-        .miniControlClusterBackground(
+        .playerControlClusterBackground(
             sizeScale: miniControlScale,
             neutralWashOpacity: neutralWashOpacity * 0.65,
-            blueFogOpacity: blueFogOpacity * 0.65
+            blueFogOpacity: blueFogOpacity * 0.65,
+            contrastBoost: clusterContrastBoost,
+            artworkBacking: 1
         )
         .fixedSize(horizontal: true, vertical: false)
         .padding(.top, 10 * miniControlScale)
         .padding(.trailing, 10 * miniControlScale)
-        .opacity(showMiniControlRow ? 1 : 0)
-        .offset(y: showMiniControlRow ? 0 : -6)
-        .allowsHitTesting(showMiniControlRow)
+        .opacity(primaryContentVisible ? (showMiniControlRow ? 1 : restingOpacity) : 0)
+        .offset(y: primaryContentVisible ? 0 : -6)
+        .allowsHitTesting(primaryContentVisible)
         .animation(.easeInOut(duration: 0.16), value: pointerHovering)
         .animation(modePrimaryRevealAnimation, value: primaryContentVisible)
         .animation(modeSecondaryRevealAnimation, value: secondaryContentVisible)
@@ -689,6 +697,7 @@ struct MiniArtworkTransitionSurface: View {
     let trackKey: String
     let animationsEnabled: Bool
     let transitionActive: Bool
+    let suppressAppearAnimation: Bool
     let animatedArtworkURL: URL?
     let cropAnimatedArtworkToSquare: Bool
     let isPopoverVisible: Bool
@@ -701,7 +710,7 @@ struct MiniArtworkTransitionSurface: View {
             cropAnimatedArtworkToSquare: cropAnimatedArtworkToSquare,
             transitionKeyPrefix: trackKey,
             transitionAnimationsEnabled: animationsEnabled && !transitionActive,
-            animateOnFirstAppear: !transitionActive
+            animateOnFirstAppear: !transitionActive && !suppressAppearAnimation
         ) {
             staticArtworkLayer(for: artwork)
         }

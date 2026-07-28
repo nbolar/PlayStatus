@@ -59,52 +59,6 @@ enum WalkthroughFeature: String, CaseIterable, Identifiable {
     }
 }
 
-private enum ProviderConnectionState: Equatable {
-    case idle
-    case testing
-    case connected(String)
-    case attention(String)
-
-    var label: String {
-        switch self {
-        case .idle:
-            return "Not checked yet"
-        case .testing:
-            return "Checking connection..."
-        case .connected(let message):
-            return message
-        case .attention(let message):
-            return message
-        }
-    }
-
-    var tint: Color {
-        switch self {
-        case .idle:
-            return .secondary
-        case .testing:
-            return Color(red: 0.43, green: 0.72, blue: 0.98)
-        case .connected:
-            return Color(red: 0.38, green: 0.78, blue: 0.57)
-        case .attention:
-            return Color(red: 0.98, green: 0.63, blue: 0.36)
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .idle:
-            return "circle.dashed"
-        case .testing:
-            return "arrow.triangle.2.circlepath"
-        case .connected:
-            return "checkmark.seal.fill"
-        case .attention:
-            return "exclamationmark.triangle.fill"
-        }
-    }
-}
-
 struct WalkthroughPreviewState: Equatable {
     let provider: NowPlayingProvider
     let title: String
@@ -198,8 +152,7 @@ struct OnboardingWalkthroughView: View {
 
     @Environment(\.openSettings) private var openSettings
     @State private var selectedFeature: WalkthroughFeature = .modes
-    @State private var musicConnectionState: ProviderConnectionState = .idle
-    @State private var spotifyConnectionState: ProviderConnectionState = .idle
+    @ObservedObject private var connectionInspector = ProviderConnectionInspector.shared
 
     private var mode: OnboardingMode {
         coordinator.resolvedMode
@@ -247,8 +200,10 @@ struct OnboardingWalkthroughView: View {
         case .connect:
             WalkthroughConnectStep(
                 draft: draft,
-                musicConnectionState: musicConnectionState,
-                spotifyConnectionState: spotifyConnectionState,
+                musicStatus: connectionInspector.musicStatus,
+                spotifyStatus: connectionInspector.spotifyStatus,
+                isMusicRunning: connectionInspector.isRunning(.music),
+                isSpotifyRunning: connectionInspector.isRunning(.spotify),
                 isMusicInstalled: coordinator.providerIsInstalled(.music),
                 isSpotifyInstalled: coordinator.providerIsInstalled(.spotify),
                 onOpenMusic: { coordinator.openProvider(.music) },
@@ -258,6 +213,9 @@ struct OnboardingWalkthroughView: View {
                 onOpenPrivacyHelp: { coordinator.openAutomationPrivacySettings() },
                 onVerifyEnabledApps: { runQuickVerification() }
             )
+            .onAppear {
+                connectionInspector.refreshAll()
+            }
         case .explore:
             WalkthroughExploreStep(
                 selectedFeature: $selectedFeature,
@@ -279,18 +237,9 @@ struct OnboardingWalkthroughView: View {
     }
 
     private func connect(_ provider: NowPlayingProvider) {
-        setConnectionState(.testing, for: provider)
-        coordinator.connectAndProbeAutomation(for: provider) { result in
-            switch result {
-            case .connected:
-                NowPlayingModel.shared.refresh()
-                setConnectionState(.connected("Connected and ready for \(provider.displayName)."), for: provider)
-            case .failed(let diagnostic):
-                setConnectionState(
-                    .attention("Couldn’t verify \(provider.displayName). \(diagnostic)"),
-                    for: provider
-                )
-            }
+        connectionInspector.verify(provider) { status in
+            guard case .connected = status else { return }
+            NowPlayingModel.shared.refresh()
         }
     }
 
@@ -300,15 +249,6 @@ struct OnboardingWalkthroughView: View {
         }
         if draft.enableSpotify {
             connect(.spotify)
-        }
-    }
-
-    private func setConnectionState(_ state: ProviderConnectionState, for provider: NowPlayingProvider) {
-        switch provider {
-        case .music, .none:
-            musicConnectionState = state
-        case .spotify:
-            spotifyConnectionState = state
         }
     }
 }
@@ -1088,8 +1028,10 @@ private struct WalkthroughUpgradeStep: View {
 
 private struct WalkthroughConnectStep: View {
     @Bindable var draft: WalkthroughDraftState
-    let musicConnectionState: ProviderConnectionState
-    let spotifyConnectionState: ProviderConnectionState
+    let musicStatus: ProviderConnectionStatus
+    let spotifyStatus: ProviderConnectionStatus
+    let isMusicRunning: Bool
+    let isSpotifyRunning: Bool
     let isMusicInstalled: Bool
     let isSpotifyInstalled: Bool
     let onOpenMusic: () -> Void
@@ -1137,19 +1079,23 @@ private struct WalkthroughConnectStep: View {
                     ProviderConnectCard(
                         provider: .music,
                         isEnabled: draft.enableMusic,
-                        state: musicConnectionState,
+                        status: musicStatus,
                         isInstalled: isMusicInstalled,
+                        isRunning: isMusicRunning,
                         onOpen: onOpenMusic,
-                        onConnect: onConnectMusic
+                        onConnect: onConnectMusic,
+                        onOpenPrivacySettings: onOpenPrivacyHelp
                     )
                 } secondary: {
                     ProviderConnectCard(
                         provider: .spotify,
                         isEnabled: draft.enableSpotify,
-                        state: spotifyConnectionState,
+                        status: spotifyStatus,
                         isInstalled: isSpotifyInstalled,
+                        isRunning: isSpotifyRunning,
                         onOpen: onOpenSpotify,
-                        onConnect: onConnectSpotify
+                        onConnect: onConnectSpotify,
+                        onOpenPrivacySettings: onOpenPrivacyHelp
                     )
                 }
 
@@ -1685,10 +1631,21 @@ private struct ConnectionInstructionPill: View {
 private struct ProviderConnectCard: View {
     let provider: NowPlayingProvider
     let isEnabled: Bool
-    let state: ProviderConnectionState
+    let status: ProviderConnectionStatus
     let isInstalled: Bool
+    let isRunning: Bool
     let onOpen: () -> Void
     let onConnect: () -> Void
+    let onOpenPrivacySettings: () -> Void
+
+    private var displayName: String {
+        ProviderConnectionInspector.displayName(for: provider)
+    }
+
+    private var connectTitle: String {
+        if status.isChecking { return "Checking..." }
+        return isRunning ? "Verify" : "Open & Verify"
+    }
 
     var body: some View {
         WalkthroughSurfaceCard {
@@ -1702,7 +1659,7 @@ private struct ProviderConnectCard: View {
                         )
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(provider.displayName)
+                        Text(displayName)
                             .font(.system(size: 18, weight: .bold, design: .rounded))
                         Text(isEnabled ? "Enabled in PlayStatus" : "Currently disabled in PlayStatus")
                             .font(.system(size: 11, weight: .medium, design: .rounded))
@@ -1710,25 +1667,35 @@ private struct ProviderConnectCard: View {
                     }
                 }
 
-                Text("Open the app first if you want the Automation prompt to feel obvious. Then ask PlayStatus to verify the connection.")
+                Text("Verify asks macOS whether PlayStatus is allowed to control \(displayName), opening the app first if it is closed.")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
 
-                Label(state.label, systemImage: state.systemImage)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(state.tint)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(state.tint.opacity(0.10))
-                    )
+                HStack(alignment: .top, spacing: 8) {
+                    Label(status.label, systemImage: status.systemImage)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(status.tint)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Spacer(minLength: 0)
+
+                    if status.isChecking {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(status.tint.opacity(0.10))
+                )
 
                 HStack(spacing: 10) {
                     Button {
                         onOpen()
                     } label: {
-                        Label("Open \(provider.displayName)", systemImage: "arrow.up.right.square")
+                        Label("Open \(displayName)", systemImage: "arrow.up.right.square")
                     }
                     .buttonStyle(.bordered)
                     .disabled(!isInstalled)
@@ -1736,19 +1703,30 @@ private struct ProviderConnectCard: View {
                     Button {
                         onConnect()
                     } label: {
-                        Label(state == .testing ? "Checking..." : "Connect", systemImage: "checkmark.shield")
+                        Label(connectTitle, systemImage: "checkmark.shield")
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!isEnabled || !isInstalled || state == .testing)
+                    .disabled(!isEnabled || !isInstalled || status.isChecking)
+                }
+
+                if status.isBlocked {
+                    Button {
+                        onOpenPrivacySettings()
+                    } label: {
+                        Label("Open Privacy & Security", systemImage: "hand.raised")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
 
                 if !isInstalled {
-                    Text("\(provider.displayName) is not currently installed on this Mac.")
+                    Text("\(displayName) is not currently installed on this Mac.")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
             }
         }
+        .animation(.smooth(duration: 0.18), value: status)
     }
 }
 

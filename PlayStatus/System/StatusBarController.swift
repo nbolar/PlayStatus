@@ -20,7 +20,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private var lastStatusLength: CGFloat = -1
     private var lastStatusIcon: ProviderIconKind?
     private var lastAppliedPopoverSize: NSSize = .zero
-    private var pendingModeResizeAnimation = false
+    private let morphDriver = ModeMorphDriver()
     private var pendingLyricsResizeAnimation = false
     private var lastMiniModeValue: Bool = false
     private var lastLyricsPaneExpandedValue: Bool = false
@@ -130,11 +130,15 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
                 guard let self else { return }
                 let currentMiniMode = self.model.miniMode
                 if currentMiniMode != self.lastMiniModeValue {
-                    self.pendingModeResizeAnimation = true
                     self.pendingLyricsResizeAnimation = false
                     self.lyricsResizeAnimationEndTime = 0
                     self.lastMiniModeValue = currentMiniMode
                     self.lastLyricsPaneExpandedValue = self.currentLyricsPaneExpandedState()
+                    // Start the animation here rather than leaving a flag for the layout
+                    // pass to notice. That flag was being consumed by whichever of the
+                    // two hops ran first, and when the layout pass lost the race the
+                    // window simply snapped.
+                    self.beginModeMorphResize()
                 }
             }
             .store(in: &cancellables)
@@ -494,6 +498,140 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         return max(0, buttonRectOnScreen.minY - screenFrame.minY - bottomPadding)
     }
 
+    private var modeMorphInFlight: Bool {
+        morphDriver.isRunning || CFAbsoluteTimeGetCurrent() < model.modeMorphDeadline
+    }
+
+    /// Target frame for the popover's backing window: sized to the current mode, top
+    /// edge held where it is, centred on the status item. Returns nil when the window is
+    /// already there. Shared by the morph and the ordinary layout pass so both agree.
+    private func popoverTargetFrame(for window: NSWindow) -> NSRect? {
+        let targetSize = currentSurfaceContentSize(
+            anchorWindow: window,
+            updatesHeightCap: model.surfaceMode == .popover
+        )
+        let targetFrameSize = window.frameRect(
+            forContentRect: NSRect(origin: .zero, size: targetSize)
+        ).size
+        let current = window.frame
+        if abs(current.width - targetFrameSize.width) < 0.5
+            && abs(current.height - targetFrameSize.height) < 0.5 {
+            return nil
+        }
+
+        var targetX = current.midX - (targetFrameSize.width / 2)
+        if let button = statusItem?.button, let buttonWindow = button.window {
+            let buttonRectInWindow = button.convert(button.bounds, to: nil)
+            let buttonRectOnScreen = buttonWindow.convertToScreen(buttonRectInWindow)
+            targetX = buttonRectOnScreen.midX - (targetFrameSize.width / 2)
+        }
+
+        var targetFrame = NSRect(
+            x: round(targetX),
+            y: round(current.maxY - targetFrameSize.height),
+            width: targetFrameSize.width,
+            height: targetFrameSize.height
+        )
+        if let screenFrame = window.screen?.visibleFrame {
+            targetFrame.origin.x = min(
+                max(targetFrame.origin.x, screenFrame.minX + 6),
+                max(screenFrame.minX + 6, screenFrame.maxX - targetFrame.width - 6)
+            )
+        }
+        return targetFrame
+    }
+
+    private func detachedTargetFrame(for window: NSWindow) -> NSRect? {
+        let targetContentSize = currentSurfaceContentSize(
+            anchorWindow: window,
+            updatesHeightCap: model.surfaceMode == .detached
+        )
+        let targetFrameSize = window.frameRect(
+            forContentRect: NSRect(origin: .zero, size: targetContentSize)
+        ).size
+        let current = window.frame
+        if abs(current.width - targetFrameSize.width) < 0.5
+            && abs(current.height - targetFrameSize.height) < 0.5 {
+            return nil
+        }
+
+        let targetFrame = NSRect(
+            x: round(current.midX - (targetFrameSize.width / 2)),
+            y: round(current.maxY - targetFrameSize.height),
+            width: targetFrameSize.width,
+            height: targetFrameSize.height
+        )
+        return clampedDetachedFrame(targetFrame, preferredScreen: window.screen)
+    }
+
+    /// Steps whichever surface is on screen to its new mode size. This is the only thing
+    /// that moves during a morph; the SwiftUI content has no animation of its own and
+    /// simply lays out into the host as it resizes.
+    private func beginModeMorphResize() {
+        let isDetached = model.surfaceMode == .detached
+
+        let window: NSWindow?
+        let targetFrame: NSRect?
+        if isDetached {
+            let detached = detachedWindow.flatMap { $0.isVisible ? $0 : nil }
+            window = detached
+            targetFrame = detached.flatMap { detachedTargetFrame(for: $0) }
+        } else {
+            let popoverWindow = popover.isShown ? popover.contentViewController?.view.window : nil
+            window = popoverWindow
+            targetFrame = popoverWindow.flatMap { popoverTargetFrame(for: $0) }
+        }
+
+        guard let window, let targetFrame else { return }
+
+        // The hosting view does not track the window on its own — sizingOptions is
+        // empty, and popover.contentSize is deliberately never touched while shown. On
+        // shrink that lag is visible: the SwiftUI content derives its morph progress
+        // from the host's width, so the artwork trailed the window and snapped into
+        // place at the end. Stepping the host alongside the window keeps the two equal
+        // on every tick. Shrink only: the grow direction reads as a reveal with the lag
+        // in place, and that behaviour is approved as-is.
+        let hostView = isDetached ? detachedHost.view : popoverHost.view
+        let stepsHostView = targetFrame.width < window.frame.width
+
+        // Both endpoints are captured up front and every frame is interpolated between
+        // them. Nothing reads the live frame back, so per-frame rounding cannot
+        // accumulate — that feedback loop used to walk the popover up the screen a
+        // little further on every toggle.
+        let startFrame = window.frame
+        morphDriver.start(
+            onFrame: { progress in
+                let stepped = NSRect(
+                    x: round(startFrame.minX + ((targetFrame.minX - startFrame.minX) * progress)),
+                    y: round(startFrame.minY + ((targetFrame.minY - startFrame.minY) * progress)),
+                    width: round(startFrame.width + ((targetFrame.width - startFrame.width) * progress)),
+                    height: round(startFrame.height + ((targetFrame.height - startFrame.height) * progress))
+                )
+                window.setFrame(stepped, display: true)
+                if stepsHostView {
+                    hostView.setFrameSize(window.contentRect(forFrameRect: stepped).size)
+                }
+            },
+            onFinish: { [weak self] in
+                window.setFrame(targetFrame, display: true)
+                if stepsHostView {
+                    hostView.setFrameSize(window.contentRect(forFrameRect: targetFrame).size)
+                }
+                guard let self else { return }
+                let settled = self.currentSurfaceContentSize(
+                    anchorWindow: window,
+                    updatesHeightCap: true
+                )
+                if isDetached {
+                    self.lastAppliedDetachedSize = settled
+                    self.persistDetachedWindowOrigin(from: targetFrame)
+                } else {
+                    self.lastAppliedPopoverSize = settled
+                }
+            }
+        )
+    }
+
     private func updatePopoverLayout() {
         let popoverOwnsHeightCap = model.surfaceMode == .popover
         var targetSize = currentSurfaceContentSize(updatesHeightCap: popoverOwnsHeightCap)
@@ -536,53 +674,18 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             return
         }
 
+        // A morph owns the window frame for its duration.
+        guard !modeMorphInFlight else { return }
+
         // While shown, always resize via the backing window frame (instead of
         // popover.contentSize) to avoid NSPopover's internal intermediate size
         // transitions that can flash during rapid SwiftUI tree updates.
         if let window = popover.contentViewController?.view.window {
             targetSize = currentSurfaceContentSize(anchorWindow: window, updatesHeightCap: popoverOwnsHeightCap)
-            let targetFrameSize = window.frameRect(
-                forContentRect: NSRect(origin: .zero, size: targetSize)
-            ).size
-            let current = window.frame
-            if abs(current.width - targetFrameSize.width) < 0.5
-                && abs(current.height - targetFrameSize.height) < 0.5 {
-                return
-            }
-
-            let currentTop = current.maxY
-            var targetX = current.midX - (targetFrameSize.width / 2)
-            if let button = statusItem?.button, let buttonWindow = button.window {
-                let buttonRectInWindow = button.convert(button.bounds, to: nil)
-                let buttonRectOnScreen = buttonWindow.convertToScreen(buttonRectInWindow)
-                targetX = buttonRectOnScreen.midX - (targetFrameSize.width / 2)
-            }
-
-            var targetFrame = NSRect(
-                x: round(targetX),
-                y: round(currentTop - targetFrameSize.height),
-                width: targetFrameSize.width,
-                height: targetFrameSize.height
-            )
-            if let screenFrame = window.screen?.visibleFrame {
-                targetFrame.origin.x = min(
-                    max(targetFrame.origin.x, screenFrame.minX + 6),
-                    max(screenFrame.minX + 6, screenFrame.maxX - targetFrame.width - 6)
-                )
-            }
+            guard let targetFrame = popoverTargetFrame(for: window) else { return }
 
             let remainingLyricsResizeAnimation = max(0, lyricsResizeAnimationEndTime - CFAbsoluteTimeGetCurrent())
-            if pendingModeResizeAnimation {
-                pendingModeResizeAnimation = false
-                pendingLyricsResizeAnimation = false
-                lyricsResizeAnimationEndTime = 0
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = modeTransitionDuration
-                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                    context.allowsImplicitAnimation = true
-                    window.animator().setFrame(targetFrame, display: true)
-                }
-            } else if pendingLyricsResizeAnimation || remainingLyricsResizeAnimation > 0.001 {
+            if pendingLyricsResizeAnimation || remainingLyricsResizeAnimation > 0.001 {
                 pendingLyricsResizeAnimation = false
                 if remainingLyricsResizeAnimation <= 0.001 {
                     lyricsResizeAnimationEndTime = 0
@@ -638,32 +741,12 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             return
         }
 
-        let current = window.frame
-        if abs(current.width - targetFrameSize.width) < 0.5
-            && abs(current.height - targetFrameSize.height) < 0.5 {
-            return
-        }
-
-        var targetFrame = NSRect(
-            x: round(current.midX - (targetFrameSize.width / 2)),
-            y: round(current.maxY - targetFrameSize.height),
-            width: targetFrameSize.width,
-            height: targetFrameSize.height
-        )
-        targetFrame = clampedDetachedFrame(targetFrame, preferredScreen: window.screen)
+        // A morph owns the window frame for its duration.
+        guard !modeMorphInFlight else { return }
+        guard let targetFrame = detachedTargetFrame(for: window) else { return }
 
         let remainingLyricsResizeAnimation = max(0, lyricsResizeAnimationEndTime - CFAbsoluteTimeGetCurrent())
-        if pendingModeResizeAnimation {
-            pendingModeResizeAnimation = false
-            pendingLyricsResizeAnimation = false
-            lyricsResizeAnimationEndTime = 0
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = modeTransitionDuration
-                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                context.allowsImplicitAnimation = true
-                window.animator().setFrame(targetFrame, display: true)
-            }
-        } else if pendingLyricsResizeAnimation || remainingLyricsResizeAnimation > 0.001 {
+        if pendingLyricsResizeAnimation || remainingLyricsResizeAnimation > 0.001 {
             pendingLyricsResizeAnimation = false
             if remainingLyricsResizeAnimation <= 0.001 {
                 lyricsResizeAnimationEndTime = 0
