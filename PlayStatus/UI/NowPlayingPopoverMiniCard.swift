@@ -346,10 +346,7 @@ struct MiniNowPlayingCard: View {
         blueFogOpacity: Double,
         clusterContrastBoost: Double
     ) -> some View {
-        let miniDetailTabActive = model.miniLyricsEnabled
-        let restingOpacity = miniDetailTabActive
-            ? playerControlClusterActiveRestingOpacity
-            : playerControlClusterRestingOpacity
+        let restingOpacity = playerControlClusterRestingOpacity
 
         return HStack(spacing: 2 * miniControlScale) {
             ModeToggleControl(

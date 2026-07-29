@@ -93,9 +93,10 @@ let modeOutgoingFadeAnimation = Animation.easeOut(duration: 0.14)
 let modeIncomingFadeAnimation = Animation.easeOut(duration: 0.16)
 let modeIncomingFadeDelay: Double = 0.06
 /// Opacity of the top-row control capsule when the pointer is elsewhere. The row keeps
-/// its full width at rest so nothing shifts when the cluster comes up on hover.
+/// its full width at rest so nothing shifts when the cluster comes up on hover. The
+/// capsule hides whether or not the lyrics/credits pane is open — an open pane used to
+/// keep it at a partial opacity, which just left chrome sitting over the artwork.
 let playerControlClusterRestingOpacity: Double = 0
-let playerControlClusterActiveRestingOpacity: Double = 0.62
 let miniSeamBlendHeight: CGFloat = 1
 let miniSeamBlurRadius: CGFloat = 10
 

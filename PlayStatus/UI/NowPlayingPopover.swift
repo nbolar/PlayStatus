@@ -385,9 +385,7 @@ struct NowPlayingPopover: View {
         let searchTrailingAlignmentNudge: CGFloat = 4
         let regularDetachedTransparencyMultiplier: Double = model.surfaceMode == .detached ? 0.80 : 1.0
         let regularControlScale = model.regularControlScaleFactor
-        let restingRegularControlOpacity: Double = model.lyricsPanelExpanded
-            ? playerControlClusterActiveRestingOpacity
-            : playerControlClusterRestingOpacity
+        let restingRegularControlOpacity: Double = playerControlClusterRestingOpacity
         let showDetailsCoachmark = onboarding.isCoachmarkActive(.detailsToggle)
         let showDetachedModeCoachmark = onboarding.isCoachmarkActive(.detachedMode)
         let showDetachedControlsCoachmark = onboarding.isCoachmarkActive(.detachedControls)
