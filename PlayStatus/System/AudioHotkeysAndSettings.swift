@@ -5,11 +5,13 @@ struct PlayStatusSettingsView: View {
     @ObservedObject var model: NowPlayingModel
     @ObservedObject var onboarding: OnboardingCoordinator
     @ObservedObject private var connectionInspector = ProviderConnectionInspector.shared
-    @State private var selectedTab: SettingsTab = .display
+    @State private var selectedTab: SettingsTab = .menuBar
     @State private var tabDirection: SettingsTabDirection = .forward
     @State private var showAnimatedStreamPreview = false
     @State private var showHoverMotionStylePreview = false
     @State private var settingsContentLoaded = false
+    @State private var isAdvancedExpanded = false
+    @State private var isLicenseExpanded = false
 
     var body: some View {
         Group {
@@ -107,171 +109,200 @@ struct PlayStatusSettingsView: View {
     }
 
     private var settingsWindowSize: CGSize {
-        let widths = SettingsTab.allCases.map(\.preferredSize.width)
-        let heights = SettingsTab.allCases.map(\.preferredSize.height)
-        return CGSize(width: widths.max() ?? 780, height: heights.max() ?? 640)
+        SettingsTab.windowSize
     }
 
     @ViewBuilder
     private var tabContent: some View {
         switch selectedTab {
-        case .display:
-            displayContent
-        case .playback:
-            playbackContent
-        case .hotkeys:
-            hotkeysContent
-        case .system:
-            systemContent
-        case .license:
-            licenseContent
+        case .menuBar:
+            menuBarContent
+        case .playerWindow:
+            playerWindowContent
+        case .appearance:
+            appearanceContent
+        case .artworkMotion:
+            artworkMotionContent
+        case .sources:
+            sourcesContent
+        case .shortcuts:
+            shortcutsContent
+        case .general:
+            generalContent
+        case .about:
+            aboutContent
         }
     }
 
-    private var displayContent: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SettingsControlRow(
-                title: "Display Mode",
-                caption: "Changes the status text format in the menubar."
-            ) {
-                Picker("Display Mode", selection: Binding(
-                    get: { model.menuBarTextMode },
-                    set: { model.menuBarTextMode = $0 }
-                )) {
-                    ForEach(MenuBarTextMode.allCases, id: \.self) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(width: 220, alignment: .trailing)
+    // MARK: - Look
+
+    private var menuBarContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            MenuBarPreviewStrip(model: model)
+
+            SettingsCard {
+                SettingsSegmentedRow(
+                    title: "Show",
+                    selection: Binding(
+                        get: { model.menuBarTextMode },
+                        set: { model.menuBarTextMode = $0 }
+                    ),
+                    options: MenuBarTextMode.allCases,
+                    optionLabel: { $0.displayName }
+                )
+
+                SettingsRowDivider()
+
+                SettingsSwitchRow(
+                    title: "Hide text in parentheses",
+                    caption: "“Get Lucky (Radio Edit)” → “Get Lucky”",
+                    isOn: $model.ignoreParentheses
+                )
             }
 
-            Divider().padding(.vertical, 2)
+            SettingsCard {
+                SettingsSwitchRow(
+                    title: "Scroll long titles",
+                    caption: "Only applies when the title exceeds the maximum width",
+                    isOn: $model.scrollableTitle
+                )
 
-            SettingsToggleRow(
-                title: "Ignore (...) in title",
-                caption: "Removes parenthetical fragments from song titles.",
-                isOn: $model.ignoreParentheses
-            )
-            SettingsToggleRow(
-                title: "Scrollable title",
-                caption: "Allows long track names to scroll in the menu bar.",
-                isOn: $model.scrollableTitle
-            )
-            SettingsToggleRow(
-                title: "Slide title on new song",
-                caption: "Animates title transitions when tracks change.",
-                isOn: $model.slideTitleOnChange
-            )
-            SettingsToggleRow(
-                title: "Detached window stays on top",
-                caption: "Keeps the detached now-playing window floating above normal windows.",
-                isOn: $model.detachedWindowAlwaysOnTop
-            )
+                SettingsRowDivider()
 
-            SettingsControlRow(
-                title: "Detached window size",
-                caption: "Chooses the standalone detached window size preset."
-            ) {
-                Picker("Detached window size", selection: Binding(
-                    get: { model.detachedWindowSizePreset },
-                    set: { model.detachedWindowSizePreset = $0 }
-                )) {
-                    ForEach(DetachedWindowSizePreset.allCases, id: \.self) { preset in
-                        Text(preset.displayName).tag(preset)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(width: 220, alignment: .trailing)
+                SettingsSwitchRow(
+                    title: "Slide in on track change",
+                    isOn: $model.slideTitleOnChange
+                )
+
+                SettingsRowDivider()
+
+                SettingsInlineSliderRow(
+                    title: "Maximum width",
+                    value: Binding(
+                        get: { model.statusTextWidthValue },
+                        set: { model.statusTextWidthValue = $0 }
+                    ),
+                    range: 80...320,
+                    valueText: "\(Int(model.statusTextWidthValue)) px"
+                )
+            }
+        }
+    }
+
+    private var playerWindowContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SettingsCard(header: "From the menu bar") {
+                SettingsSegmentedRow(
+                    title: "Popover size",
+                    selection: Binding(
+                        get: { model.popoverSizePreset },
+                        set: { model.popoverSizePreset = $0 }
+                    ),
+                    options: PopoverSizePreset.allCases,
+                    optionLabel: { $0.displayName }
+                )
             }
 
-            SettingsControlRow(
-                title: "Popover size",
-                caption: "Chooses the size of the player shown from the menu bar."
-            ) {
-                Picker("Popover size", selection: Binding(
-                    get: { model.popoverSizePreset },
-                    set: { model.popoverSizePreset = $0 }
-                )) {
-                    ForEach(PopoverSizePreset.allCases, id: \.self) { preset in
-                        Text(preset.displayName).tag(preset)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(width: 220, alignment: .trailing)
+            SettingsCard(header: "Detached window") {
+                SettingsSegmentedRow(
+                    title: "Size",
+                    selection: Binding(
+                        get: { model.detachedWindowSizePreset },
+                        set: { model.detachedWindowSizePreset = $0 }
+                    ),
+                    options: DetachedWindowSizePreset.allCases,
+                    optionLabel: { $0.displayName }
+                )
+
+                SettingsRowDivider()
+
+                SettingsSwitchRow(
+                    title: "Float above other windows",
+                    isOn: $model.detachedWindowAlwaysOnTop
+                )
             }
 
-            Divider().padding(.vertical, 2)
+            SettingsCard(header: "Lyrics & credits") {
+                SettingsSwitchRow(
+                    title: "Open the details pane for new tracks",
+                    isOn: $model.expandLyricsByDefault
+                )
 
-            SettingsSliderRow(
-                title: "Title Width",
-                caption: "Maximum width before menu bar text truncates/scrolls (if enabled).",
-                value: Binding(
-                    get: { model.statusTextWidthValue },
-                    set: { model.statusTextWidthValue = $0 }
-                ),
-                range: 80...320,
-                valueText: "\(Int(model.statusTextWidthValue)) px"
-            )
+                SettingsRowDivider()
 
-            Divider().padding(.vertical, 2)
+                SettingsSegmentedRow(
+                    title: "Pane height",
+                    selection: Binding(
+                        get: { model.lyricsPaneSizePreset },
+                        set: { model.lyricsPaneSizePreset = $0 }
+                    ),
+                    options: LyricsPaneSizePreset.allCases,
+                    optionLabel: { $0.displayName }
+                )
 
-            SettingsSliderRow(
-                title: "Artwork Color Intensity",
-                caption: "Controls how strongly theme colors tint the popover and detached player.",
-                value: Binding(
-                    get: { model.artworkColorIntensity },
-                    set: { model.artworkColorIntensity = $0 }
-                ),
-                range: 0.5...1.8,
-                valueText: "\(Int(model.artworkColorIntensity * 100))%"
-            )
+                SettingsRowDivider()
 
-            Divider().padding(.vertical, 2)
+                SettingsSegmentedRow(
+                    title: "Text size",
+                    selection: Binding(
+                        get: { model.lyricsFontSizePreset },
+                        set: { model.lyricsFontSizePreset = $0 }
+                    ),
+                    options: LyricsFontSizePreset.allCases,
+                    optionLabel: { $0.displayName }
+                )
 
-            SettingsControlRow(
-                title: "Appearance",
-                caption: "Controls light or dark rendering for PlayStatus windows; themes still control player styling."
-            ) {
-                Picker("Appearance", selection: Binding(
-                    get: { model.appAppearanceMode },
-                    set: { model.appAppearanceMode = $0 }
-                )) {
-                    ForEach(AppAppearanceMode.allCases, id: \.self) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
+                SettingsRowDivider()
+
+                SettingsInlineSliderRow(
+                    title: "Custom size",
+                    caption: "Moving this switches the preset to Custom",
+                    value: Binding(
+                        get: { model.lyricsCustomFontSize },
+                        set: { model.lyricsCustomFontSize = $0 }
+                    ),
+                    range: LyricsFontSizePreset.customSizeRange,
+                    valueText: String(format: "%.1f pt", model.lyricsCustomFontSize)
+                )
+                .opacity(model.lyricsFontSizePreset == .custom ? 1.0 : 0.4)
+            }
+        }
+    }
+
+    private var appearanceContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SettingsCard {
+                SettingsStackedRow(
+                    title: "Windows",
+                    caption: "Applies to Settings and the player chrome. Themes below still control the player's own styling."
+                ) {
+                    AppearanceModePicker(
+                        selection: Binding(
+                            get: { model.appAppearanceMode },
+                            set: { model.appAppearanceMode = $0 }
+                        )
+                    )
                 }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(width: 220, alignment: .trailing)
             }
 
-            Divider().padding(.vertical, 2)
+            SettingsCard(header: "Player theme") {
+                ThemeSwatchGrid(
+                    selection: Binding(
+                        get: { model.themeStyle },
+                        set: { model.themeStyle = $0 }
+                    )
+                )
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
 
-            SettingsControlRow(
-                title: "Theme",
-                caption: "Chooses the visual treatment used for the player surfaces."
-            ) {
-                Picker("Theme", selection: Binding(
-                    get: { model.themeStyle },
-                    set: { model.themeStyle = $0 }
-                )) {
-                    ForEach(ThemeStyle.allCases, id: \.self) { style in
-                        Text(style.displayName).tag(style)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(width: 220, alignment: .trailing)
-            }
+                SettingsRowDivider()
 
-            if model.themeStyle != .artworkAdaptive {
-                SettingsSliderRow(
-                    title: "Album Color Blend",
-                    caption: "Mixes the current artwork colors into the selected theme preset.",
+                SettingsInlineSliderRow(
+                    title: "Album colour blend",
+                    caption: model.themeStyle == .artworkAdaptive
+                    ? "Artwork Adaptive already uses the album's colours in full."
+                    : "Mixes the current album's colours into \(model.themeStyle.displayName).",
                     value: Binding(
                         get: { model.themeArtworkBlend },
                         set: { model.themeArtworkBlend = $0 }
@@ -279,397 +310,350 @@ struct PlayStatusSettingsView: View {
                     range: 0...1,
                     valueText: "\(Int(model.themeArtworkBlend * 100))%"
                 )
+                .opacity(model.themeStyle == .artworkAdaptive ? 0.4 : 1.0)
+                .disabled(model.themeStyle == .artworkAdaptive)
             }
 
-            Divider().padding(.vertical, 2)
-
-            SettingsToggleRow(
-                title: "Animated Artwork",
-                caption: "Adds subtle motion to album artwork in the popover.",
-                isOn: $model.animatedArtworkEnabled
-            )
-
-            if model.animatedArtworkEnabled {
-                SettingsToggleRow(
-                    title: "Animated Artwork Streams",
-                    caption: "Uses Apple Music editorial video streams when available. This can increase media cache usage.",
-                    isOn: $model.animatedArtworkStreamsEnabled
+            SettingsCard {
+                SettingsInlineSliderRow(
+                    title: "Artwork colour intensity",
+                    caption: "How strongly album colours tint the player surfaces",
+                    value: Binding(
+                        get: { model.artworkColorIntensity },
+                        set: { model.artworkColorIntensity = $0 }
+                    ),
+                    range: 0.5...1.8,
+                    valueText: "\(Int(model.artworkColorIntensity * 100))%"
                 )
+            }
+        }
+    }
 
-                if model.animatedArtworkStreamsEnabled {
-                    SettingsToggleRow(
-                        title: "Crop Streams to Square",
-                        caption: "Fills the artwork tile by cropping the edges of non-square animated streams. Turn this off to show the complete video frame.",
-                        isOn: $model.cropAnimatedArtworkToSquare
+    private var artworkMotionContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SettingsCard {
+                SettingsSwitchRow(
+                    title: "Animated artwork",
+                    caption: "Adds motion to album art in the player",
+                    isEmphasized: true,
+                    isOn: $model.animatedArtworkEnabled
+                )
+            }
+
+            Group {
+                SettingsCard(header: "Motion style") {
+                    MotionStyleTiles(model: model)
+                        .padding(.horizontal, 14)
+                        .padding(.top, 8)
+                        .padding(.bottom, 12)
+
+                    SettingsRowDivider()
+
+                    SettingsRow(
+                        title: "Compare styles side by side",
+                        caption: "Opens a larger preview using the current artwork"
+                    ) {
+                        Button {
+                            showHoverMotionStylePreview = true
+                        } label: {
+                            Label("Open Preview", systemImage: "rectangle.stack")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+
+                SettingsCard {
+                    SettingsSwitchRow(
+                        title: "Use Apple Music video streams",
+                        caption: "When an album has an editorial loop. Increases media cache usage.",
+                        isEmphasized: true,
+                        isOn: $model.animatedArtworkStreamsEnabled
                     )
 
-                    Divider().padding(.vertical, 2)
+                    Group {
+                        SettingsRowDivider()
 
-                    SettingsControlRow(
-                        title: "Animated Stream Quality",
-                        caption: "Sets default playback quality for animated artwork streams."
-                    ) {
-                        Picker("Animated Stream Quality", selection: Binding(
-                            get: { model.animatedArtworkQualityPolicy },
-                            set: { model.animatedArtworkQualityPolicy = $0 }
-                        )) {
-                            ForEach(AnimatedArtworkQualityPolicy.allCases, id: \.self) { policy in
-                                Text(policy.displayName).tag(policy)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .labelsHidden()
-                        .frame(width: 220, alignment: .trailing)
-                    }
+                        SettingsSegmentedRow(
+                            title: "Quality",
+                            selection: Binding(
+                                get: { model.animatedArtworkQualityPolicy },
+                                set: { model.animatedArtworkQualityPolicy = $0 }
+                            ),
+                            options: AnimatedArtworkQualityPolicy.allCases,
+                            optionLabel: { $0.displayName }
+                        )
 
-                    SettingsControlRow(
-                        title: "Animated Stream Status",
-                        caption: "Current lookup status from public Apple Music album pages."
-                    ) {
-                        VStack(alignment: .trailing, spacing: 3) {
-                            Text(model.animatedArtworkStatusMessage)
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.secondary)
+                        SettingsRowDivider()
 
-                            if !model.animatedArtworkLastError.isEmpty {
-                                Text(model.animatedArtworkLastError)
-                                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.trailing)
-                                    .frame(width: 260, alignment: .trailing)
-                            }
-                        }
-                    }
+                        SettingsSwitchRow(
+                            title: "Crop to square",
+                            caption: "Off shows the complete video frame with bars",
+                            isOn: $model.cropAnimatedArtworkToSquare
+                        )
 
-                    SettingsControlRow(
-                        title: "Stream Preview",
-                        caption: "Opens a help preview using the current stream, or a built-in demo stream when unavailable."
-                    ) {
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Button {
-                                showAnimatedStreamPreview = true
-                            } label: {
-                                Label("Open Preview", systemImage: "play.rectangle")
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
+                        SettingsRowDivider()
 
-                            if model.effectiveAnimatedArtworkURL == nil {
-                                Text("Current track has no animated stream. Preview will show a built-in demo.")
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.trailing)
-                                    .frame(width: 260, alignment: .trailing)
+                        SettingsRow(title: "This track") {
+                            HStack(spacing: 8) {
+                                VStack(alignment: .trailing, spacing: 3) {
+                                    SettingsStatusBadge(text: model.animatedArtworkStatusMessage)
+
+                                    if !model.animatedArtworkLastError.isEmpty {
+                                        Text(model.animatedArtworkLastError)
+                                            .font(.system(size: 10, weight: .regular, design: .monospaced))
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                            .multilineTextAlignment(.trailing)
+                                            .frame(width: 240, alignment: .trailing)
+                                    }
+                                }
+
+                                Button {
+                                    showAnimatedStreamPreview = true
+                                } label: {
+                                    Label("Preview", systemImage: "play.rectangle")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
                             }
                         }
                     }
-                }
-
-                Divider().padding(.vertical, 2)
-
-                SettingsControlRow(
-                    title: "Artwork Motion Style",
-                    caption: "Sets the character of motion applied to album artwork."
-                ) {
-                    Picker("Motion Style", selection: Binding(
-                        get: { model.artworkMotionStyle },
-                        set: { model.artworkMotionStyle = $0 }
-                    )) {
-                        ForEach(ArtworkMotionStyle.allCases, id: \.self) { style in
-                            Text(style.displayName).tag(style)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .frame(width: 220, alignment: .trailing)
-                }
-
-                SettingsControlRow(
-                    title: "Motion Style Preview",
-                    caption: "Opens a help preview showing how each artwork motion style behaves."
-                ) {
-                    Button {
-                        showHoverMotionStylePreview = true
-                    } label: {
-                        Label("Open Preview", systemImage: "rectangle.stack")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    .opacity(model.animatedArtworkStreamsEnabled ? 1.0 : 0.4)
+                    .disabled(!model.animatedArtworkStreamsEnabled)
                 }
             }
+            .opacity(model.animatedArtworkEnabled ? 1.0 : 0.4)
+            .disabled(!model.animatedArtworkEnabled)
         }
     }
 
-    private var playbackContent: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SettingsControlRow(
-                title: "Preferred App",
-                caption: "Used when multiple players are running."
-            ) {
-                Picker("Preferred App", selection: Binding(
-                    get: { model.preferredProvider },
-                    set: { model.preferredProvider = $0 }
-                )) {
-                    ForEach(PreferredProvider.allCases, id: \.self) { provider in
-                        Text(provider.displayName).tag(provider)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(width: 220, alignment: .trailing)
+    // MARK: - Behavior
+
+    private var sourcesContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SettingsCard {
+                SettingsSegmentedRow(
+                    title: "Follow",
+                    caption: "Which player the menu bar tracks",
+                    selection: Binding(
+                        get: { model.preferredProvider },
+                        set: { model.preferredProvider = $0 }
+                    ),
+                    options: PreferredProvider.allCases,
+                    optionLabel: { $0 == .automatic ? "Whatever's playing" : $0.displayName }
+                )
+
+                SettingsRowDivider()
+
+                SettingsSegmentedRow(
+                    title: "If both are playing, prefer",
+                    selection: Binding(
+                        get: { model.providerPriority },
+                        set: { model.providerPriority = $0 }
+                    ),
+                    options: ProviderPriority.allCases,
+                    optionLabel: { $0 == .musicFirst ? "Music" : "Spotify" }
+                )
+                .opacity(model.preferredProvider == .automatic ? 1.0 : 0.4)
+                .disabled(model.preferredProvider != .automatic)
             }
-
-            Divider().padding(.vertical, 2)
-
-            SettingsControlRow(
-                title: "Automatic Priority",
-                caption: "Fallback ordering when no preferred source is active."
-            ) {
-                Picker("Automatic Priority", selection: Binding(
-                    get: { model.providerPriority },
-                    set: { model.providerPriority = $0 }
-                )) {
-                    ForEach(ProviderPriority.allCases, id: \.self) { priority in
-                        Text(priority.displayName).tag(priority)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(width: 220, alignment: .trailing)
-            }
-
-            Divider().padding(.vertical, 2)
-
-            SettingsToggleRow(
-                title: "Enable Music",
-                caption: "Allow Apple Music to provide now playing data.",
-                isOn: $model.enableMusic
-            )
-            SettingsToggleRow(
-                title: "Enable Spotify",
-                caption: "Allow Spotify to provide now playing data.",
-                isOn: $model.enableSpotify
-            )
-
-            Divider().padding(.vertical, 2)
 
             ProviderConnectionSection(model: model, inspector: connectionInspector)
-
-            Divider().padding(.vertical, 2)
-
-            SettingsToggleRow(
-                title: "Expand Details by Default",
-                caption: "Opens the lower details pane automatically for new tracks.",
-                isOn: $model.expandLyricsByDefault
-            )
-
-            SettingsControlRow(
-                title: "Lyrics Pane Size",
-                caption: "Controls how much vertical space lyrics and credits get in the player."
-            ) {
-                Picker("Lyrics Pane Size", selection: Binding(
-                    get: { model.lyricsPaneSizePreset },
-                    set: { model.lyricsPaneSizePreset = $0 }
-                )) {
-                    ForEach(LyricsPaneSizePreset.allCases, id: \.self) { preset in
-                        Text(preset.displayName).tag(preset)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(width: 220, alignment: .trailing)
-            }
-
-            SettingsControlRow(
-                title: "Lyrics Font Preset",
-                caption: "Quickly switches between common lyric text sizes."
-            ) {
-                Picker("Lyrics Font Size", selection: Binding(
-                    get: { model.lyricsFontSizePreset },
-                    set: { model.lyricsFontSizePreset = $0 }
-                )) {
-                    ForEach(LyricsFontSizePreset.allCases, id: \.self) { preset in
-                        Text(preset.displayName).tag(preset)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(width: 220, alignment: .trailing)
-            }
-
-            SettingsSliderRow(
-                title: "Custom Lyrics Font Size",
-                caption: "Fine-tunes lyric text size; moving this slider switches the preset to Custom.",
-                value: Binding(
-                    get: { model.lyricsCustomFontSize },
-                    set: { model.lyricsCustomFontSize = $0 }
-                ),
-                range: LyricsFontSizePreset.customSizeRange,
-                valueText: String(format: "%.1f pt", model.lyricsCustomFontSize)
-            )
         }
     }
 
-    private var systemContent: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SettingsControlRow(
-                title: "Walkthrough",
-                caption: "Replay the relaunch setup tour or re-open the shorter update tour."
-            ) {
-                HStack(spacing: 8) {
+    private var shortcutsContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SettingsCard {
+                ForEach(Array(AppHotkeyAction.allCases.enumerated()), id: \.element) { index, action in
+                    if index > 0 {
+                        SettingsRowDivider()
+                    }
+                    HotkeyRecorderRow(action: action)
+                }
+            }
+
+            Text("Shortcuts work anywhere in macOS. Recording a combination that another app already owns will simply fail to register.")
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: - App
+
+    private var generalContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SettingsCard {
+                SettingsSwitchRow(
+                    title: "Open at login",
+                    isOn: Binding(
+                        get: { model.launchAtLoginEnabled },
+                        set: { model.setLaunchAtLogin(enabled: $0) }
+                    )
+                )
+
+                SettingsRowDivider()
+
+                SettingsRow(
+                    title: "Updates",
+                    caption: "Check for newer PlayStatus builds through Sparkle"
+                ) {
                     Button {
-                        onboarding.replayFullWalkthrough()
+                        SparkleUpdater.shared.checkForUpdates(nil)
                     } label: {
-                        Label("Replay Full Tour", systemImage: "sparkles.rectangle.stack")
+                        Label("Check Now", systemImage: "arrow.triangle.2.circlepath")
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-
-                    Button {
-                        onboarding.presentUpgradeWalkthrough()
-                    } label: {
-                        Label("What’s New", systemImage: "arrow.clockwise.circle")
-                    }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                 }
             }
 
-            Divider().padding(.vertical, 2)
+            SettingsCard {
+                SettingsStackedRow(
+                    title: "Media cache",
+                    caption: "Lyrics and artwork stored on this Mac"
+                ) {
+                    HStack(spacing: 10) {
+                        Text(model.persistentCacheUsageText)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
 
-            SettingsToggleRow(
-                title: "Debug Coachmarks",
-                caption: "Temporarily re-arms the player coachmarks, opens the main popover, and lets you inspect the live UI hints again.",
-                isOn: Binding(
-                    get: { onboarding.debugCoachmarksEnabled },
-                    set: { onboarding.setDebugCoachmarksEnabled($0) }
-                )
-            )
+                        Spacer(minLength: 8)
 
-            if onboarding.debugCoachmarksEnabled {
-                SettingsNoteCard(
-                    text: "Dismissals stay in this debug session only while this toggle is enabled. Turn it off and back on to restart the player sequence from the main popover."
-                )
-            }
+                        if model.isClearingPersistentCache {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
 
-            Divider().padding(.vertical, 2)
-
-            SettingsToggleRow(
-                title: "Launch at login",
-                caption: "Start PlayStatus automatically when you sign in.",
-                isOn: Binding(
-                    get: { model.launchAtLoginEnabled },
-                    set: { model.setLaunchAtLogin(enabled: $0) }
-                )
-            )
-
-            Divider().padding(.vertical, 2)
-
-            SettingsControlRow(
-                title: "App Updates",
-                caption: "Check for newer PlayStatus builds through Sparkle."
-            ) {
-                Button {
-                    SparkleUpdater.shared.checkForUpdates(nil)
-                } label: {
-                    Label("Check Now", systemImage: "arrow.triangle.2.circlepath")
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-            }
-
-            Divider().padding(.vertical, 2)
-
-            SettingsControlRow(
-                title: "Media Cache",
-                caption: "Stores lyrics and artwork locally (max 50 MB). Animated artwork streams can increase usage."
-            ) {
-                HStack(spacing: 10) {
-                    Text(model.persistentCacheUsageText)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-
-                    Button("Clear Cache") {
-                        model.clearPersistentCache()
+                        Button("Empty") {
+                            model.clearPersistentCache()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(model.isClearingPersistentCache)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(model.isClearingPersistentCache)
+                }
 
-                    if model.isClearingPersistentCache {
-                        ProgressView()
-                            .controlSize(.small)
+                SettingsRowDivider()
+
+                SettingsSwitchRow(
+                    title: "Free memory when the player is closed",
+                    caption: "Artwork and streams reload on reopen, so they may appear a moment late",
+                    isOn: $model.reduceHiddenMemoryUsage
+                )
+            }
+
+            SettingsCard {
+                SettingsRow(
+                    title: "Walkthrough",
+                    caption: "Replay the setup tour or re-open the shorter update tour"
+                ) {
+                    HStack(spacing: 8) {
+                        Button {
+                            onboarding.replayFullWalkthrough()
+                        } label: {
+                            Label("Replay Full Tour", systemImage: "sparkles.rectangle.stack")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        Button {
+                            onboarding.presentUpgradeWalkthrough()
+                        } label: {
+                            Label("What's New", systemImage: "arrow.clockwise.circle")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
                 }
             }
 
-            Divider().padding(.vertical, 2)
-
-            SettingsToggleRow(
-                title: "Reduce Hidden Memory Usage",
-                caption: "Releases artwork, animated streams, and transient image caches when all PlayStatus surfaces are closed.",
-                isOn: $model.reduceHiddenMemoryUsage
-            )
-
-            SettingsNoteCard(
-                text: "When enabled, reopening the popover or detached window can briefly show placeholder artwork while visuals reload. Animated artwork may take an extra moment to come back on paused or recently hidden tracks."
-            )
+            DisclosureGroup(isExpanded: $isAdvancedExpanded) {
+                SettingsCard {
+                    SettingsSwitchRow(
+                        title: "Re-arm player coachmarks",
+                        caption: "Dismissals stay in this debug session only while this is on",
+                        isOn: Binding(
+                            get: { onboarding.debugCoachmarksEnabled },
+                            set: { onboarding.setDebugCoachmarksEnabled($0) }
+                        )
+                    )
+                }
+                .padding(.top, 8)
+            } label: {
+                Text("Advanced")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
         }
         .onAppear {
             model.refreshPersistentCacheStats()
         }
     }
 
-    private var hotkeysContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(AppHotkeyAction.allCases, id: \.self) { action in
-                HotkeyRecorderRow(action: action)
+    private var aboutContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 14) {
+                Image("SettingsAppIcon")
+                    .renderingMode(.original)
+                    .resizable()
+                    .interpolation(.none)
+                    .frame(width: 54, height: 54)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("PlayStatus")
+                        .font(.system(size: 16, weight: .semibold))
+                    Text(aboutVersionText)
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.bottom, 2)
+
+            SettingsCard(header: "Lyrics attribution and disclaimer") {
+                Text(lrclibAttributionAndDisclaimerText)
+                    .textSelection(.enabled)
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 6)
+                    .padding(.bottom, 12)
+            }
+
+            DisclosureGroup(isExpanded: $isLicenseExpanded) {
+                Text(mitLicenseText)
+                    .textSelection(.enabled)
+                    .font(.system(size: 11, weight: .regular, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color(nsColor: .controlBackgroundColor))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(Color.primary.opacity(0.09), lineWidth: 1)
+                            )
+                    )
+                    .padding(.top, 8)
+            } label: {
+                Text("Licence and disclaimers")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
             }
         }
     }
 
-    private var licenseContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            
-            Text("Lyrics Attribution and Disclaimer")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
-
-            Text(lrclibAttributionAndDisclaimerText)
-                .textSelection(.enabled)
-                .font(.system(size: 12, weight: .regular,design: .monospaced))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(.white.opacity(0.10), lineWidth: 1)
-                        )
-                )
-            
-            Divider()
-                .foregroundStyle(.separator)
-            Text("PlayStatus is distributed under the MIT License.")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.primary)
-            
-            Text(mitLicenseText)
-                .textSelection(.enabled)
-                .font(.system(size: 12, weight: .regular, design: .monospaced))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(.white.opacity(0.10), lineWidth: 1)
-                        )
-                )
-        }
+    private var aboutVersionText: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+        return "Version \(version) (\(build))"
     }
 
     private var lrclibAttributionAndDisclaimerText: String {
@@ -754,7 +738,9 @@ private struct HotkeyRecorderRow: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
-        .padding(.vertical, 2)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .frame(minHeight: 44)
         .onDisappear {
             stopRecording()
         }

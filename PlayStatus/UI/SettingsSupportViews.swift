@@ -263,66 +263,108 @@ private extension ArtworkMotionStyle {
     }
 }
 
-enum SettingsTab: String, CaseIterable {
-    case display
-    case playback
-    case hotkeys
-    case system
-    case license
+enum SettingsTabGroup: String, CaseIterable {
+    case look
+    case behavior
+    case app
 
     var title: String {
         switch self {
-        case .display: return "Display"
-        case .playback: return "Playback"
-        case .system: return "System"
-        case .hotkeys: return "Hotkeys"
-        case .license: return "License"
+        case .look: return "Look"
+        case .behavior: return "Behavior"
+        case .app: return "App"
+        }
+    }
+}
+
+enum SettingsTab: String, CaseIterable {
+    case menuBar
+    case playerWindow
+    case appearance
+    case artworkMotion
+    case sources
+    case shortcuts
+    case general
+    case about
+
+    /// The window no longer resizes per tab — every pane shares one frame, sized for
+    /// the tallest of them.
+    static let windowSize = CGSize(width: 860, height: 640)
+
+    var title: String {
+        switch self {
+        case .menuBar: return "Menu Bar"
+        case .playerWindow: return "Player Window"
+        case .appearance: return "Appearance"
+        case .artworkMotion: return "Artwork Motion"
+        case .sources: return "Sources"
+        case .shortcuts: return "Shortcuts"
+        case .general: return "General"
+        case .about: return "About"
         }
     }
 
-    var subtitle: String {
+    var group: SettingsTabGroup {
         switch self {
-        case .display: return "Text, visuals, and animation"
-        case .playback: return "Player source and priority"
-        case .system: return "Startup and updates"
-        case .hotkeys: return "Global keyboard shortcuts"
-        case .license: return "Open-source terms"
+        case .menuBar, .playerWindow, .appearance, .artworkMotion: return .look
+        case .sources, .shortcuts: return .behavior
+        case .general, .about: return .app
         }
     }
 
     var icon: String {
         switch self {
-        case .display: return "textformat"
-        case .playback: return "waveform"
-        case .system: return "gearshape.2"
-        case .hotkeys: return "keyboard"
-        case .license: return "doc.text"
+        case .menuBar: return "menubar.rectangle"
+        case .playerWindow: return "macwindow"
+        case .appearance: return "circle.lefthalf.filled"
+        case .artworkMotion: return "waveform"
+        case .sources: return "music.note.list"
+        case .shortcuts: return "keyboard"
+        case .general: return "gearshape"
+        case .about: return "info.circle"
         }
     }
 
     var sortIndex: Int {
+        Self.allCases.firstIndex(of: self) ?? 0
+    }
+
+    /// Extra terms the sidebar filter matches, so a setting can be found by the name
+    /// it had before it moved.
+    var searchKeywords: [String] {
         switch self {
-        case .display: return 0
-        case .playback: return 1
-        case .hotkeys: return 2
-        case .system: return 3
-        case .license: return 4
+        case .menuBar:
+            return ["display mode", "artist", "song", "icon only", "parentheses",
+                    "scrollable title", "slide", "title width", "marquee", "status text"]
+        case .playerWindow:
+            return ["popover size", "detached", "always on top", "float", "lyrics",
+                    "credits", "details pane", "font size", "expand"]
+        case .appearance:
+            return ["light", "dark", "follow system", "theme", "frosted", "midnight",
+                    "warm studio", "high contrast", "graphite", "album colour blend",
+                    "album color blend", "artwork colour intensity", "artwork color intensity"]
+        case .artworkMotion:
+            return ["animated artwork", "streams", "stream quality", "crop to square",
+                    "parallax", "vinyl spin", "film grain", "motion style", "data saver"]
+        case .sources:
+            return ["preferred app", "music", "spotify", "priority", "automation",
+                    "permissions", "connection", "verify"]
+        case .shortcuts:
+            return ["hotkey", "hotkeys", "keyboard", "play pause", "next track",
+                    "previous track", "favourite", "favorite", "detached mode"]
+        case .general:
+            return ["launch at login", "startup", "updates", "sparkle", "media cache",
+                    "memory", "walkthrough", "coachmarks", "advanced"]
+        case .about:
+            return ["version", "licence", "license", "mit", "lyrics attribution", "lrclib"]
         }
     }
 
-    var preferredSize: CGSize {
-        switch self {
-        case .display:
-            return CGSize(width: 780, height: 710)
-        case .playback:
-            return CGSize(width: 780, height: 620)
-        case .hotkeys:
-            return CGSize(width: 780, height: 520)
-        case .system:
-            return CGSize(width: 780, height: 520)
-        case .license:
-            return CGSize(width: 780, height: 620)
-        }
+    func matches(searchText: String) -> Bool {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return true }
+        if title.lowercased().contains(query) { return true }
+        return searchKeywords.contains { $0.contains(query) }
     }
 }
 
@@ -334,11 +376,12 @@ enum SettingsTabDirection {
 struct SettingsSidebar: View {
     @Binding var selectedTab: SettingsTab
     @ObservedObject var onboarding: OnboardingCoordinator
+    @State private var searchText: String = ""
 
     private var versionText: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
-        return "v\(version) (\(build))"
+        return "\(version) (\(build))"
     }
 
     private var settingsNavigationCoachmarkBinding: Binding<Bool> {
@@ -352,35 +395,69 @@ struct SettingsSidebar: View {
         )
     }
 
+    private func visibleTabs(in group: SettingsTabGroup) -> [SettingsTab] {
+        SettingsTab.allCases.filter { $0.group == group && $0.matches(searchText: searchText) }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 10) {
-                    Image("SettingsAppIcon")
-                        .renderingMode(.original)
-                        .resizable()
-                        .interpolation(.none)
-                        .frame(width: 32, height: 32)
+            HStack(spacing: 9) {
+                Image("SettingsAppIcon")
+                    .renderingMode(.original)
+                    .resizable()
+                    .interpolation(.none)
+                    .frame(width: 30, height: 30)
 
+                VStack(alignment: .leading, spacing: 0) {
                     Text("PlayStatus")
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .font(.system(size: 13.5, weight: .semibold))
+                    Text(versionText)
+                        .font(.system(size: 10.5, weight: .regular))
+                        .foregroundStyle(.secondary)
                 }
-                Text(versionText)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
 
-            Divider()
+            SettingsSearchField(text: $searchText)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
 
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(SettingsTab.allCases, id: \.self) { tab in
-                    SettingsSidebarItem(tab: tab, selectedTab: $selectedTab)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(SettingsTabGroup.allCases, id: \.self) { group in
+                        let tabs = visibleTabs(in: group)
+
+                        if !tabs.isEmpty {
+                            Text(group.title.uppercased())
+                                .font(.system(size: 10.5, weight: .semibold))
+                                .kerning(0.7)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.top, 11)
+                                .padding(.bottom, 4)
+
+                            ForEach(tabs, id: \.self) { tab in
+                                SettingsSidebarItem(tab: tab, selectedTab: $selectedTab)
+                            }
+                        }
+                    }
+
+                    if SettingsTab.allCases.allSatisfy({ !$0.matches(searchText: searchText) }) {
+                        Text("No settings match “\(searchText)”.")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.top, 12)
+                    }
                 }
+                .padding(.horizontal, 10)
+                .padding(.bottom, 10)
             }
-            .padding(10)
+            .scrollIndicators(.never)
             .popover(
                 isPresented: settingsNavigationCoachmarkBinding,
                 attachmentAnchor: .rect(.bounds),
@@ -400,57 +477,56 @@ struct SettingsSidebar: View {
                 onboarding.registerCoachmark(.settingsNavigation, available: false)
             }
 
-            Spacer(minLength: 10)
-
             Divider()
-
-            Button {
-                onboarding.replayFullWalkthrough()
-            } label: {
-                Label("Replay Walkthrough", systemImage: "sparkles")
-                    .foregroundStyle(.primary)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.white.opacity(0.42))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .stroke(Color.white.opacity(0.34), lineWidth: 1)
-                            )
-                    )
-            }
-            .buttonStyle(.borderless)
-            .controlSize(.small)
-            .padding(.horizontal, 12)
-            .padding(.top, 12)
 
             Button {
                 NSApp.terminate(nil)
             } label: {
-                Label("Quit PlayStatus", systemImage: "power")
-                    .foregroundStyle(Color.accentColor.opacity(0.95))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.accentColor.opacity(0.12))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .stroke(Color.accentColor.opacity(0.22), lineWidth: 1)
-                            )
-                    )
+                Text("Quit PlayStatus")
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 5)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.bordered)
             .controlSize(.small)
-            .padding(12)
+            .padding(10)
         }
-        .frame(width: 230, alignment: .leading)
+        .frame(width: 218, alignment: .leading)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+}
+
+struct SettingsSearchField: View {
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            TextField("Search", text: $text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12, weight: .regular))
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Clear search"))
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.primary.opacity(0.06))
+        )
     }
 }
 
@@ -466,40 +542,29 @@ struct SettingsSidebarItem: View {
         Button {
             selectedTab = tab
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: 9) {
                 Image(systemName: tab.icon)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(isSelected ? .white : .secondary)
                     .frame(width: 16)
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(tab.title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(isSelected ? .white : .primary)
-
-                    Text(tab.subtitle)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(isSelected ? .white.opacity(0.9) : .secondary)
-                        .lineLimit(1)
-                }
+                Text(tab.title)
+                    .font(.system(size: 13, weight: isSelected ? .medium : .regular))
+                    .foregroundStyle(isSelected ? .white : .primary)
 
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(
-                        isSelected
-                        ? Color.accentColor.opacity(0.92)
-                        : Color.clear
-                    )
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(isSelected ? Color.accentColor : Color.clear)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
         .buttonStyle(.plain)
-        .animation(.easeInOut(duration: 0.18), value: isSelected)
+        .animation(.easeInOut(duration: 0.16), value: isSelected)
     }
 }
 
@@ -507,15 +572,10 @@ struct SettingsPageHeader: View {
     let tab: SettingsTab
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(tab.title)
-                .font(.system(size: 30, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-            Text(tab.subtitle)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.bottom, 2)
+        Text(tab.title)
+            .font(.system(size: 22, weight: .bold))
+            .foregroundStyle(.primary)
+            .padding(.bottom, 2)
     }
 }
 

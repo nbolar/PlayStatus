@@ -5,34 +5,31 @@ struct ProviderConnectionSection: View {
     @ObservedObject var inspector: ProviderConnectionInspector
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SettingsControlRow(
-                title: "Connection Status",
-                caption: "Check that macOS lets PlayStatus control your players through Automation."
-            ) {
-                Button {
-                    inspector.refreshAll()
-                } label: {
-                    Label("Check Again", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(inspector.musicStatus.isChecking && inspector.spotifyStatus.isChecking)
+        SettingsCard(header: "Connections") {
+            Button {
+                inspector.refreshAll()
+            } label: {
+                Label("Check Again", systemImage: "arrow.clockwise")
             }
-
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(inspector.musicStatus.isChecking && inspector.spotifyStatus.isChecking)
+        } content: {
             ProviderConnectionRow(
                 provider: .music,
-                isEnabledInApp: model.enableMusic,
+                isEnabled: $model.enableMusic,
                 inspector: inspector
             )
+
+            SettingsRowDivider()
 
             ProviderConnectionRow(
                 provider: .spotify,
-                isEnabledInApp: model.enableSpotify,
+                isEnabled: $model.enableSpotify,
                 inspector: inspector
             )
 
-            SettingsNoteCard(
+            SettingsCardNote(
                 text: "Verify opens the player if it is closed, then asks macOS to confirm access. If access was denied earlier, macOS will not ask again — turn PlayStatus back on in Privacy & Security → Automation."
             )
         }
@@ -44,7 +41,7 @@ struct ProviderConnectionSection: View {
 
 private struct ProviderConnectionRow: View {
     let provider: NowPlayingProvider
-    let isEnabledInApp: Bool
+    @Binding var isEnabled: Bool
     @ObservedObject var inspector: ProviderConnectionInspector
 
     private var status: ProviderConnectionStatus {
@@ -61,34 +58,21 @@ private struct ProviderConnectionRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 11) {
             ProviderIconView(icon: provider.iconKind, size: 15, weight: .semibold)
-                .frame(width: 28, height: 28)
+                .frame(width: 30, height: 30)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(Color.primary.opacity(0.07))
                 )
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(displayName)
-                        .font(.system(size: 13, weight: .semibold))
-
-                    if !isEnabledInApp {
-                        Text("Disabled")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(
-                                Capsule().fill(Color.primary.opacity(0.08))
-                            )
-                    }
-                }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(displayName)
+                    .font(.system(size: 13, weight: .semibold))
 
                 Label(status.label, systemImage: status.systemImage)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(status.tint)
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(isEnabled ? status.tint : .secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -111,21 +95,20 @@ private struct ProviderConnectionRow: View {
                 Button(verifyTitle) {
                     inspector.verify(provider)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(status.isChecking || !status.isInstalled)
+
+                Toggle("", isOn: $isEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .accessibilityLabel(Text("Enable \(displayName)"))
             }
+            .opacity(isEnabled ? 1.0 : 0.55)
         }
-        .padding(10)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(status.tint.opacity(0.22), lineWidth: 1)
-                )
-        )
         .animation(.smooth(duration: 0.18), value: status)
     }
 }
