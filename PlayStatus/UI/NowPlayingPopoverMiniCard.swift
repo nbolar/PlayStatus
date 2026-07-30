@@ -1,33 +1,9 @@
 import SwiftUI
 import AppKit
 
-struct TopRoundedBandShape: Shape {
-    let cornerRadius: CGFloat
-
-    func path(in rect: CGRect) -> Path {
-        let radius = min(cornerRadius, min(rect.width * 0.5, rect.height))
-        var path = Path()
-
-        path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + radius))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.minX + radius, y: rect.minY),
-            control: CGPoint(x: rect.minX, y: rect.minY)
-        )
-        path.addLine(to: CGPoint(x: rect.maxX - radius, y: rect.minY))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.maxX, y: rect.minY + radius),
-            control: CGPoint(x: rect.maxX, y: rect.minY)
-        )
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.closeSubpath()
-
-        return path
-    }
-}
-
 struct MiniNowPlayingCard: View {
     @ObservedObject var model: NowPlayingModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let transitionActive: Bool
     /// True on the render pass where this card takes its artwork back from the shared
     /// morph node; the hero skips its first-appear fade so the swap is invisible.
@@ -57,21 +33,18 @@ struct MiniNowPlayingCard: View {
         let neutralWashOpacity = min(0.52, 0.16 + (lightArtworkBoost * 0.20) + (veryLightBoost * 0.18))
         let blueFogOpacity = min(0.34, 0.08 + (lightArtworkBoost * 0.10) + (veryLightBoost * 0.14))
         let mistOpacity = min(0.60, 0.20 + (lightArtworkBoost * 0.18) + (veryLightBoost * 0.16))
-        let primaryShadowOpacity = min(0.94, 0.56 + (lightArtworkBoost * 0.22) + (darkArtworkBoost * 0.12))
-        let secondaryShadowOpacity = min(0.84, 0.46 + (lightArtworkBoost * 0.18) + (darkArtworkBoost * 0.10))
         let miniInfoBandBaseOpacity = min(0.48, 0.29 + (lightArtworkBoost * 0.07) + (veryLightBoost * 0.07) + (pointerHovering ? 0.14 : 0))
-        let miniInfoBandReadabilityDarken = min(0.96, readabilityDarken + (pointerHovering ? 0.15 : 0))
+        // With the metadata panel gone, this gradient is the only thing standing between
+        // white type and a bright album, so it carries what the panel's own fill used to.
+        let miniInfoBandReadabilityDarken = min(0.98, readabilityDarken + 0.16 + (pointerHovering ? 0.12 : 0))
         let miniInfoBandNeutralWashOpacity = neutralWashOpacity * (pointerHovering ? 0.68 : 1.0)
         let miniInfoBandBlueFogOpacity = blueFogOpacity * (pointerHovering ? 0.72 : 1.0)
         let miniInfoBandMistOpacity = mistOpacity * (pointerHovering ? 0.60 : 1.0)
-        let miniInfoBandPrimaryShadowOpacity = min(0.98, primaryShadowOpacity + (pointerHovering ? 0.10 : 0))
-        let miniInfoBandSecondaryShadowOpacity = min(0.92, secondaryShadowOpacity + (pointerHovering ? 0.08 : 0))
         let miniInfoBandContrastBoost = min(1, 0.14 + (lightArtworkBoost * 0.56) + (veryLightBoost * 0.20) + (pointerHovering ? 0.30 : 0.02))
-        let miniLowerPanelEmphasis = min(1, 0.50 + (lightArtworkBoost * 0.24) + (veryLightBoost * 0.12) + (pointerHovering ? 0.24 : 0.08))
-        let miniMetadataSpacing = (pointerHovering ? 8.0 : 5.0) * miniControlScale
-        let miniLowerPanelContentHorizontalPadding = (pointerHovering ? 12.0 : 10.0) * miniControlScale
-        let miniLowerPanelContentVerticalPadding = (pointerHovering ? 10.0 : 5.5) * miniControlScale
-        let infoBandHeight: CGFloat = (infoExpanded ? 196.0 : 94.0) * miniControlScale
+        let miniMetadataSpacing = (pointerHovering ? 6.0 : 3.0) * miniControlScale
+        let miniLowerPanelContentHorizontalPadding = 18.0 * miniControlScale
+        let miniLowerPanelContentVerticalPadding = (pointerHovering ? 16.0 : 14.0) * miniControlScale
+        let infoBandHeight: CGFloat = (infoExpanded ? 216.0 : 118.0) * miniControlScale
         let resolvedCardHeight = resolvedHeight
         let liveCardHeight = min(resolvedCardHeight, max(model.miniBaseHeight, availableHeight))
         let visibleLyricsHeight = min(
@@ -80,12 +53,8 @@ struct MiniNowPlayingCard: View {
         )
         let shouldRenderMiniLyricsPane = showMiniLyricsPane || visibleLyricsHeight > 0.5
         let seamOpacity = min(1, max(0, visibleLyricsHeight / max(1, model.miniLyricsPaneHeight)))
-        let miniMarqueeLaneWidth = max(120, model.miniPopoverWidth - 64)
+        let miniMarqueeLaneWidth = max(120, model.miniPopoverWidth - (miniLowerPanelContentHorizontalPadding * 2))
         let miniTrackKey = "\(model.provider.rawValue)|\(model.artist)|\(model.albumArtist)|\(model.album)|\(model.title)"
-        let miniLowerPanelHorizontalInset = (pointerHovering ? 6.0 : 14.0) * miniControlScale
-        let miniLowerPanelBottomInset = (pointerHovering ? 15.0 : 8.0) * miniControlScale
-        let miniLowerPanelHoverLift = (pointerHovering ? 8.0 : 0) * miniControlScale
-        let miniInfoBandTopCornerRadius = 24 * miniControlScale
         let showMiniControlRow = pointerHovering && primaryContentVisible
         let cardShell = miniCardShell(
             bottomShade: bottomShade,
@@ -100,20 +69,13 @@ struct MiniNowPlayingCard: View {
             miniInfoBandNeutralWashOpacity: miniInfoBandNeutralWashOpacity,
             miniInfoBandBlueFogOpacity: miniInfoBandBlueFogOpacity,
             miniInfoBandMistOpacity: miniInfoBandMistOpacity,
-            miniInfoBandPrimaryShadowOpacity: miniInfoBandPrimaryShadowOpacity,
-            miniInfoBandSecondaryShadowOpacity: miniInfoBandSecondaryShadowOpacity,
             miniInfoBandContrastBoost: miniInfoBandContrastBoost,
-            miniLowerPanelEmphasis: miniLowerPanelEmphasis,
             miniMetadataSpacing: miniMetadataSpacing,
             infoBandHeight: infoBandHeight,
             miniMarqueeLaneWidth: miniMarqueeLaneWidth,
             infoExpanded: infoExpanded,
             miniLowerPanelContentHorizontalPadding: miniLowerPanelContentHorizontalPadding,
             miniLowerPanelContentVerticalPadding: miniLowerPanelContentVerticalPadding,
-            miniLowerPanelHorizontalInset: miniLowerPanelHorizontalInset,
-            miniLowerPanelBottomInset: miniLowerPanelBottomInset,
-            miniLowerPanelHoverLift: miniLowerPanelHoverLift,
-            miniInfoBandTopCornerRadius: miniInfoBandTopCornerRadius,
             seamOpacity: seamOpacity
         )
 
@@ -131,11 +93,15 @@ struct MiniNowPlayingCard: View {
         }
         .frame(width: model.miniPopoverWidth, height: resolvedCardHeight, alignment: .top)
         .background(.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: playerSurfaceCornerRadius, style: .continuous))
+        // One hairline on the outermost shape. The card used to carry three separate 1pt
+        // strokes at 14% — here, on the shell inside it, and around the artwork — which is
+        // what made the window look like a screenshot of itself.
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(.white.opacity(0.14), lineWidth: 1)
+            RoundedRectangle(cornerRadius: playerSurfaceCornerRadius, style: .continuous)
+                .stroke(.white.opacity(playerHairlineOpacity), lineWidth: playerHairlineWidth)
         )
+        .shadow(color: .black.opacity(0.34), radius: 20, x: 0, y: 8)
     }
 
     private func miniCardShell(
@@ -151,20 +117,13 @@ struct MiniNowPlayingCard: View {
         miniInfoBandNeutralWashOpacity: Double,
         miniInfoBandBlueFogOpacity: Double,
         miniInfoBandMistOpacity: Double,
-        miniInfoBandPrimaryShadowOpacity: Double,
-        miniInfoBandSecondaryShadowOpacity: Double,
         miniInfoBandContrastBoost: Double,
-        miniLowerPanelEmphasis: Double,
         miniMetadataSpacing: CGFloat,
         infoBandHeight: CGFloat,
         miniMarqueeLaneWidth: CGFloat,
         infoExpanded: Bool,
         miniLowerPanelContentHorizontalPadding: CGFloat,
         miniLowerPanelContentVerticalPadding: CGFloat,
-        miniLowerPanelHorizontalInset: CGFloat,
-        miniLowerPanelBottomInset: CGFloat,
-        miniLowerPanelHoverLift: CGFloat,
-        miniInfoBandTopCornerRadius: CGFloat,
         seamOpacity: Double
     ) -> some View {
         let artworkBackdrop = miniCardArtworkBackdrop(bottomShade: bottomShade, topShade: topShade)
@@ -183,20 +142,13 @@ struct MiniNowPlayingCard: View {
             miniInfoBandNeutralWashOpacity: miniInfoBandNeutralWashOpacity,
             miniInfoBandBlueFogOpacity: miniInfoBandBlueFogOpacity,
             miniInfoBandMistOpacity: miniInfoBandMistOpacity,
-            miniInfoBandPrimaryShadowOpacity: miniInfoBandPrimaryShadowOpacity,
-            miniInfoBandSecondaryShadowOpacity: miniInfoBandSecondaryShadowOpacity,
             miniInfoBandContrastBoost: miniInfoBandContrastBoost,
-            miniLowerPanelEmphasis: miniLowerPanelEmphasis,
             miniMetadataSpacing: miniMetadataSpacing,
             infoBandHeight: infoBandHeight,
             miniMarqueeLaneWidth: miniMarqueeLaneWidth,
             infoExpanded: infoExpanded,
             miniLowerPanelContentHorizontalPadding: miniLowerPanelContentHorizontalPadding,
-            miniLowerPanelContentVerticalPadding: miniLowerPanelContentVerticalPadding,
-            miniLowerPanelHorizontalInset: miniLowerPanelHorizontalInset,
-            miniLowerPanelBottomInset: miniLowerPanelBottomInset,
-            miniLowerPanelHoverLift: miniLowerPanelHoverLift,
-            miniInfoBandTopCornerRadius: miniInfoBandTopCornerRadius
+            miniLowerPanelContentVerticalPadding: miniLowerPanelContentVerticalPadding
         )
         let seamOverlay = miniCardSeamOverlay(seamOpacity: seamOpacity)
 
@@ -205,18 +157,14 @@ struct MiniNowPlayingCard: View {
             heroSurface
         }
         .frame(height: model.miniBaseHeight)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(.white.opacity(0.14), lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: playerSurfaceCornerRadius, style: .continuous))
         .overlay(alignment: .topTrailing) {
             topControls
         }
         .overlay(alignment: .bottom) {
             bottomPanel
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: playerSurfaceCornerRadius, style: .continuous))
         .overlay(alignment: .bottom) {
             seamOverlay
         }
@@ -307,7 +255,7 @@ struct MiniNowPlayingCard: View {
             // expensive subtree in the card.
             Color.clear
                 .modeArtworkAnchor(.mini, in: modeMiniBranchSpace)
-                .padding(8)
+                .padding(miniArtworkPadding)
         } else {
             MiniArtworkTransitionSurface(
                 artwork: model.artwork,
@@ -321,10 +269,6 @@ struct MiniNowPlayingCard: View {
                 isPopoverVisible: model.isPopoverVisible
             )
             .clipShape(RoundedRectangle(cornerRadius: miniArtworkCornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: miniArtworkCornerRadius, style: .continuous)
-                    .stroke(.white.opacity(0.12), lineWidth: 1)
-            )
             .modeArtworkAnchor(.mini, in: modeMiniBranchSpace)
             .animatedArtworkMotion(
                 isEnabled: model.animatedArtworkEnabled,
@@ -335,7 +279,7 @@ struct MiniNowPlayingCard: View {
                 tint: model.glassTint,
                 artworkImage: model.artwork
             )
-            .padding(8)
+            .padding(miniArtworkPadding)
         }
     }
 
@@ -419,6 +363,7 @@ struct MiniNowPlayingCard: View {
                 settingsHovering = hovering
             }
             .hoverHint("Settings", enabled: !transitionActive)
+            .accessibilityLabel(Text("Settings"))
         }
         .playerControlClusterBackground(
             sizeScale: miniControlScale,
@@ -445,25 +390,15 @@ struct MiniNowPlayingCard: View {
         miniInfoBandNeutralWashOpacity: Double,
         miniInfoBandBlueFogOpacity: Double,
         miniInfoBandMistOpacity: Double,
-        miniInfoBandPrimaryShadowOpacity: Double,
-        miniInfoBandSecondaryShadowOpacity: Double,
         miniInfoBandContrastBoost: Double,
-        miniLowerPanelEmphasis: Double,
         miniMetadataSpacing: CGFloat,
         infoBandHeight: CGFloat,
         miniMarqueeLaneWidth: CGFloat,
         infoExpanded: Bool,
         miniLowerPanelContentHorizontalPadding: CGFloat,
-        miniLowerPanelContentVerticalPadding: CGFloat,
-        miniLowerPanelHorizontalInset: CGFloat,
-        miniLowerPanelBottomInset: CGFloat,
-        miniLowerPanelHoverLift: CGFloat,
-        miniInfoBandTopCornerRadius: CGFloat
+        miniLowerPanelContentVerticalPadding: CGFloat
     ) -> some View {
-        let restingPanelOpacity: Double = infoExpanded ? 1 : 0.72
-        let restingPanelSaturation: Double = infoExpanded ? 1 : 0.90
-
-        return ZStack(alignment: .bottom) {
+        ZStack(alignment: .bottom) {
             Rectangle()
                 .fill(Color.black.opacity(miniInfoBandBaseOpacity))
                 .overlay(
@@ -504,39 +439,60 @@ struct MiniNowPlayingCard: View {
                     )
                 )
                 .frame(height: infoBandHeight)
-                .mask(TopRoundedBandShape(cornerRadius: miniInfoBandTopCornerRadius))
                 .allowsHitTesting(false)
 
             VStack(alignment: .leading, spacing: 10) {
                 VStack(alignment: .leading, spacing: miniMetadataSpacing) {
-                    Button(action: { model.openProviderApp() }) {
-                        NowPlayingTitleMarquee(
-                            text: model.displayTitle,
-                            enabled: true,
-                            isVisible: model.isPopoverVisible,
-                            laneWidth: miniMarqueeLaneWidth
-                        )
-                        .foregroundStyle(.white.opacity(0.98))
-                        .shadow(color: .black.opacity(miniInfoBandPrimaryShadowOpacity), radius: 2.5, x: 0, y: 1.2)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
+                    if model.isIdle {
+                        // The same copy the regular player shows, at mini's type sizes.
+                        let idle = model.idlePresentation
+                        Text(idle.headline)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.84))
+                        Text(idle.detail)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.52))
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        // The same crossing the regular player uses, so both surfaces treat a
+                        // track change as the same moment.
+                        VStack(alignment: .leading, spacing: miniMetadataSpacing) {
+                            Button(action: { model.openProviderApp() }) {
+                                NowPlayingTitleMarquee(
+                                    text: model.displayTitle,
+                                    enabled: true,
+                                    isVisible: model.isPopoverVisible,
+                                    laneWidth: miniMarqueeLaneWidth,
+                                    fontSize: 16
+                                )
+                                .foregroundStyle(.white)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
 
-                    NowPlayingSecondaryMarquee(
-                        text: model.artistAlbumLine,
-                        enabled: true,
-                        isVisible: model.isPopoverVisible,
-                        laneWidth: miniMarqueeLaneWidth,
-                        usesSecondaryStyle: false
-                    )
-                    .foregroundStyle(.white.opacity(0.90))
-                    .shadow(color: .black.opacity(miniInfoBandSecondaryShadowOpacity), radius: 1.8, x: 0, y: 1)
+                            NowPlayingSecondaryMarquee(
+                                text: model.artistAlbumLine,
+                                enabled: true,
+                                isVisible: model.isPopoverVisible,
+                                laneWidth: miniMarqueeLaneWidth,
+                                fontSize: 12,
+                                textOpacity: 0.66
+                            )
+                        }
+                        .trackChangeTransition(
+                            identity: model.trackIdentity,
+                            isEnabled: model.slideTitleOnChange && !reduceMotion
+                        )
+                    }
                 }
                 .opacity(primaryContentVisible ? 1 : 0)
                 .offset(y: primaryContentVisible ? 0 : 8)
                 .animation(modePrimaryRevealAnimation, value: primaryContentVisible)
 
-                if infoExpanded {
+                // Hovering an idle card used to reveal a progress rail, five transport
+                // controls and a volume slider, none of which had anything to act on.
+                if infoExpanded && !model.isIdle {
                     VStack(spacing: 8) {
                         PlaybackProgressBlock(
                             contrastBoost: miniInfoBandContrastBoost,
@@ -580,19 +536,12 @@ struct MiniNowPlayingCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .miniBottomPanelBackground(
-                sizeScale: miniControlScale,
-                emphasis: miniLowerPanelEmphasis,
-                neutralWashOpacity: miniInfoBandNeutralWashOpacity,
-                blueFogOpacity: miniInfoBandBlueFogOpacity,
-                contentHorizontalPadding: miniLowerPanelContentHorizontalPadding,
-                contentVerticalPadding: miniLowerPanelContentVerticalPadding
-            )
-            .padding(.horizontal, miniLowerPanelHorizontalInset)
-            .padding(.bottom, miniLowerPanelBottomInset)
-            .offset(y: -miniLowerPanelHoverLift)
-            .opacity(restingPanelOpacity)
-            .saturation(restingPanelSaturation)
+            // Scrim, not card. The metadata used to sit on its own rounded, stroked panel
+            // floating over the artwork — a second corner radius to reconcile and a box
+            // drawn around type that the band gradient behind it was already darkening.
+            // The band does the whole job; the text just pads against the card edge.
+            .padding(.horizontal, miniLowerPanelContentHorizontalPadding)
+            .padding(.bottom, miniLowerPanelContentVerticalPadding)
             .animation(.interactiveSpring(response: 0.30, dampingFraction: 0.86, blendDuration: 0.10), value: pointerHovering)
         }
     }

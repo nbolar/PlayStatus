@@ -29,50 +29,55 @@ enum CreditsPanePresentationStyle {
     case regular
 }
 
+/// Lyrics / Credits, as a tab rather than a chip.
+///
+/// This used to be a filled *and* stroked capsule around an 11pt rounded label, which left
+/// the pane speaking a different dialect from the player above it — bare glyphs up there,
+/// bordered pills down here. Selection is now carried the same way it is everywhere else in
+/// the player: opacity, plus a rule in the album's own colour on the selected tab only.
 struct DetailPaneTabChip: View {
     let tab: DetailsPaneTab
     let isSelected: Bool
+    var tint: Color = .accentColor
     let action: () -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @State private var hovering = false
 
     private var foregroundStyle: Color {
         if colorScheme == .dark {
-            return .white.opacity(isSelected ? 0.96 : 0.66)
+            return .white.opacity(isSelected ? 1.0 : (hovering ? 0.72 : 0.44))
         }
-        return isSelected ? .primary.opacity(0.90) : .secondary.opacity(0.88)
-    }
-
-    private var fillStyle: Color {
-        if colorScheme == .dark {
-            return .white.opacity(isSelected ? 0.16 : 0.08)
-        }
-        return .black.opacity(isSelected ? 0.075 : 0.035)
-    }
-
-    private var strokeStyle: Color {
-        if colorScheme == .dark {
-            return .white.opacity(isSelected ? 0.18 : 0.10)
-        }
-        return .black.opacity(isSelected ? 0.12 : 0.065)
+        return isSelected ? .primary.opacity(0.92) : .secondary.opacity(hovering ? 0.86 : 0.62)
     }
 
     var body: some View {
         Button(action: action) {
-            Label(tab.displayName, systemImage: isSelected ? "\(tab.systemImage).fill" : tab.systemImage)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+            // The rule is an overlay on the label rather than a sibling in a VStack: a bare
+            // `Capsule` has no intrinsic width, so as a sibling it stretched to fill the row
+            // and dragged the tab's whole hit area with it.
+            Text(tab.displayName)
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(foregroundStyle)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Capsule().fill(fillStyle))
-                .overlay(
+                .padding(.bottom, 6)
+                .overlay(alignment: .bottom) {
                     Capsule()
-                        .stroke(strokeStyle, lineWidth: 1)
-                )
+                        .fill(isSelected ? DetailPaneAccent.legible(tint, in: colorScheme) : .clear)
+                        .frame(height: 1.5)
+                }
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.14)) { self.hovering = hovering }
+        }
+        .animation(.easeOut(duration: 0.16), value: isSelected)
+        .accessibilityLabel(Text(tab.displayName))
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }
 
+/// Where the lyrics or credits came from. Provenance, not a control — so it reads as a
+/// caption instead of wearing the same pill a tappable thing would.
 struct DetailPaneSourceBadge: View {
     let text: String
     var emphasized: Bool = false
@@ -80,51 +85,63 @@ struct DetailPaneSourceBadge: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private var opacity: Double {
-        switch style {
-        case .mini:
-            return emphasized ? 0.58 : 0.46
-        case .regular:
-            return emphasized ? 0.58 : 0.50
-        }
-    }
-
-    private var fillOpacity: Double {
-        emphasized ? 0.10 : 0.08
-    }
-
-    private var strokeOpacity: Double {
-        emphasized ? 0.14 : 0.10
+        emphasized ? 0.44 : 0.34
     }
 
     private var foregroundStyle: Color {
         if colorScheme == .dark {
             return .white.opacity(opacity)
         }
-        return emphasized ? .primary.opacity(0.68) : .secondary.opacity(0.74)
-    }
-
-    private var fillStyle: Color {
-        if colorScheme == .dark {
-            return .white.opacity(fillOpacity)
-        }
-        return .black.opacity(emphasized ? 0.055 : 0.035)
-    }
-
-    private var strokeStyle: Color {
-        if colorScheme == .dark {
-            return .white.opacity(strokeOpacity)
-        }
-        return .black.opacity(emphasized ? 0.10 : 0.065)
+        return .secondary.opacity(opacity + 0.26)
     }
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 9, weight: .medium, design: .rounded))
+        Text(text.uppercased())
+            .font(.system(size: 9.5, weight: .semibold))
+            .kerning(0.7)
             .foregroundStyle(foregroundStyle)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(Capsule().fill(fillStyle))
-            .overlay(Capsule().stroke(strokeStyle, lineWidth: 1))
+    }
+}
+
+/// Keeps an album-derived colour readable as type.
+///
+/// The album tint is chosen to look right as a *surface*, which means it is regularly too
+/// dark to set text in on a dark pane, or too pale on a light one. This lifts it to a
+/// luminance that works on the ground it is actually being drawn on, keeping the hue.
+enum DetailPaneAccent {
+    static func legible(_ tint: Color, in colorScheme: ColorScheme) -> Color {
+        let base = NSColor(tint).usingColorSpace(.deviceRGB) ?? NSColor.white
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+        base.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+
+        // A near-grey tint has no hue worth preserving; fall back to plain label colour
+        // rather than tinting the active line an indeterminate beige.
+        guard saturation > 0.10 else {
+            return colorScheme == .dark ? .white.opacity(0.98) : .primary.opacity(0.92)
+        }
+
+        if colorScheme == .dark {
+            return Color(
+                NSColor(
+                    hue: hue,
+                    saturation: min(saturation, 0.62),
+                    brightness: max(brightness, 0.86),
+                    alpha: 1
+                )
+            )
+        }
+
+        return Color(
+            NSColor(
+                hue: hue,
+                saturation: max(saturation, 0.55),
+                brightness: min(brightness, 0.46),
+                alpha: 1
+            )
+        )
     }
 }
 
@@ -132,7 +149,12 @@ struct DetailPaneStateMessage: View {
     let message: String
     let icon: DetailPaneStateIcon
     var style: DetailPaneVisualStyle = .regular
+    /// Offered when the state is one the user can do something about — a miss is cached for a
+    /// day, so without this a transient failure sticks around with nothing to act on.
+    var retryTitle: String? = nil
+    var onRetry: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
+    @State private var retryHovering = false
 
     var body: some View {
         VStack(spacing: 8) {
@@ -149,10 +171,37 @@ struct DetailPaneStateMessage: View {
             .foregroundStyle(colorScheme == .dark ? AnyShapeStyle(.white.opacity(0.38)) : AnyShapeStyle(.tertiary))
 
             Text(message)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(style.foregroundStyle(for: colorScheme))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, alignment: .center)
+
+            if let retryTitle, let onRetry {
+                Button(action: onRetry) {
+                    Text(retryTitle)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(
+                            colorScheme == .dark
+                                ? .white.opacity(retryHovering ? 0.96 : 0.66)
+                                : .primary.opacity(retryHovering ? 0.92 : 0.70)
+                        )
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule().fill(
+                                colorScheme == .dark
+                                    ? Color.white.opacity(retryHovering ? 0.14 : 0.08)
+                                    : Color.black.opacity(retryHovering ? 0.09 : 0.05)
+                            )
+                        )
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: 0.14)) { retryHovering = hovering }
+                }
+                .padding(.top, 2)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }

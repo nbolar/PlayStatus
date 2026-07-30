@@ -14,6 +14,9 @@ struct LyricsTrackDescriptor: Equatable {
 
 enum LyricsFetchOutcome: Equatable {
     case available(LyricsPayload)
+    /// LRCLIB knows this track and says it has no vocals. Distinct from `unavailable`, which
+    /// means nobody has transcribed it yet — the first is an answer, the second is a gap.
+    case instrumental
     case unavailable
     case failed
 }
@@ -97,6 +100,10 @@ actor LyricsService {
                 if case .available = lrclibOutcome {
                     return lrclibOutcome
                 }
+                // An instrumental is a final answer; do not fall through to the Music app.
+                if case .instrumental = lrclibOutcome {
+                    return lrclibOutcome
+                }
                 if mode == .lrclibOnly {
                     return lrclibOutcome
                 }
@@ -121,7 +128,7 @@ actor LyricsService {
         case .available(let payload):
             storeCacheEntry(.available(payload), for: key)
             await PersistentMediaCache.shared.storeLyricsAvailable(payload, forKey: key)
-        case .unavailable:
+        case .unavailable, .instrumental:
             if cacheUnavailableResult {
                 storeCacheEntry(.unavailable, for: key)
                 await PersistentMediaCache.shared.storeLyricsUnavailable(forKey: key)
@@ -221,6 +228,9 @@ enum LRCLIBLyricsProvider {
 
     private enum ExactAttemptResult {
         case available(payload: LyricsPayload, artistCandidate: String, url: URL)
+        /// LRCLIB knows the track and says it has no vocals — a different answer from "nobody
+        /// has transcribed this", and one worth stopping on.
+        case instrumental
         case unavailable
         case failed
     }
@@ -241,9 +251,38 @@ enum LRCLIBLyricsProvider {
         let requestKind: SearchRequestKind
     }
 
+    /// LRCLIB asks clients to identify themselves, and reserves the right to throttle traffic
+    /// that does not. Name, version and a contact URL is the shape they ask for.
+    private static var requestUserAgent: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "3.x"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+        return "PlayStatus/\(version) (\(build); macOS; +https://github.com/nbolar/PlayStatus)"
+    }
+
+    /// Every request to LRCLIB goes through here so none can be sent anonymously by accident.
+    private static func lrclibRequest(url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = requestTimeoutSeconds
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(requestUserAgent, forHTTPHeaderField: "User-Agent")
+        return request
+    }
+
     private struct Response: Decodable {
         let syncedLyrics: String?
         let plainLyrics: String?
+        /// LRCLIB's explicit "this track has no vocals" flag. Without reading it, an
+        /// instrumental looks identical to a track nobody has transcribed yet — so the app
+        /// showed the wrong message and then spent two more requests searching for lyrics
+        /// the API had already said do not exist.
+        let isInstrumental: Bool
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: DynamicCodingKey.self)
+            syncedLyrics = try container.decodeFlexibleOptionalString(preferredKeys: ["syncedLyrics", "synced_lyrics"])
+            plainLyrics = try container.decodeFlexibleOptionalString(preferredKeys: ["plainLyrics", "plain_lyrics"])
+            isInstrumental = try container.decodeFlexibleOptionalBool(preferredKeys: ["instrumental"]) ?? false
+        }
     }
 
     private struct SearchItem: Decodable {
@@ -296,6 +335,10 @@ enum LRCLIBLyricsProvider {
         if case .available = exactStage.outcome {
             return exactStage.outcome
         }
+        // Nothing to search for — LRCLIB already told us this track has no vocals.
+        if case .instrumental = exactStage.outcome {
+            return exactStage.outcome
+        }
 
         let searchOutcome = await search(
             artist: artist,
@@ -304,7 +347,7 @@ enum LRCLIBLyricsProvider {
             onProgress: onProgress
         )
         switch searchOutcome {
-        case .available:
+        case .available, .instrumental:
             return searchOutcome
         case .failed:
             return .failed
@@ -412,6 +455,9 @@ enum LRCLIBLyricsProvider {
                     #endif
                     group.cancelAll()
                     return (.available(payload), sawFailure)
+                case .instrumental:
+                    group.cancelAll()
+                    return (.instrumental, sawFailure)
                 case .failed:
                     sawFailure = true
                 case .unavailable:
@@ -440,8 +486,7 @@ enum LRCLIBLyricsProvider {
             return .failed
         }
 
-        var request = URLRequest(url: url)
-        request.timeoutInterval = requestTimeoutSeconds
+        let request = lrclibRequest(url: url)
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -454,6 +499,14 @@ enum LRCLIBLyricsProvider {
             }
 
             let decoded = try JSONDecoder().decode(Response.self, from: data)
+            // LRCLIB has told us there is nothing to find. Report it as such so the caller can
+            // say "Instrumental" and stop, rather than falling through to the search fallback.
+            if decoded.isInstrumental {
+                #if DEBUG
+                NSLog("PlayStatus lyrics: lrclib_instrumental url=%@", url.absoluteString)
+                #endif
+                return .instrumental
+            }
             guard let payload = payloadFrom(syncedLyrics: decoded.syncedLyrics, plainLyrics: decoded.plainLyrics) else {
                 return .unavailable
             }
@@ -487,8 +540,7 @@ enum LRCLIBLyricsProvider {
             return .failed
         }
 
-        var request = URLRequest(url: url)
-        request.timeoutInterval = requestTimeoutSeconds
+        let request = lrclibRequest(url: url)
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -598,7 +650,10 @@ enum LRCLIBLyricsProvider {
                 durationScore = 0.5
             }
 
-            let syncedBonus = (item.syncedLyrics?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ? 0.02 : 0
+            // Timed lyrics are worth far more than a marginally closer title match here: the
+            // whole pane is a scrolling, highlighted active line, and a plain-text result
+            // degrades to guessing the position by ratio across the track.
+            let syncedBonus = (item.syncedLyrics?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ? 0.18 : 0
             let score = (titleScore * 0.62) + (artistScore * 0.28) + (durationScore * 0.08) + syncedBonus
             guard score > requiredLooseSearchScore else { continue }
 
@@ -711,6 +766,28 @@ private extension KeyedDecodingContainer where Key == DynamicCodingKey {
             guard let key = DynamicCodingKey(stringValue: rawKey) else { continue }
             if let string = try decodeIfPresent(String.self, forKey: key), !string.isEmpty {
                 return string
+            }
+        }
+        return nil
+    }
+
+    /// Tolerant of the flag arriving as a real bool, a 0/1, or a string, in the same spirit as
+    /// the other decoders here.
+    func decodeFlexibleOptionalBool(preferredKeys: [String]) throws -> Bool? {
+        for rawKey in preferredKeys {
+            guard let key = DynamicCodingKey(stringValue: rawKey) else { continue }
+            if let value = try decodeIfPresent(Bool.self, forKey: key) {
+                return value
+            }
+            if let intValue = try decodeIfPresent(Int.self, forKey: key) {
+                return intValue != 0
+            }
+            if let stringValue = try decodeIfPresent(String.self, forKey: key) {
+                switch stringValue.lowercased() {
+                case "true", "1", "yes": return true
+                case "false", "0", "no": return false
+                default: continue
+                }
             }
         }
         return nil

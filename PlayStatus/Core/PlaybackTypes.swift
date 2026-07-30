@@ -58,14 +58,6 @@ enum PlaybackRepeatMode: String, CaseIterable, Equatable {
         }
     }
 
-    var shortDisplayName: String {
-        switch self {
-        case .off: return "Off"
-        case .all: return "All"
-        case .one: return "One"
-        }
-    }
-
     var systemImageName: String {
         switch self {
         case .off, .all: return "repeat"
@@ -436,6 +428,8 @@ enum LyricsState: Equatable {
     case idle
     case loading
     case available
+    /// The track is known to have no vocals, rather than simply having no transcription.
+    case instrumental
     case unavailable
     case failed
 }

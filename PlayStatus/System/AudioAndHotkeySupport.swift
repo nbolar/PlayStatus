@@ -15,7 +15,111 @@ struct AudioOutputState {
     let isMuted: Bool
 }
 
+/// Watches Core Audio and reports when the output volume, mute or device changes.
+///
+/// The rail used to learn about volume only from a 10-second poll, so turning the volume up
+/// with the media keys left the app's slider sitting at its old position for several seconds —
+/// it looked like the control had stopped honouring the system. Core Audio publishes these
+/// properties, so the app can be told instead of asking.
+///
+/// Volume and mute live on a *device*, so those listeners move whenever the default output
+/// device changes; the device listener itself sits on the system object and is installed once.
+final class AudioOutputObserver {
+    private var onChange: (() -> Void)?
+    private var observedDeviceID: AudioDeviceID?
+    private var systemListener: AudioObjectPropertyListenerBlock?
+    private var deviceListeners: [(AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)] = []
+
+    private static var defaultDeviceAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+
+    func start(onChange: @escaping () -> Void) {
+        guard systemListener == nil else { return }
+        self.onChange = onChange
+
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            guard let self else { return }
+            DispatchQueue.main.async {
+                // The device changed, so the volume/mute listeners have to follow it.
+                self.attachDeviceListeners()
+                self.onChange?()
+            }
+        }
+        systemListener = listener
+        AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject),
+            &Self.defaultDeviceAddress,
+            DispatchQueue.main,
+            listener
+        )
+
+        attachDeviceListeners()
+    }
+
+    func stop() {
+        if let systemListener {
+            AudioObjectRemovePropertyListenerBlock(
+                AudioObjectID(kAudioObjectSystemObject),
+                &Self.defaultDeviceAddress,
+                DispatchQueue.main,
+                systemListener
+            )
+        }
+        systemListener = nil
+        detachDeviceListeners()
+        onChange = nil
+    }
+
+    private func attachDeviceListeners() {
+        let deviceID = AudioOutputController.currentDefaultOutputDeviceID()
+        guard deviceID != observedDeviceID else { return }
+        detachDeviceListeners()
+        guard let deviceID else { return }
+        observedDeviceID = deviceID
+
+        for selector in [kAudioDevicePropertyVolumeScalar, kAudioDevicePropertyMute] {
+            var address = AudioObjectPropertyAddress(
+                mSelector: selector,
+                mScope: kAudioDevicePropertyScopeOutput,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+                DispatchQueue.main.async { self?.onChange?() }
+            }
+            AudioObjectAddPropertyListenerBlock(deviceID, &address, DispatchQueue.main, listener)
+            deviceListeners.append((address, listener))
+        }
+    }
+
+    private func detachDeviceListeners() {
+        guard let observedDeviceID else { return }
+        for (address, listener) in deviceListeners {
+            var mutableAddress = address
+            AudioObjectRemovePropertyListenerBlock(
+                observedDeviceID,
+                &mutableAddress,
+                DispatchQueue.main,
+                listener
+            )
+        }
+        deviceListeners.removeAll()
+        self.observedDeviceID = nil
+    }
+
+    deinit {
+        stop()
+    }
+}
+
 enum AudioOutputController {
+    /// Exposed so the observer can follow the device its listeners are attached to.
+    static func currentDefaultOutputDeviceID() -> AudioDeviceID? {
+        defaultOutputDeviceID()
+    }
+
     static func currentState() -> AudioOutputState {
         let devices = outputDevices()
         let selected = defaultOutputDeviceID() ?? devices.first?.id ?? 0

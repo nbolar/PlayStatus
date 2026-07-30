@@ -4,6 +4,7 @@ import AppKit
 struct NowPlayingPopover: View {
     @ObservedObject var model: NowPlayingModel
     @ObservedObject private var onboarding = OnboardingCoordinator.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var searchText = ""
     @State private var isSearchExpanded = false
     @FocusState private var isSearchFocused: Bool
@@ -183,6 +184,35 @@ struct NowPlayingPopover: View {
         .onChange(of: model.lyricsPanelExpanded) { _, _ in
             syncRenderedRegularDetailsPane(for: regularDetailsRequested)
         }
+        // The field is @State on a hosting controller that outlives the popover, so without
+        // this it came back still expanded, still holding the last query, and still focused —
+        // which meant the next keystroke you typed anywhere went into it.
+        .onChange(of: model.isPopoverVisible) { _, visible in
+            guard !visible else { return }
+            searchText = ""
+            isSearchFocused = false
+            isSearchExpanded = false
+        }
+        .onChange(of: isSearchExpanded) { _, expanded in
+            model.searchFieldIsOpen = expanded
+        }
+        .onChange(of: model.searchDismissRequestToken) { _, _ in
+            isSearchFocused = false
+            withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.90, blendDuration: 0.10)) {
+                isSearchExpanded = false
+            }
+        }
+        .onChange(of: model.searchFocusRequestToken) { _, _ in
+            guard !model.miniMode, model.resolvedSearchProvider != .none else { return }
+            withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.86, blendDuration: 0.12)) {
+                isSearchExpanded = true
+            }
+            // The field is 0pt wide until the expansion lays out, and SwiftUI will not move
+            // focus into a zero-width field. Ask on the next tick, once it has a size.
+            DispatchQueue.main.async {
+                isSearchFocused = true
+            }
+        }
         .onAppear {
             settleModeMorphImmediately()
             modePrimaryContentVisible = true
@@ -299,67 +329,29 @@ struct NowPlayingPopover: View {
            let miniAnchor = modeArtworkFrames[.mini] {
             // Each branch is centred in the host, so its anchor has to be shifted by the
             // same amount the host centres it before the two are interpolated.
-            let regularShellRect = regularAnchor
+            let regularRect = regularAnchor
                 .offsetBy(dx: (surface.width - regularSize.width) / 2, dy: 0)
-            let regularPlateRect = regularShellRect
-                .insetBy(dx: regularArtworkShellInset, dy: regularArtworkShellInset)
             let miniRect = miniAnchor
                 .offsetBy(dx: (surface.width - miniSize.width) / 2, dy: 0)
+            // Both modes draw the artwork as a bare plate now, so this is a straight
+            // plate-to-plate interpolation. There is no longer a glass shell to dissolve
+            // along the way.
             let plateRect = CGRect(
-                x: lerp(regularPlateRect.minX, miniRect.minX, progress),
-                y: lerp(regularPlateRect.minY, miniRect.minY, progress),
-                width: lerp(regularPlateRect.width, miniRect.width, progress),
-                height: lerp(regularPlateRect.height, miniRect.height, progress)
-            )
-            // The shell travels with the plate, converging onto it as it dissolves.
-            let shellRect = CGRect(
-                x: lerp(regularShellRect.minX, miniRect.minX, progress),
-                y: lerp(regularShellRect.minY, miniRect.minY, progress),
-                width: lerp(regularShellRect.width, miniRect.width, progress),
-                height: lerp(regularShellRect.height, miniRect.height, progress)
+                x: lerp(regularRect.minX, miniRect.minX, progress),
+                y: lerp(regularRect.minY, miniRect.minY, progress),
+                width: lerp(regularRect.width, miniRect.width, progress),
+                height: lerp(regularRect.height, miniRect.height, progress)
             )
             let plateRadius = lerp(regularArtworkCornerRadius, miniArtworkCornerRadius, progress)
-            let shellRadius = lerp(regularArtworkShellCornerRadius, miniArtworkCornerRadius, progress)
             let plateShape = RoundedRectangle(cornerRadius: plateRadius, style: .continuous)
-            let shellShape = RoundedRectangle(cornerRadius: shellRadius, style: .continuous)
-            let shellOpacity = 1 - progress
-            let tint = model.glassTint
 
-            ZStack {
-                // The regular tile's glass shell, mirrored from ArtworkView and dissolved
-                // over the morph. Without it the ring, gloss, and drop shadow vanished in
-                // a single frame the instant the branch handed its artwork off.
-                shellShape
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.18),
-                                Color.white.opacity(0.10),
-                                tint.opacity(0.14)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .overlay(shellShape.stroke(.white.opacity(0.22), lineWidth: 1.2))
-                    .overlay(shellShape.stroke(tint.opacity(0.2), lineWidth: 1))
-                    .frame(width: max(0, shellRect.width), height: max(0, shellRect.height))
-                    .position(x: shellRect.midX, y: shellRect.midY)
-                    .opacity(shellOpacity)
-                    .shadow(
-                        color: .black.opacity(0.28 * shellOpacity),
-                        radius: 16,
-                        x: 0,
-                        y: 10
-                    )
-
-                MorphingArtworkImage(image: model.artwork, tint: tint)
-                    .frame(width: max(0, plateRect.width), height: max(0, plateRect.height))
-                    .clipShape(plateShape)
-                    .overlay(plateShape.stroke(.white.opacity(0.12), lineWidth: 1))
-                    .position(x: plateRect.midX, y: plateRect.midY)
-            }
-            .allowsHitTesting(false)
+            MorphingArtworkImage(image: model.artwork, tint: model.glassTint)
+                .frame(width: max(0, plateRect.width), height: max(0, plateRect.height))
+                .clipShape(plateShape)
+                .overlay(plateShape.stroke(.white.opacity(playerHairlineOpacity), lineWidth: playerHairlineWidth))
+                .position(x: plateRect.midX, y: plateRect.midY)
+                .shadow(color: .black.opacity(0.34), radius: 18, x: 0, y: 10)
+                .allowsHitTesting(false)
         }
     }
 
@@ -375,15 +367,21 @@ struct NowPlayingPopover: View {
         let baseRegularHeight = model.estimatedRegularPopoverHeight
         let resolvedRegularHeight = regularSurfaceSize.height
         let liveRegularHeight = min(resolvedRegularHeight, max(baseRegularHeight, availableHeight))
-        let regularMarqueeLaneWidth = min(272, max(130, regularSurfaceSize.width - regularArtworkSize - 78))
+        // Artwork + the gap + both content margins. The text column gets everything else.
+        let regularMarqueeLaneWidth = min(
+            292,
+            max(130, regularSurfaceSize.width - regularArtworkSize - (playerSurfaceContentPadding * 2) - 16)
+        )
         let visibleRegularDetailsHeight = min(
             model.regularLyricsPaneHeight,
             max(0, liveRegularHeight - baseRegularHeight)
         )
         let shouldRenderRegularDetailsPane = showRegularDetailsPane || visibleRegularDetailsHeight > 0.5
         let regularControlContrastBoost = model.regularControlsContrastBoost
-        let searchTrailingAlignmentNudge: CGFloat = 4
-        let regularDetachedTransparencyMultiplier: Double = model.surfaceMode == .detached ? 0.80 : 1.0
+        // Detached no longer dims itself. The 0.80 multiplier existed to compensate for the
+        // material and wash the window used to stack underneath the player; with those gone
+        // it just made the detached player murkier than the popover for no reason.
+        let isDetached = model.surfaceMode == .detached
         let regularControlScale = model.regularControlScaleFactor
         let restingRegularControlOpacity: Double = playerControlClusterRestingOpacity
         let showDetailsCoachmark = onboarding.isCoachmarkActive(.detailsToggle)
@@ -393,13 +391,26 @@ struct NowPlayingPopover: View {
         let interactiveRegularControlsVisible = regularPointerHovering || forceCoachmarkControlsVisible
 
         return VStack(spacing: 0) {
-            regularPrimaryCard(
-                regularMarqueeLaneWidth: regularMarqueeLaneWidth,
-                regularControlContrastBoost: regularControlContrastBoost,
-                regularControlScale: regularControlScale,
-                searchTrailingAlignmentNudge: searchTrailingAlignmentNudge
-            )
-            .frame(height: baseRegularHeight, alignment: .top)
+            Group {
+                if model.isIdle {
+                    // No artwork anchor is published here on purpose: with nothing playing
+                    // there is no image for the shared morph node to carry between modes,
+                    // and the last known anchor is retained anyway.
+                    PlayerIdleView(
+                        model: model,
+                        artworkSize: regularArtworkSize,
+                        laneWidth: regularMarqueeLaneWidth
+                    )
+                } else {
+                    regularHeroRow(
+                        regularMarqueeLaneWidth: regularMarqueeLaneWidth,
+                        regularControlContrastBoost: regularControlContrastBoost,
+                        regularControlScale: regularControlScale
+                    )
+                }
+            }
+            .padding(playerSurfaceContentPadding)
+            .frame(height: baseRegularHeight, alignment: .center)
             .overlay(alignment: .topTrailing) {
                 regularTrailingControls(
                     contrastBoost: regularControlContrastBoost,
@@ -429,45 +440,18 @@ struct NowPlayingPopover: View {
             }
         }
         .frame(width: regularSurfaceSize.width, height: resolvedRegularHeight, alignment: .topLeading)
+        // One surface. There used to be a second, near-identically coloured card inset
+        // 14pt inside this one; the content pads against the surface directly now.
         .background(
-            ZStack {
-                LiquidGlassBackground(
-                    tint: model.glassTint,
-                    readabilityBoost: regularControlContrastBoost,
-                    transparencyMultiplier: regularDetachedTransparencyMultiplier
-                )
-            }
+            LiquidGlassBackground(
+                tint: model.glassTint,
+                palette: model.cardBackgroundPalette,
+                readabilityBoost: regularControlContrastBoost,
+                castsShadow: !isDetached
+            )
         )
         .overlay {
             regularPointerTrackingOverlay
-        }
-    }
-
-    private func regularPrimaryCard(
-        regularMarqueeLaneWidth: CGFloat,
-        regularControlContrastBoost: Double,
-        regularControlScale: CGFloat,
-        searchTrailingAlignmentNudge: CGFloat
-    ) -> some View {
-        LiquidGlassCard(
-            tint: model.glassTint,
-            palette: model.cardBackgroundPalette,
-            readabilityBoost: regularControlContrastBoost,
-            transparencyMultiplier: model.surfaceMode == .detached ? 0.80 : 1.0
-        ) {
-            VStack(spacing: 8) {
-                regularHeroRow(
-                    regularMarqueeLaneWidth: regularMarqueeLaneWidth,
-                    regularControlContrastBoost: regularControlContrastBoost,
-                    regularControlScale: regularControlScale
-                )
-
-                regularSearchLane(
-                    contrastBoost: regularControlContrastBoost,
-                    controlScale: regularControlScale,
-                    searchTrailingAlignmentNudge: searchTrailingAlignmentNudge
-                )
-            }
         }
     }
 
@@ -578,7 +562,12 @@ struct NowPlayingPopover: View {
         regularControlContrastBoost: Double,
         regularControlScale: CGFloat
     ) -> some View {
-        HStack(alignment: .center, spacing: 16) {
+        // Both columns are the artwork's height and share its top and bottom edges: the title
+        // starts level with the top of the cover and the volume row sits on its baseline.
+        // They used to be two separately centred blocks, so the title floated 14pt below the
+        // artwork's top and the artwork overhung the last control row by 23pt — nothing in
+        // the window lined up with anything else.
+        HStack(alignment: .top, spacing: 16) {
             regularArtworkTile
 
             VStack(alignment: .leading, spacing: 6) {
@@ -586,13 +575,16 @@ struct NowPlayingPopover: View {
                     regularMarqueeLaneWidth: regularMarqueeLaneWidth,
                     regularControlContrastBoost: regularControlContrastBoost
                 )
+                .padding(.top, playerClusterReservedHeight)
+
+                Spacer(minLength: 0)
 
                 regularControlsColumn(
                     regularControlContrastBoost: regularControlContrastBoost,
                     regularControlScale: regularControlScale
                 )
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: regularArtworkSize, maxHeight: regularArtworkSize, alignment: .leading)
         }
     }
 
@@ -633,42 +625,87 @@ struct NowPlayingPopover: View {
         }
     }
 
+    /// Title, artist, album — three lines, three steps down.
+    ///
+    /// These were once 15pt title and 15pt "artist • album" separated by weight alone,
+    /// both carrying drop shadows so they could survive a fully saturated surface. The
+    /// surface is quiet now, so the type carries the hierarchy on its own.
     private func regularMetadataColumn(
         regularMarqueeLaneWidth: CGFloat,
         regularControlContrastBoost: Double
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Button(action: { model.openProviderApp() }) {
-                NowPlayingTitleMarquee(
-                    text: model.displayTitle,
-                    enabled: true,
-                    isVisible: model.isPopoverVisible,
-                    laneWidth: regularMarqueeLaneWidth
-                )
-                .foregroundStyle(.white.opacity(0.98))
-                .shadow(color: .black.opacity(0.26), radius: 2.2, x: 0, y: 1)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            NowPlayingSecondaryMarquee(
-                text: model.artistAlbumLine,
-                enabled: true,
-                isVisible: model.isPopoverVisible,
-                laneWidth: regularMarqueeLaneWidth,
-                usesSecondaryStyle: false
-            )
-            .foregroundStyle(.white.opacity(0.90))
-            .shadow(color: .black.opacity(0.20), radius: 1.8, x: 0, y: 1)
+        VStack(alignment: .leading, spacing: 2) {
+            // The text block is re-identified per track so a new song crosses rather than
+            // swapping in place — the outgoing lines rise and fade as the incoming ones
+            // arrive from below, on the same signal the artwork crossfade already uses.
+            trackTextBlock(laneWidth: regularMarqueeLaneWidth)
 
             PlaybackProgressBlock(
                 contrastBoost: regularControlContrastBoost,
                 onSeek: { model.seek(to: $0) }
             )
+            .padding(.top, 8)
         }
         .opacity(modePrimaryContentVisible ? 1 : 0)
         .offset(y: modePrimaryContentVisible ? 0 : 8)
         .animation(modePrimaryRevealAnimation, value: modePrimaryContentVisible)
+    }
+
+    private func trackTextBlock(laneWidth: CGFloat) -> some View {
+        trackTextLines(laneWidth: laneWidth)
+            .trackChangeTransition(
+                identity: model.trackIdentity,
+                isEnabled: model.slideTitleOnChange && !reduceMotion
+            )
+    }
+
+    private func trackTextLines(laneWidth: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Button(action: { model.openProviderApp() }) {
+                NowPlayingTitleMarquee(
+                    text: model.displayTitle,
+                    enabled: true,
+                    isVisible: model.isPopoverVisible,
+                    laneWidth: laneWidth
+                )
+                .foregroundStyle(.white)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            NowPlayingSecondaryMarquee(
+                text: model.metadataArtistLine,
+                enabled: true,
+                isVisible: model.isPopoverVisible,
+                laneWidth: laneWidth,
+                textOpacity: 0.68
+            )
+
+            if !model.album.isEmpty {
+                NowPlayingSecondaryMarquee(
+                    text: model.album,
+                    enabled: true,
+                    isVisible: model.isPopoverVisible,
+                    laneWidth: laneWidth,
+                    fontWeight: .regular,
+                    textOpacity: 0.44
+                )
+            }
+        }
+        // One element rather than three marquees read in sequence, and activating it does
+        // what clicking the title does.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(accessibleTrackDescription))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(Text("Opens \(model.idleTargetProvider.displayName)"))
+        .accessibilityAction { model.openProviderApp() }
+    }
+
+    private var accessibleTrackDescription: String {
+        var parts = [model.displayTitle.isEmpty ? "Nothing playing" : model.displayTitle]
+        if !model.artist.isEmpty { parts.append(model.artist) }
+        if !model.album.isEmpty { parts.append(model.album) }
+        return parts.joined(separator: ", ")
     }
 
     private func regularControlsColumn(
@@ -711,30 +748,6 @@ struct NowPlayingPopover: View {
         .animation(modeSecondaryRevealAnimation, value: modeSecondaryContentVisible)
     }
 
-    @ViewBuilder
-    private func regularSearchLane(
-        contrastBoost: Double,
-        controlScale: CGFloat,
-        searchTrailingAlignmentNudge: CGFloat
-    ) -> some View {
-        if model.resolvedSearchProvider != .none {
-            HStack {
-                Spacer(minLength: 0)
-                searchSection(
-                    maxWidth: min(280, max(170, renderedPopoverWidth * 0.50)),
-                    contrastBoost: contrastBoost,
-                    controlScale: controlScale
-                )
-            }
-            .padding(.trailing, -searchTrailingAlignmentNudge)
-            .padding(.top, -24)
-            .padding(.bottom, -12)
-            .opacity(modeSecondaryContentVisible ? 1 : 0)
-            .offset(y: modeSecondaryContentVisible ? 0 : 10)
-            .animation(modeSecondaryRevealAnimation, value: modeSecondaryContentVisible)
-        }
-    }
-
     private func regularTrailingControls(
         contrastBoost: Double,
         controlScale: CGFloat,
@@ -745,27 +758,58 @@ struct NowPlayingPopover: View {
         showDetachedControlsCoachmark: Bool
     ) -> some View {
         let coachmarkForcesReveal = showDetailsCoachmark || showDetachedModeCoachmark || showDetachedControlsCoachmark
-        let clusterRevealed = interactiveRegularControlsVisible || coachmarkForcesReveal
+        // An open search field is a control being used, whether or not the pointer happens
+        // to be over the player — it must not dim to resting while you are typing in it.
+        let clusterRevealed = interactiveRegularControlsVisible || coachmarkForcesReveal || isSearchExpanded
+
+        // The cluster's lane: everything to the right of the artwork. The open field is
+        // clamped to it so it can never grow back across the album art.
+        let clusterLaneWidth = max(
+            170,
+            renderedPopoverWidth
+                - playerSurfaceContentPadding
+                - regularArtworkSize
+                - 16
+                - (12 * controlScale)
+        )
 
         return HStack(spacing: 2 * controlScale) {
-            regularModeToggle(contrastBoost: contrastBoost, controlScale: controlScale)
+            // Search belongs with the other player-level controls. It used to float alone
+            // in the bottom-right corner, held there by negative padding on three sides.
+            if model.resolvedSearchProvider != .none {
+                PlayerSearchField(
+                    text: $searchText,
+                    isExpanded: $isSearchExpanded,
+                    isFocused: $isSearchFocused,
+                    provider: model.resolvedSearchProvider,
+                    maxWidth: clusterLaneWidth,
+                    contrastBoost: contrastBoost,
+                    controlScale: controlScale,
+                    onSubmit: runSearchAction
+                )
+                .playerCoachmarkTarget(.search)
+            }
 
-            regularDetachedControls(contrastBoost: contrastBoost, controlScale: controlScale)
+            HStack(spacing: 2 * controlScale) {
+                regularModeToggle(contrastBoost: contrastBoost, controlScale: controlScale)
 
-            regularDetailControls(contrastBoost: contrastBoost, controlScale: controlScale)
+                regularDetachedControls(contrastBoost: contrastBoost, controlScale: controlScale)
 
-            regularSettingsControl(contrastBoost: contrastBoost, controlScale: controlScale)
+                regularDetailControls(contrastBoost: contrastBoost, controlScale: controlScale)
+
+                regularSettingsControl(contrastBoost: contrastBoost, controlScale: controlScale)
+            }
+            // An open field owns the row. The icons fold away instead of holding their
+            // width and shouldering the field left over the artwork — you are searching or
+            // you are not, and while you are, these five are not what you are aiming at.
+            .frame(width: isSearchExpanded ? 0 : nil)
+            .opacity(isSearchExpanded ? 0 : 1)
+            .clipped()
+            .allowsHitTesting(!isSearchExpanded)
         }
-        .playerControlClusterBackground(
-            sizeScale: controlScale,
-            neutralWashOpacity: 0,
-            blueFogOpacity: 0,
-            contrastBoost: contrastBoost,
-            artworkBacking: 0
-        )
         .fixedSize(horizontal: true, vertical: false)
-        .padding(.top, 6 * controlScale)
-        .padding(.trailing, 14 * controlScale)
+        .padding(.top, 10 * controlScale)
+        .padding(.trailing, 12 * controlScale)
         .opacity(modeSecondaryContentVisible ? (clusterRevealed ? 1 : restingRegularControlOpacity) : 0)
         .offset(y: modeSecondaryContentVisible ? 0 : -8)
         .allowsHitTesting(modeSecondaryContentVisible)
@@ -847,10 +891,10 @@ struct NowPlayingPopover: View {
     private func regularSettingsControl(contrastBoost: Double, controlScale: CGFloat) -> some View {
         SettingsOpenControl {
             Image(systemName: "gearshape.fill")
-                .font(.system(size: 16 * controlScale, weight: .semibold))
+                .font(.system(size: 14 * controlScale, weight: .semibold))
                 .foregroundStyle(ArtworkPlayerControlPalette.icon())
                 .playerClusterGlyphChrome(
-                    diameter: 24 * controlScale,
+                    diameter: 26 * controlScale,
                     isHovering: regularSettingsHovering,
                     contrastBoost: contrastBoost
                 )
@@ -864,6 +908,7 @@ struct NowPlayingPopover: View {
             regularSettingsHovering = hovering
         }
         .hoverHint("Settings", enabled: !modeTransitionActive)
+        .accessibilityLabel(Text("Settings"))
     }
 
     private var regularPointerTrackingOverlay: some View {
@@ -873,121 +918,6 @@ struct NowPlayingPopover: View {
             }
         }
         .allowsHitTesting(false)
-    }
-
-    private func searchSection(maxWidth: CGFloat, contrastBoost: Double, controlScale: CGFloat = 1) -> some View {
-        let searchProvider = model.resolvedSearchProvider
-        let searchPlaceholder = searchProvider == .spotify ? "Search Spotify" : "Search Music library"
-        let actionLabel = searchProvider == .spotify ? "Open" : "Play"
-        let clampedContrast = min(max(contrastBoost, 0), 1)
-        let clampedControlScale = min(max(controlScale, 0.80), 1.20)
-        let searchForeground = Color.white
-        let searchFillOpacity = min(0.34, 0.08 + (0.18 * clampedContrast))
-        let searchStrokeOpacity = min(0.28, 0.12 + (0.08 * clampedContrast))
-        let searchDarkenOpacity = 0.10 * clampedContrast
-        let actionTint = Color.black.opacity(min(0.88, 0.44 + (0.34 * clampedContrast)))
-        let spacing: CGFloat = 4 * clampedControlScale
-        let collapsedWidth: CGFloat = 30 * clampedControlScale
-        let playWidth: CGFloat = 64 * clampedControlScale
-        let rowWidth = max(180, maxWidth)
-        let expandedSearchWidth = max(140, rowWidth - playWidth - spacing)
-        let containerWidth = isSearchExpanded ? expandedSearchWidth : collapsedWidth
-        let textFieldWidth = max(0, expandedSearchWidth - (40 * clampedControlScale))
-        let spring = Animation.interactiveSpring(response: 0.34, dampingFraction: 0.86, blendDuration: 0.12)
-
-        return HStack(spacing: spacing) {
-            HStack(spacing: isSearchExpanded ? (6 * clampedControlScale) : 0) {
-                Button {
-                    if isSearchExpanded && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        withAnimation(spring) {
-                            isSearchExpanded = false
-                        }
-                        isSearchFocused = false
-                    } else if !isSearchExpanded {
-                        withAnimation(spring) {
-                            isSearchExpanded = true
-                        }
-                        isSearchFocused = true
-                    }
-                } label: {
-                    Image(systemName: "magnifyingglass")
-                        .imageScale(.small)
-                        .foregroundStyle(searchForeground.opacity(0.90))
-                        .frame(width: 18 * clampedControlScale, height: 18 * clampedControlScale)
-                }
-                .buttonStyle(.plain)
-                .playerCoachmarkTarget(.search)
-                .frame(
-                    width: isSearchExpanded ? (18 * clampedControlScale) : collapsedWidth,
-                    height: 34 * clampedControlScale,
-                    alignment: .center
-                )
-                .contentShape(Rectangle())
-
-                TextField(searchPlaceholder, text: $searchText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12 * clampedControlScale, weight: .medium, design: .rounded))
-                    .foregroundStyle(searchForeground.opacity(0.94))
-                    .focused($isSearchFocused)
-                    .onSubmit { runSearchAction() }
-                    .frame(width: isSearchExpanded ? textFieldWidth : 0, alignment: .leading)
-                    .opacity(isSearchExpanded ? 1 : 0)
-                    .allowsHitTesting(isSearchExpanded)
-            }
-            .padding(.horizontal, isSearchExpanded ? (8 * clampedControlScale) : 0)
-            .frame(width: containerWidth, height: 34 * clampedControlScale, alignment: isSearchExpanded ? .leading : .center)
-            .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: 11 * clampedControlScale, style: .continuous)
-                        .fill(Color.primary.opacity(searchFillOpacity))
-                    RoundedRectangle(cornerRadius: 11 * clampedControlScale, style: .continuous)
-                        .fill(Color.black.opacity(searchDarkenOpacity))
-                }
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 11 * clampedControlScale, style: .continuous)
-                    .stroke(.white.opacity(searchStrokeOpacity), lineWidth: 1)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 11 * clampedControlScale, style: .continuous))
-            .onTapGesture {
-                guard !isSearchExpanded else { return }
-                withAnimation(spring) {
-                    isSearchExpanded = true
-                }
-                isSearchFocused = true
-            }
-
-            Button(actionLabel) {
-                runSearchAction()
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(actionTint)
-            .foregroundStyle(.white.opacity(0.95))
-            .controlSize(.small)
-            .frame(width: isSearchExpanded ? playWidth : 0)
-            .opacity(isSearchExpanded ? 1 : 0)
-            .scaleEffect(isSearchExpanded ? 1 : 0.95)
-            .allowsHitTesting(isSearchExpanded)
-            .clipped()
-            .disabled(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-        }
-        .frame(height: 44 * clampedControlScale)
-        .background(
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: SearchSectionFramePreferenceKey.self,
-                    value: isSearchExpanded ? proxy.frame(in: .named("popoverRoot")) : .zero
-                )
-            }
-        )
-        .onChange(of: isSearchFocused) { _, focused in
-            if !focused && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                withAnimation(spring) {
-                    isSearchExpanded = false
-                }
-            }
-        }
     }
 
     private func updateSearchSectionFrame(_ frame: CGRect) {

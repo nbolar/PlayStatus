@@ -1,37 +1,19 @@
 import SwiftUI
 import AppKit
 
-struct MenuBarLabel: View {
-    @ObservedObject var model: NowPlayingModel
-
-    var body: some View {
-        HStack(spacing: 5) {
-            ProviderIconView(icon: model.statusIcon, size: 13, weight: .regular)
-                .frame(width: 13, alignment: .center)
-
-            if model.menuBarTextMode != .iconOnly {
-                Text(model.menuBarDisplayTitle)
-                    .font(.system(size: 13, weight: .regular, design: .monospaced))
-                    .lineLimit(1)
-                    .frame(width: model.statusTextWidth, alignment: .leading)
-                    .clipped()
-            }
-        }
-        .frame(width: model.menuBarLabelWidth, alignment: .leading)
-        .accessibilityLabel("PlayStatus")
-        .accessibilityValue(model.menuBarTitle)
-    }
-}
-
 func measuredTextWidth(_ text: String, font: NSFont) -> CGFloat {
     ceil((text as NSString).size(withAttributes: [.font: font]).width) + 10.0
 }
 
+/// The track title. Standard SF rather than SF Rounded: rounded reads friendly at menu bar
+/// scale but soft at player scale, and the title is the one thing in the window that has to
+/// outrank everything else.
 struct NowPlayingTitleMarquee: View {
     let text: String
     let enabled: Bool
     let isVisible: Bool
     var laneWidth: CGFloat = 272
+    var fontSize: CGFloat = 17
 
     @State private var startDate = Date()
     @State private var cachedTextWidth: CGFloat = 0
@@ -44,9 +26,9 @@ struct NowPlayingTitleMarquee: View {
     private var shouldScroll: Bool { isVisible && enabled && cachedTextWidth > laneWidth + 2 }
     private var travel: CGFloat { cachedTextWidth + gap }
     private var cycleDuration: Double { max(8.0, Double(travel / speed)) }
-    private var measurementSignature: String { resolvedText }
+    private var measurementSignature: String { "\(resolvedText)|\(Int(fontSize.rounded()))" }
     private var marqueeSignature: String {
-        "\(resolvedText)|\(enabled)|\(isVisible)|\(Int(laneWidth.rounded()))|\(shouldScroll ? 1 : 0)"
+        "\(resolvedText)|\(enabled)|\(isVisible)|\(Int(laneWidth.rounded()))|\(Int(fontSize.rounded()))|\(shouldScroll ? 1 : 0)"
     }
 
     var body: some View {
@@ -63,7 +45,7 @@ struct NowPlayingTitleMarquee: View {
                 staticLabel
             }
         }
-        .frame(width: laneWidth, height: 24, alignment: .leading)
+        .frame(width: laneWidth, height: fontSize + 7, alignment: .leading)
         .id(marqueeSignature)
         .clipped()
         .modifier(ScrollingEdgeFade(enabled: shouldScroll))
@@ -77,14 +59,14 @@ struct NowPlayingTitleMarquee: View {
 
     private var staticLabel: some View {
         Text(resolvedText)
-            .font(.system(size: 15, weight: .semibold, design: .rounded))
+            .font(.system(size: fontSize, weight: .semibold))
             .lineLimit(1)
             .truncationMode(.tail)
     }
 
     private var scrollingLabel: some View {
         Text(resolvedText)
-            .font(.system(size: 15, weight: .semibold, design: .rounded))
+            .font(.system(size: fontSize, weight: .semibold))
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
     }
@@ -102,7 +84,7 @@ struct NowPlayingTitleMarquee: View {
     private func refreshCachedMetrics(resetStartDate: Bool) {
         let measuredWidth = measuredTextWidth(
             resolvedText,
-            font: .systemFont(ofSize: 15, weight: .semibold)
+            font: .systemFont(ofSize: fontSize, weight: .semibold)
         )
         if abs(cachedTextWidth - measuredWidth) > 0.5 {
             cachedTextWidth = measuredWidth
@@ -113,12 +95,19 @@ struct NowPlayingTitleMarquee: View {
     }
 }
 
+/// A supporting metadata line — artist, or album.
+///
+/// Size and opacity are explicit rather than a style flag, because the hierarchy is now
+/// carried by those two values: artist at 68%, album two steps quieter at 44%. Both sit a
+/// full step below the title instead of matching it in everything but weight.
 struct NowPlayingSecondaryMarquee: View {
     let text: String
     let enabled: Bool
     let isVisible: Bool
     var laneWidth: CGFloat = 272
-    var usesSecondaryStyle: Bool = true
+    var fontSize: CGFloat = 12.5
+    var fontWeight: Font.Weight = .medium
+    var textOpacity: Double = 0.68
 
     @State private var startDate = Date()
     @State private var cachedTextWidth: CGFloat = 0
@@ -126,17 +115,20 @@ struct NowPlayingSecondaryMarquee: View {
     private let gap: CGFloat = 88
     private let speed: CGFloat = 26
     private let leadInDelay: Double = 0.55
-    private var secondaryFontSize: CGFloat { usesSecondaryStyle ? 11 : 13 }
+
+    private var nsFontWeight: NSFont.Weight {
+        fontWeight == .regular ? .regular : .medium
+    }
 
     private var resolvedText: String { text.isEmpty ? " " : text }
     private var shouldScroll: Bool { isVisible && enabled && cachedTextWidth > laneWidth + 2 }
     private var travel: CGFloat { cachedTextWidth + gap }
     private var cycleDuration: Double { max(8.0, Double(travel / speed)) }
     private var measurementSignature: String {
-        "\(resolvedText)|\(usesSecondaryStyle ? 1 : 0)"
+        "\(resolvedText)|\(fontSize)|\(fontWeight == .regular ? 0 : 1)"
     }
     private var marqueeSignature: String {
-        "\(resolvedText)|\(enabled)|\(isVisible)|\(Int(laneWidth.rounded()))|\(shouldScroll ? 1 : 0)"
+        "\(resolvedText)|\(enabled)|\(isVisible)|\(Int(laneWidth.rounded()))|\(fontSize)|\(shouldScroll ? 1 : 0)"
     }
 
     var body: some View {
@@ -153,7 +145,7 @@ struct NowPlayingSecondaryMarquee: View {
                 staticLabel
             }
         }
-        .frame(width: laneWidth, height: 20, alignment: .leading)
+        .frame(width: laneWidth, height: fontSize + 5, alignment: .leading)
         .id(marqueeSignature)
         .clipped()
         .modifier(ScrollingEdgeFade(enabled: shouldScroll))
@@ -166,37 +158,19 @@ struct NowPlayingSecondaryMarquee: View {
     }
 
     private var staticLabel: some View {
-        Group {
-            if usesSecondaryStyle {
-                Text(resolvedText)
-                    .font(.system(size: secondaryFontSize, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            } else {
-                Text(resolvedText)
-                    .font(.system(size: secondaryFontSize, weight: .medium, design: .rounded))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-        }
+        Text(resolvedText)
+            .font(.system(size: fontSize, weight: fontWeight))
+            .foregroundStyle(.white.opacity(textOpacity))
+            .lineLimit(1)
+            .truncationMode(.tail)
     }
 
     private var scrollingLabel: some View {
-        Group {
-            if usesSecondaryStyle {
-                Text(resolvedText)
-                    .font(.system(size: secondaryFontSize, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-            } else {
-                Text(resolvedText)
-                    .font(.system(size: secondaryFontSize, weight: .medium, design: .rounded))
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-            }
-        }
+        Text(resolvedText)
+            .font(.system(size: fontSize, weight: fontWeight))
+            .foregroundStyle(.white.opacity(textOpacity))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
     }
 
     private func currentOffset(at date: Date) -> CGFloat {
@@ -212,7 +186,7 @@ struct NowPlayingSecondaryMarquee: View {
     private func refreshCachedMetrics(resetStartDate: Bool) {
         let measuredWidth = measuredTextWidth(
             resolvedText,
-            font: .systemFont(ofSize: secondaryFontSize, weight: .medium)
+            font: .systemFont(ofSize: fontSize, weight: nsFontWeight)
         )
         if abs(cachedTextWidth - measuredWidth) > 0.5 {
             cachedTextWidth = measuredWidth

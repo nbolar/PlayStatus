@@ -86,10 +86,13 @@ private struct DetailPaneSurfaceAppearance {
 
     var baseGradientColors: [Color] {
         if colorScheme == .dark {
+            // Deeper than the player above it. At the old values the pane came out *lighter*
+            // than the surface it hangs from, which inverts the hierarchy — a secondary
+            // surface should read as a well, not as a highlight.
             return [
-                Color.black.opacity(0.58),
-                Color.black.opacity(0.62),
-                Color.black.opacity(0.70)
+                Color.black.opacity(0.74),
+                Color.black.opacity(0.80),
+                Color.black.opacity(0.88)
             ]
         }
 
@@ -168,12 +171,17 @@ private struct DetailPaneSurfaceAppearance {
         colorScheme == .dark ? glassTint.opacity(0.08) : glassTint.opacity(0.20)
     }
 
-    var miniActiveLyricStyle: Color {
-        colorScheme == .dark ? .white.opacity(0.98) : .primary.opacity(0.92)
+    /// The active line is the only thing in the app that moves with the music, so it is the
+    /// one place a saturated album colour earns its keep. Routed through
+    /// `DetailPaneAccent.legible` so a dark or washed-out tint still reads as type.
+    var activeLyricStyle: Color {
+        DetailPaneAccent.legible(glassTint, in: colorScheme)
     }
 
+    var miniActiveLyricStyle: Color { activeLyricStyle }
+
     var miniInactiveLyricStyle: Color {
-        colorScheme == .dark ? .white.opacity(0.72) : .secondary.opacity(0.86)
+        colorScheme == .dark ? .white.opacity(0.60) : .secondary.opacity(0.86)
     }
 }
 
@@ -251,11 +259,11 @@ struct MiniExpandedDetailsPane: View {
             )
 
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    DetailPaneTabChip(tab: .lyrics, isSelected: selectedTab == .lyrics) {
+                HStack(spacing: 18) {
+                    DetailPaneTabChip(tab: .lyrics, isSelected: selectedTab == .lyrics, tint: model.glassTint) {
                         model.selectMiniDetailsTab(.lyrics)
                     }
-                    DetailPaneTabChip(tab: .credits, isSelected: selectedTab == .credits) {
+                    DetailPaneTabChip(tab: .credits, isSelected: selectedTab == .credits, tint: model.glassTint) {
                         model.selectMiniDetailsTab(.credits)
                     }
 
@@ -316,17 +324,27 @@ struct MiniExpandedDetailsPane: View {
                 secondaryFontSize: 11
             )
             .frame(maxWidth: .infinity, alignment: .leading)
+        case .instrumental:
+            DetailPaneStateMessage(
+                message: "Instrumental — no lyrics for this track.",
+                icon: .sfSymbol("waveform"),
+                style: .mini
+            )
         case .unavailable:
             DetailPaneStateMessage(
-                message: "Lyrics unavailable for this track.",
+                message: "No lyrics found for this track.",
                 icon: .sfSymbol("text.bubble"),
-                style: .mini
+                style: .mini,
+                retryTitle: "Look again",
+                onRetry: { model.retryLyricsFetch() }
             )
         case .failed:
             DetailPaneStateMessage(
                 message: "Couldn't fetch lyrics right now.",
                 icon: .sfSymbol("exclamationmark.octagon"),
-                style: .mini
+                style: .mini,
+                retryTitle: "Try again",
+                onRetry: { model.retryLyricsFetch() }
             )
         case .available:
             lyricsScroll
@@ -428,8 +446,7 @@ struct MiniExpandedDetailsPane: View {
                             Text(line.text)
                                 .font(.system(
                                     size: isActive ? model.miniLyricsActiveFontSize : model.miniLyricsInactiveFontSize,
-                                    weight: isActive ? .semibold : .medium,
-                                    design: .rounded
+                                    weight: isActive ? .semibold : .regular
                                 ))
                                 .foregroundStyle(isActive ? surface.miniActiveLyricStyle : surface.miniInactiveLyricStyle)
                                 .lineLimit(2)
@@ -481,10 +498,10 @@ struct ModeToggleControl: View {
         let clampedContrast = min(max(contrastBoost, 0), 1)
         Button(action: action) {
             Image(systemName: isMiniMode ? "rectangle.compress.vertical" : "rectangle.expand.vertical")
-                .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
+                .font(.system(size: 14 * clampedSizeScale, weight: .semibold))
                 .foregroundStyle(ArtworkPlayerControlPalette.icon())
                 .playerClusterGlyphChrome(
-                    diameter: 24 * clampedSizeScale,
+                    diameter: 26 * clampedSizeScale,
                     isHovering: hovering,
                     contrastBoost: clampedContrast
                 )
@@ -503,6 +520,7 @@ struct ModeToggleControl: View {
             }
         }
         .hoverHint(isMiniMode ? "Switch to regular mode" : "Switch to mini mode", enabled: !transitionActive)
+        .accessibilityLabel(Text(isMiniMode ? "Switch to regular mode" : "Switch to mini mode"))
     }
 }
 
@@ -522,10 +540,10 @@ struct DetachedSurfaceToggleControl: View {
         let clampedContrast = min(max(contrastBoost, 0), 1)
         Button(action: action) {
             Image(systemName: isDetachedMode ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                .font(.system(size: 15 * clampedSizeScale, weight: .semibold))
+                .font(.system(size: 14 * clampedSizeScale, weight: .semibold))
                 .foregroundStyle(ArtworkPlayerControlPalette.icon())
                 .playerClusterGlyphChrome(
-                    diameter: 24 * clampedSizeScale,
+                    diameter: 26 * clampedSizeScale,
                     isHovering: hovering,
                     contrastBoost: clampedContrast
                 )
@@ -542,6 +560,7 @@ struct DetachedSurfaceToggleControl: View {
             }
         }
         .hoverHint(isDetachedMode ? "Attach to popover" : "Detach to window", enabled: !transitionActive)
+        .accessibilityLabel(Text(isDetachedMode ? "Attach to popover" : "Detach to window"))
     }
 }
 
@@ -564,7 +583,7 @@ struct DetachedWindowPinControl: View {
                 .font(.system(size: 14 * clampedSizeScale, weight: .semibold))
                 .foregroundStyle(ArtworkPlayerControlPalette.icon(isActive: isPinned))
                 .playerClusterGlyphChrome(
-                    diameter: 24 * clampedSizeScale,
+                    diameter: 26 * clampedSizeScale,
                     isActive: isPinned,
                     isHovering: hovering,
                     contrastBoost: clampedContrast
@@ -582,6 +601,8 @@ struct DetachedWindowPinControl: View {
             }
         }
         .hoverHint(isPinned ? "Disable always-on-top" : "Enable always-on-top", enabled: !transitionActive)
+        .accessibilityLabel(Text("Always on top"))
+        .accessibilityValue(Text(isPinned ? "On" : "Off"))
     }
 }
 
@@ -603,7 +624,7 @@ struct DetachedWindowCloseControl: View {
                 .font(.system(size: 14 * clampedSizeScale, weight: .bold))
                 .foregroundStyle(ArtworkPlayerControlPalette.icon())
                 .playerClusterGlyphChrome(
-                    diameter: 24 * clampedSizeScale,
+                    diameter: 26 * clampedSizeScale,
                     isHovering: hovering,
                     contrastBoost: clampedContrast
                 )
@@ -620,6 +641,7 @@ struct DetachedWindowCloseControl: View {
             }
         }
         .hoverHint("Close detached window", enabled: !transitionActive)
+        .accessibilityLabel(Text("Close detached window"))
     }
 }
 
@@ -639,10 +661,10 @@ struct MiniDetailToggleControl: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
+                .font(.system(size: 14 * clampedSizeScale, weight: .semibold))
                 .foregroundStyle(ArtworkPlayerControlPalette.icon(isActive: isOn))
                 .playerClusterGlyphChrome(
-                    diameter: 24 * clampedSizeScale,
+                    diameter: 26 * clampedSizeScale,
                     isActive: isOn,
                     isHovering: hovering
                 )
@@ -660,6 +682,7 @@ struct MiniDetailToggleControl: View {
             }
         }
         .hoverHint(helpText, enabled: !transitionActive)
+        .accessibilityLabel(Text(helpText))
         .animation(.easeInOut(duration: 0.18), value: isOn)
     }
 }
@@ -742,10 +765,10 @@ struct RegularDetailToggleControl: View {
         let clampedContrast = min(max(contrastBoost, 0), 1)
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 16 * clampedSizeScale, weight: .semibold))
+                .font(.system(size: 14 * clampedSizeScale, weight: .semibold))
                 .foregroundStyle(ArtworkPlayerControlPalette.icon(isActive: isOn))
                 .playerClusterGlyphChrome(
-                    diameter: 24 * clampedSizeScale,
+                    diameter: 26 * clampedSizeScale,
                     isActive: isOn,
                     isHovering: hovering,
                     contrastBoost: clampedContrast
@@ -765,6 +788,7 @@ struct RegularDetailToggleControl: View {
             }
         }
         .hoverHint(helpText, enabled: !transitionActive)
+        .accessibilityLabel(Text(helpText))
         .animation(.easeInOut(duration: 0.18), value: isOn)
     }
 }
@@ -825,11 +849,11 @@ struct RegularDetailsPane: View {
                 .overlay(surface.separatorTint)
                 .frame(height: 1)
 
-            HStack {
-                DetailPaneTabChip(tab: .lyrics, isSelected: selectedTab == .lyrics) {
+            HStack(spacing: 18) {
+                DetailPaneTabChip(tab: .lyrics, isSelected: selectedTab == .lyrics, tint: glassTint) {
                     model.selectRegularDetailsTab(.lyrics)
                 }
-                DetailPaneTabChip(tab: .credits, isSelected: selectedTab == .credits) {
+                DetailPaneTabChip(tab: .credits, isSelected: selectedTab == .credits, tint: glassTint) {
                     model.selectRegularDetailsTab(.credits)
                 }
 
@@ -838,7 +862,7 @@ struct RegularDetailsPane: View {
                 detailSourceBadge
             }
             .padding(.horizontal, 14)
-            .padding(.top, 10)
+            .padding(.top, 12)
 
             VStack(alignment: .leading, spacing: 0) {
                 switch selectedTab {
@@ -848,7 +872,10 @@ struct RegularDetailsPane: View {
                     creditsTabContent
                 }
             }
-            .padding(.top, 36)
+            // Clears the tab row: 12pt top inset + a 12pt label + 6pt gap + the 1.5pt rule,
+            // plus breathing room. The old 36 was measured against the shorter capsule
+            // chips and left the first lyric line clipped underneath the tabs.
+            .padding(.top, 46)
             .padding(.bottom, 12)
             .padding(.horizontal, 14)
         }
@@ -888,25 +915,34 @@ struct RegularDetailsPane: View {
             )
         case .loading:
             loadingProgressView(progress: lyricsLoadingProgress)
+        case .instrumental:
+            DetailPaneStateMessage(
+                message: "Instrumental — no lyrics for this track.",
+                icon: .sfSymbol("waveform")
+            )
         case .unavailable:
             DetailPaneStateMessage(
-                message: "Lyrics unavailable for this track.",
-                icon: .sfSymbol("text.bubble")
+                message: "No lyrics found for this track.",
+                icon: .sfSymbol("text.bubble"),
+                retryTitle: "Look again",
+                onRetry: { model.retryLyricsFetch() }
             )
         case .failed:
-            VStack(spacing: 10) {
-                DetailPaneStateMessage(
-                    message: "Couldn't fetch lyrics right now.",
-                    icon: .sfSymbol("exclamationmark.bubble")
-                )
-            }
+            DetailPaneStateMessage(
+                message: "Couldn't fetch lyrics right now.",
+                icon: .sfSymbol("exclamationmark.bubble"),
+                retryTitle: "Try again",
+                onRetry: { model.retryLyricsFetch() }
+            )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         case .available:
             RegularLyricsScrollContent(
                 lines: lyricsPayload?.lines ?? [],
                 isTimed: lyricsPayload?.isTimed ?? false,
                 inactiveFontSize: inactiveFontSize,
-                activeFontSize: activeFontSize
+                activeFontSize: activeFontSize,
+                activeStyle: DetailPaneAccent.legible(glassTint, in: colorScheme),
+                inactiveStyle: colorScheme == .dark ? .white.opacity(0.42) : .secondary.opacity(0.72)
             )
         }
     }
@@ -986,6 +1022,8 @@ struct RegularLyricsScrollContent: View {
     let isTimed: Bool
     let inactiveFontSize: CGFloat
     let activeFontSize: CGFloat
+    var activeStyle: Color = .primary
+    var inactiveStyle: Color = .secondary.opacity(0.72)
     @State private var activeLineID: UUID?
     @State private var coordinator = LyricsScrollCoordinator()
     private let maxRenderableLines: Int = 500
@@ -1017,6 +1055,21 @@ struct RegularLyricsScrollContent: View {
                 .padding(.vertical, 6)
             }
             .forceHideScrollIndicators()
+            // The line above the active one was being sliced in half against the tab row.
+            // Mini solves this with spacer insets; the regular pane had no edge treatment at
+            // all, so a partially scrolled line just collided with the chrome.
+            .mask(
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black, location: 0.06),
+                        .init(color: .black, location: 0.94),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
             .onAppear {
                 coordinator.lines = renderLines
                 coordinator.isTimed = isTimed
@@ -1044,10 +1097,9 @@ struct RegularLyricsScrollContent: View {
         Text(line.text)
             .font(.system(
                 size: isActive ? activeFontSize : inactiveFontSize,
-                weight: isActive ? .semibold : .regular,
-                design: .rounded
+                weight: isActive ? .semibold : .regular
             ))
-            .foregroundStyle(isActive ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary.opacity(0.72)))
+            .foregroundStyle(isActive ? activeStyle : inactiveStyle)
             .lineLimit(3)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 5)

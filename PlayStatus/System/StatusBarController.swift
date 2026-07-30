@@ -25,9 +25,15 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private var lastMiniModeValue: Bool = false
     private var lastLyricsPaneExpandedValue: Bool = false
     private var lyricsResizeAnimationEndTime: CFAbsoluteTime = 0
-    private var lastAppliedDetachedSize: NSSize = .zero
     private var popoverLayoutUpdateScheduled = false
     private var surfaceContentLoaded = true
+    /// Installed only while a player surface is on screen, so the bindings cannot fire from
+    /// Settings or the walkthrough.
+    private lazy var keyboardCommands = PlayerKeyboardCommands(
+        model: model,
+        surfaceWindow: { [weak self] in self?.activeSurfaceWindow() },
+        closeSurface: { [weak self] in self?.closeActiveSurface() }
+    )
     private let detachedWindowOriginXKey = "detachedWindowOriginX"
     private let detachedWindowOriginYKey = "detachedWindowOriginY"
 
@@ -237,6 +243,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             guard let self else { return }
             NSApp.activate(ignoringOtherApps: false)
             popover.contentViewController?.view.window?.makeKey()
+            syncKeyboardCommands()
         }
     }
 
@@ -266,6 +273,33 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             popover.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
         } else {
             showPopover()
+        }
+    }
+
+    /// The window a player surface is currently presented in, or nil when none is showing.
+    private func activeSurfaceWindow() -> NSWindow? {
+        if let detachedWindow, detachedWindow.isVisible {
+            return detachedWindow
+        }
+        guard popover.isShown else { return nil }
+        return popover.contentViewController?.view.window
+    }
+
+    private func closeActiveSurface() {
+        if let detachedWindow, detachedWindow.isVisible {
+            closeDetachedWindowAndReturnToPopover()
+            return
+        }
+        if popover.isShown {
+            popover.performClose(nil)
+        }
+    }
+
+    private func syncKeyboardCommands() {
+        if activeSurfaceWindow() != nil {
+            keyboardCommands.install()
+        } else {
+            keyboardCommands.remove()
         }
     }
 
@@ -319,6 +353,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     }
 
     func popoverDidClose(_ notification: Notification) {
+        syncKeyboardCommands()
         if model.surfaceMode == .popover {
             model.isPopoverVisible = false
             return
@@ -331,8 +366,8 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow, window === detachedWindow else { return }
         persistDetachedWindowOrigin(from: window.frame)
-        lastAppliedDetachedSize = .zero
         detachedWindow = nil
+        syncKeyboardCommands()
         if model.surfaceMode == .detached {
             model.surfaceMode = .popover
             model.isPopoverVisible = false
@@ -405,8 +440,10 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         if !marqueeView.frame.equalTo(targetFrame) {
             marqueeView.frame = targetFrame
         }
+        let titleParts = model.menuBarTitleParts
         marqueeView.update(
             text: model.menuBarTitle,
+            secondarySuffix: titleParts.secondary.map { model.menuBarTitleSeparator + $0 },
             enabled: model.scrollableTitle,
             laneWidth: effectiveLaneWidth,
             slideOnChange: model.slideTitleOnChange
@@ -623,7 +660,6 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
                     updatesHeightCap: true
                 )
                 if isDetached {
-                    self.lastAppliedDetachedSize = settled
                     self.persistDetachedWindowOrigin(from: targetFrame)
                 } else {
                     self.lastAppliedPopoverSize = settled
@@ -737,7 +773,6 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             targetFrame = clampedDetachedFrame(targetFrame, preferredScreen: window.screen)
             window.setFrame(targetFrame, display: false)
             persistDetachedWindowOrigin(from: targetFrame)
-            lastAppliedDetachedSize = targetContentSize
             return
         }
 
@@ -764,7 +799,6 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             window.setFrame(targetFrame, display: true)
         }
         persistDetachedWindowOrigin(from: targetFrame)
-        lastAppliedDetachedSize = targetContentSize
     }
 
     private func ensureDetachedWindow() -> DetachedNowPlayingWindow {
@@ -795,7 +829,6 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         window.contentViewController = detachedContainerController
         detachedWindow = window
         applyAppearanceOverride()
-        lastAppliedDetachedSize = targetContentSize
         return window
     }
 
@@ -811,9 +844,11 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         NSApp.activate(ignoringOtherApps: false)
         window.makeKeyAndOrderFront(nil)
         model.isPopoverVisible = true
+        syncKeyboardCommands()
     }
 
     private func hideDetachedWindow() {
+        defer { syncKeyboardCommands() }
         guard let window = detachedWindow else {
             model.isPopoverVisible = popover.isShown
             return

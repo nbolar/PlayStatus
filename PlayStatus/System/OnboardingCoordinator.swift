@@ -288,11 +288,6 @@ final class OnboardingCoordinator: NSObject, ObservableObject, NSWindowDelegate 
         activeCoachmark == id
     }
 
-    func resetCoachmarkAvailability() {
-        coachmarkAvailability.removeAll()
-        activeCoachmark = nil
-    }
-
     func setDebugCoachmarksEnabled(_ enabled: Bool) {
         guard debugCoachmarksEnabled != enabled else { return }
         debugCoachmarksEnabled = enabled

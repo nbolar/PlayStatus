@@ -1,170 +1,136 @@
 import SwiftUI
 import AppKit
 
+/// The player's one and only surface.
+///
+/// This used to be a near-transparent wash sitting behind a second, nearly identically
+/// coloured `LiquidGlassCard` inset 14pt inside it — a 14pt band of the same brown
+/// framing nothing, with two identical 18pt radii stacked on top of each other. The card
+/// is gone; this view inherited its job, so the palette is applied here.
+///
+/// The palette arrives at roughly 45% of the strength the card used, over a dark ground.
+/// Album colour should tint the room, not paint it: at full strength the artwork — the
+/// one thing in the window that is supposed to be colourful — had nothing to contrast
+/// against, and white type needed drop shadows to survive.
 struct LiquidGlassBackground: View {
     let tint: Color
+    var palette: [Color] = []
     var readabilityBoost: Double = 0
     var transparencyMultiplier: Double = 1
-
-    private var clampedTransparencyMultiplier: Double {
-        min(max(transparencyMultiplier, 0.35), 2.0)
-    }
-
-    private var clampedReadabilityBoost: Double {
-        min(max(readabilityBoost, 0), 1)
-    }
-
-    private var darkenOpacity: Double {
-        min(0.22, 0.01 + (0.18 * clampedReadabilityBoost))
-    }
-
-    private var sheenOpacity: Double {
-        max(0.14, 0.50 - (0.26 * clampedReadabilityBoost))
-    }
-
-    private var strokeOpacity: Double {
-        min(0.24, 0.10 + (0.10 * clampedReadabilityBoost))
-    }
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            tint.opacity(0.10 * clampedTransparencyMultiplier),
-                            tint.opacity(0.06 * clampedTransparencyMultiplier),
-                            tint.opacity(0.09 * clampedTransparencyMultiplier)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.black.opacity(darkenOpacity * clampedTransparencyMultiplier))
-
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(
-                    RadialGradient(
-                        colors: [tint.opacity(0.14 * clampedTransparencyMultiplier), .clear],
-                        center: .topLeading,
-                        startRadius: 8,
-                        endRadius: 300
-                    )
-                )
-                .blendMode(.screen)
-                .opacity(sheenOpacity)
-
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(.white.opacity(strokeOpacity), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 8)
-    }
-}
-
-struct LiquidGlassCard<Content: View>: View {
-    let tint: Color
-    let palette: [Color]
-    var readabilityBoost: Double = 0
-    var transparencyMultiplier: Double = 1
-    @ViewBuilder var content: Content
+    /// False in the detached window, where the `NSWindow` already casts a shadow — drawing a
+    /// second one inside the frame only darkens the edges from the inside.
+    var castsShadow: Bool = true
 
     private var primary: Color { palette.first ?? tint }
-    private var secondary: Color { palette.dropFirst().first ?? tint }
-    private var tertiary: Color { palette.dropFirst(2).first ?? tint }
-    private var clampedReadabilityBoost: Double {
-        min(max(readabilityBoost, 0), 1)
-    }
-    private var darkenOpacity: Double {
-        min(0.24, 0.02 + (0.20 * clampedReadabilityBoost))
-    }
-    private var sheenOpacity: Double {
-        max(0.10, 0.26 - (0.12 * clampedReadabilityBoost))
-    }
-    private var strokeOpacity: Double {
-        min(0.26, 0.12 + (0.10 * clampedReadabilityBoost))
-    }
+    private var secondary: Color { palette.dropFirst().first ?? primary }
+    private var tertiary: Color { palette.dropFirst(2).first ?? secondary }
+
     private var clampedTransparencyMultiplier: Double {
         min(max(transparencyMultiplier, 0.35), 2.0)
     }
 
+    private var clampedReadabilityBoost: Double {
+        min(max(readabilityBoost, 0), 1)
+    }
+
+    /// How much of the palette reaches the surface. The old card ran its gradient at
+    /// 0.90 × 0.90; this is the "~45% of the effect at each stop" rebase.
+    private var paletteStrength: Double {
+        0.45 * clampedTransparencyMultiplier
+    }
+
+    /// The warm charcoal the palette sits on. Bright artwork pushes it darker, which is
+    /// what keeps white type legible now that the type has no shadow of its own.
+    private var groundOpacity: Double {
+        min(0.86, 0.62 + (0.22 * clampedReadabilityBoost))
+    }
+
+    /// How colourful the album actually is.
+    ///
+    /// A monochrome cover — silver on black, a black-and-white photo — produces a palette
+    /// with nothing to contribute, and the surface collapsed to flat grey: indistinguishable
+    /// from any other dark panel, with none of the shape a tinted album gets.
+    private var tintSaturation: Double {
+        let base = NSColor(tint).usingColorSpace(.deviceRGB) ?? .white
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        base.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+        return Double(saturation)
+    }
+
+    /// The album's overall lightness, used to shape an achromatic surface.
+    private var tintBrightness: Double {
+        let base = NSColor(tint).usingColorSpace(.deviceRGB) ?? .white
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        base.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+        return Double(brightness)
+    }
+
+    /// 1 when the album has no usable hue, 0 once it does. Ramped rather than switched so a
+    /// nearly-grey cover does not pop between two different surfaces as the artwork changes.
+    private var achromatic: Double {
+        let threshold = 0.16
+        guard tintSaturation < threshold else { return 0 }
+        return (threshold - tintSaturation) / threshold
+    }
+
+    /// Shape without hue: a light-to-dark sweep derived from how bright the album is, so a
+    /// monochrome cover still gets a surface that reads as lit rather than as flat fill.
+    private var luminanceSweep: LinearGradient {
+        let lift = 0.05 + (0.07 * tintBrightness)
+        return LinearGradient(
+            colors: [
+                Color.white.opacity(lift),
+                Color.white.opacity(lift * 0.35),
+                Color.black.opacity(0.10)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private var sheenOpacity: Double {
+        max(0.06, 0.18 - (0.10 * clampedReadabilityBoost))
+    }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: playerSurfaceCornerRadius, style: .continuous)
+    }
+
     var body: some View {
-        ZStack(alignment: .top) {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+        ZStack {
+            shape.fill(playerSurfaceGroundColor.opacity(groundOpacity))
+
+            shape
                 .fill(
                     LinearGradient(
                         colors: [
-                            primary.opacity(0.90),
-                            secondary.opacity(0.84),
-                            tertiary.opacity(0.88)
+                            primary.opacity(paletteStrength),
+                            secondary.opacity(paletteStrength * 0.86),
+                            tertiary.opacity(paletteStrength * 0.94)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
-                .opacity(0.90 * clampedTransparencyMultiplier)
 
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.black.opacity(darkenOpacity * clampedTransparencyMultiplier))
+            shape
+                .fill(luminanceSweep)
+                .opacity(achromatic)
 
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            shape
                 .fill(
-                    LinearGradient(
-                        colors: [.white.opacity(0.10), .white.opacity(0.03), .clear],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+                    RadialGradient(
+                        colors: [tint.opacity(0.16), .clear],
+                        center: .topLeading,
+                        startRadius: 8,
+                        endRadius: 320
                     )
                 )
                 .blendMode(.screen)
-                .opacity(sheenOpacity * clampedTransparencyMultiplier)
+                .opacity(sheenOpacity * (1 - (achromatic * 0.5)))
 
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(.white.opacity(strokeOpacity * clampedTransparencyMultiplier), lineWidth: 1)
-
-            content
-                .padding(14)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            shape.stroke(.white.opacity(playerHairlineOpacity), lineWidth: playerHairlineWidth)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-struct RegularPopoverBackdrop: View {
-    let tint: Color
-    let palette: [Color]
-    let artwork: NSImage?
-
-    var body: some View {
-        ZStack {
-            tint.opacity(0.10)
-
-            if let artwork {
-                Image(nsImage: artwork)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFill()
-                    .saturation(1.04)
-                    .blur(radius: 52)
-                    .scaleEffect(1.10)
-                    .opacity(0.14)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-            }
-        }
-    }
-}
-
-struct OuterCardBleedMask: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(.white)
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(.black)
-                .padding(7)
-                .blendMode(.destinationOut)
-        }
-        .compositingGroup()
+        .shadow(color: .black.opacity(castsShadow ? 0.16 : 0), radius: 16, x: 0, y: 8)
     }
 }

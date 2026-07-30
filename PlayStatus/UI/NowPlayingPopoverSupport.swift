@@ -96,7 +96,39 @@ let modeIncomingFadeDelay: Double = 0.06
 /// its full width at rest so nothing shifts when the cluster comes up on hover. The
 /// capsule hides whether or not the lyrics/credits pane is open — an open pane used to
 /// keep it at a partial opacity, which just left chrome sitting over the artwork.
+///
+/// Both modes hide it outright. Search lives in this row too, so it is invisible at rest
+/// as well: it comes back on the same hover that brings up everything else, and a player
+/// at rest is a piece of artwork with a title under it.
 let playerControlClusterRestingOpacity: Double = 0
+
+// MARK: - Surface tokens
+
+/// One radius for every player surface — popover, mini card, detached window. Shapes
+/// nested inside a surface derive their radius from this minus their inset, so corners
+/// stay concentric instead of repeating the parent's curve at a smaller size.
+let playerSurfaceCornerRadius: CGFloat = 18
+/// Retina hairline. Interior 1pt borders are what made the player read as busy; a single
+/// half-point line on the outermost shape does the whole separation job.
+let playerHairlineWidth: CGFloat = 0.5
+let playerHairlineOpacity: Double = 0.12
+/// Padding between the surface edge and its content.
+let playerSurfaceContentPadding: CGFloat = 20
+/// Vertical lane the top-right control cluster occupies, reserved by the text column so the
+/// track title never sits under it.
+///
+/// The cluster is an overlay, so it takes no space in the layout — and once the metadata was
+/// aligned to the top of the artwork, the title ran straight into it. Reserved unconditionally
+/// rather than only while the cluster is visible: the title must not shift when you hover.
+let playerClusterReservedHeight: CGFloat = 22
+/// The warm charcoal every player surface is built on.
+///
+/// The popover gets an opaque backing for free from `NSPopover`'s own chrome. The detached
+/// window does not — it is a transparent window hosting deliberately translucent glass — so
+/// it paints this as its window background. Shared from one place so the window's base and
+/// the surface drawn on top of it cannot drift apart.
+let playerSurfaceGroundNSColor = NSColor(calibratedRed: 0.09, green: 0.08, blue: 0.08, alpha: 1)
+let playerSurfaceGroundColor = Color(nsColor: playerSurfaceGroundNSColor)
 let miniSeamBlendHeight: CGFloat = 1
 let miniSeamBlurRadius: CGFloat = 10
 
@@ -191,76 +223,27 @@ private struct PlayerControlClusterChrome: View {
     }
 }
 
-private struct MiniBottomPanelChrome: View {
-    let sizeScale: CGFloat
-    let emphasis: Double
-    let neutralWashOpacity: Double
-    let blueFogOpacity: Double
-
-    private var clampedEmphasis: Double {
-        min(max(emphasis, 0), 1)
-    }
-
-    private var panel: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 18 * sizeScale, style: .continuous)
-    }
-
-    private var baseFill: some View {
-        panel.fill(Color.black.opacity(0.22 + (0.18 * clampedEmphasis)))
-    }
-
-    private var neutralWash: some View {
-        panel.fill(
-            Color(red: 0.60, green: 0.66, blue: 0.74)
-                .opacity(neutralWashOpacity * (0.42 - (0.10 * clampedEmphasis)))
-        )
-    }
-
-    private var blueWash: some View {
-        panel.fill(
-            Color(red: 0.52, green: 0.61, blue: 0.76)
-                .opacity(blueFogOpacity * (0.44 - (0.12 * clampedEmphasis)))
-        )
-    }
-
-    private var topGloss: some View {
-        panel.fill(
-            LinearGradient(
-                colors: [
-                    .white.opacity(0.10),
-                    .white.opacity(0.03),
-                    .clear
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
-
-    private var lowerShade: some View {
-        panel.fill(
-            LinearGradient(
-                colors: [
-                    .clear,
-                    .black.opacity(0.18 + (0.10 * clampedEmphasis))
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
-
-    var body: some View {
-        baseFill
-            .overlay(neutralWash)
-            .overlay(blueWash)
-            .overlay(topGloss)
-            .overlay(lowerShade)
-            .overlay(panel.stroke(.white.opacity(0.14 + (0.06 * clampedEmphasis)), lineWidth: 1))
-    }
-}
-
 extension View {
+    /// Crosses a track's metadata when the song changes: the outgoing lines rise and fade as
+    /// the incoming ones arrive from below.
+    ///
+    /// Shared by both modes. It started life inside the regular player only, which left mini
+    /// swapping its text in place while the artwork beside it crossfaded — the two surfaces
+    /// disagreeing about whether a track change is a moment.
+    func trackChangeTransition(identity: String, isEnabled: Bool) -> some View {
+        ZStack(alignment: .topLeading) {
+            self
+                .id(identity)
+                .transition(
+                    .asymmetric(
+                        insertion: .offset(y: 10).combined(with: .opacity),
+                        removal: .offset(y: -10).combined(with: .opacity)
+                    )
+                )
+        }
+        .animation(isEnabled ? .easeOut(duration: 0.22) : nil, value: identity)
+    }
+
     @ViewBuilder
     func forceHideScrollIndicators() -> some View {
         if #available(macOS 13.0, *) {
@@ -302,40 +285,6 @@ extension View {
             )
     }
 
-    func miniBottomPanelBackground(
-        sizeScale: CGFloat,
-        emphasis: Double,
-        neutralWashOpacity: Double,
-        blueFogOpacity: Double,
-        contentHorizontalPadding: CGFloat,
-        contentVerticalPadding: CGFloat
-    ) -> some View {
-        self
-            .padding(.horizontal, contentHorizontalPadding)
-            .padding(.vertical, contentVerticalPadding)
-            .background(
-                MiniBottomPanelChrome(
-                    sizeScale: sizeScale,
-                    emphasis: emphasis,
-                    neutralWashOpacity: neutralWashOpacity,
-                    blueFogOpacity: blueFogOpacity
-                )
-            )
-            .shadow(
-                color: .black.opacity(0.18 + (0.16 * min(max(emphasis, 0), 1))),
-                radius: 10 * sizeScale,
-                x: 0,
-                y: 4 * sizeScale
-            )
-    }
-
-    func onAnimationCompleted<Value: VectorArithmetic>(
-        for value: Value,
-        perform action: @escaping () -> Void
-    ) -> some View {
-        modifier(AnimationCompletionObserverModifier(observedValue: value, completion: action))
-    }
-
     /// Publishes where a mode's artwork sits inside its own branch. Measured in the
     /// branch's local space, not the popover root, so the value stays constant while the
     /// container morphs and does not churn state on every animation frame.
@@ -358,14 +307,15 @@ enum ModeArtworkSlot: Hashable {
 
 let modeRegularBranchSpace = "modeRegularBranch"
 let modeMiniBranchSpace = "modeMiniBranch"
-/// Geometry of the regular tile, mirrored from ArtworkView: a glass shell at radius 22
-/// with a 12pt allowance, so the image plate sits inset 6 at radius 16 (22 − 6). The
-/// mini hero is the bare artwork at radius 13. The shared morph node interpolates plate
-/// to plate and dissolves the shell along the way.
-let regularArtworkShellInset: CGFloat = 6
-let regularArtworkShellCornerRadius: CGFloat = 22
-let regularArtworkCornerRadius: CGFloat = 16
-let miniArtworkCornerRadius: CGFloat = 13
+/// Both modes now draw the artwork as a bare plate with a drop shadow — the glass shell
+/// that used to ring the regular tile was the same "frame around a frame" as the old
+/// inner card, one level down. With no shell there is nothing to dissolve, so the shared
+/// morph node simply interpolates one plate into the other.
+///
+/// Mini's radius is concentric: the hero is inset 8 from an 18-radius card, so 18 − 8.
+let regularArtworkCornerRadius: CGFloat = 14
+let miniArtworkPadding: CGFloat = 8
+let miniArtworkCornerRadius: CGFloat = playerSurfaceCornerRadius - miniArtworkPadding
 
 /// The bare album art, with no per-mode chrome. Used only by the shared morph node —
 /// each mode still draws its own full treatment when settled.
@@ -395,34 +345,6 @@ struct ModeArtworkFramePreferenceKey: PreferenceKey {
 
     static func reduce(value: inout [ModeArtworkSlot: CGRect], nextValue: () -> [ModeArtworkSlot: CGRect]) {
         value.merge(nextValue(), uniquingKeysWith: { _, next in next })
-    }
-}
-
-private struct AnimationCompletionObserverModifier<Value>: AnimatableModifier where Value: VectorArithmetic {
-    var targetValue: Value
-    var completion: () -> Void
-
-    var animatableData: Value {
-        didSet {
-            notifyCompletionIfFinished()
-        }
-    }
-
-    init(observedValue: Value, completion: @escaping () -> Void) {
-        targetValue = observedValue
-        animatableData = observedValue
-        self.completion = completion
-    }
-
-    func body(content: Content) -> some View {
-        content
-    }
-
-    private func notifyCompletionIfFinished() {
-        guard animatableData == targetValue else { return }
-        DispatchQueue.main.async {
-            completion()
-        }
     }
 }
 

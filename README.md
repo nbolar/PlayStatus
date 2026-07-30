@@ -19,27 +19,36 @@ PlayStatus is a native SwiftUI macOS menu bar app for controlling Apple Music an
 
 ## What the app looks like now
 
+Screenshots live in [`docs/screenshots`](docs/screenshots) so they version with the code.
+
 ### Regular player
 
-<img width="556" height="280" alt="Image" src="https://github.com/user-attachments/assets/a47cade8-7157-44a3-b5c8-cc6fae184ef0" />
+<img width="545" alt="PlayStatus regular player" src="docs/screenshots/regular-player.png" />
 
-#### Lyric View
-<img width="556" height="521" alt="Image" src="https://github.com/user-attachments/assets/741a481e-7389-4282-a43b-ed0a916c4e74" />
+One surface, not two. The album tints the room rather than painting it, the title outranks the
+artist and album by two clear steps, and only the play button wears a shape — everything else is
+a bare glyph that lights on hover.
+
+#### Lyrics
+
+<img width="545" alt="PlayStatus lyrics view" src="docs/screenshots/lyrics.png" />
+
+Lyrics and credits open in a pane beneath the player, with the active line called out as it
+plays and the source credited underneath.
 
 ### Mini player
 
-<img width="406" height="406" alt="Image" src="https://github.com/user-attachments/assets/c90a57cc-caa3-4800-8522-b4283bddb570" />
+<img width="357" alt="PlayStatus mini player" src="docs/screenshots/mini-player.png" />
 
-#### Lyric View
-<img width="406" height="586" alt="Image" src="https://github.com/user-attachments/assets/ace27ca0-f0b2-47d8-8981-9f59a3a616fd" />
-
+The artwork is the window. Track details sit in a scrim that rises out of the art, and the
+transport fades in when you point at it.
 
 ### Supports Animated Album Stream (if supported/exists)
 https://github.com/user-attachments/assets/e12a56e8-de6e-460d-b323-5db9d491533c
 
 ### Settings
 
-<img width="780" height="742" alt="Image" src="https://github.com/user-attachments/assets/ed84d8a9-10c8-48ce-921d-c55404165803" />
+<img width="780" height="742" alt="PlayStatus settings" src="https://github.com/user-attachments/assets/ed84d8a9-10c8-48ce-921d-c55404165803" />
 
 
 ## First launch

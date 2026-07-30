@@ -870,62 +870,31 @@ struct ArtworkView: View {
     var cropAnimatedArtworkToSquare: Bool = true
     var animateOnFirstAppear: Bool = true
 
-    private var artworkBackdropKey: String {
-        image?.artworkTransitionIdentity ?? "art:none"
-    }
-
+    /// The album art, edge to edge, on its own shadow.
+    ///
+    /// It used to sit inset 6pt inside a glass shell — a bright ring, a gloss gradient and
+    /// two 1pt strokes wrapped around the one element in the window that never needed
+    /// help being seen. The shell is gone: the plate now fills the tile, and the drop
+    /// shadow below is what lifts it off the surface.
     var body: some View {
         GeometryReader { geo in
             let side = min(geo.size.width, geo.size.height)
-            let contentSide = side - 12
-            let artworkShellCornerRadius: CGFloat = 22
-            let artworkPlateInset = max(0, (side - contentSide) * 0.5)
-            let artworkPlateCornerRadius = max(0, artworkShellCornerRadius - artworkPlateInset)
-            let outer = RoundedRectangle(cornerRadius: artworkShellCornerRadius, style: .continuous)
-            let inner = RoundedRectangle(cornerRadius: 18, style: .continuous)
+            let plate = RoundedRectangle(cornerRadius: regularArtworkCornerRadius, style: .continuous)
 
             ZStack {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                // A soft bloom of the album's own colour, just outside the plate. Reads as
+                // light spilling off the art rather than as a border drawn around it.
+                RoundedRectangle(cornerRadius: regularArtworkCornerRadius + 6, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [tint.opacity(0.34), .black.opacity(0.18)],
+                            colors: [tint.opacity(0.30), .black.opacity(0.16)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
                     .blur(radius: 14)
-                    .scaleEffect(0.92)
-                    .opacity(0.9)
-
-                ArtworkBackdropCrossfadeView(
-                    image: image,
-                    animationKey: artworkBackdropKey,
-                    animateOnFirstAppear: animateOnFirstAppear,
-                    maxOpacity: 0.24,
-                    blurRadius: 26,
-                    scale: 1.12,
-                    tint: tint,
-                    tintOpacity: 0.06
-                )
-                .clipShape(outer, style: FillStyle(eoFill: false, antialiased: true))
-
-                // macOS 26: .ultraThinMaterial triggers DesignLibrary glass compositor
-                // on every SwiftUI re-render, causing recursive stack overflow.
-                // Use a gradient approximation instead.
-                outer
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.18),
-                                Color.white.opacity(0.10),
-                                tint.opacity(0.14)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .overlay(outer.stroke(.white.opacity(0.22), lineWidth: 1.2))
-                    .overlay(outer.stroke(tint.opacity(0.2), lineWidth: 1))
+                    .scaleEffect(0.94)
+                    .opacity(0.85)
 
                 ArtworkStreamTransitionSurface(
                     image: image,
@@ -935,29 +904,17 @@ struct ArtworkView: View {
                     animateOnFirstAppear: animateOnFirstAppear
                 ) {
                     staticArtworkContent(
-                        side: contentSide,
-                        cornerRadius: artworkPlateCornerRadius
+                        side: side,
+                        cornerRadius: regularArtworkCornerRadius
                     )
                 }
-                .clipShape(inner, style: FillStyle(eoFill: false, antialiased: true))
-                .overlay(inner.stroke(.white.opacity(0.1), lineWidth: 1))
-                .overlay(
-                    inner
-                        .fill(
-                            LinearGradient(
-                                colors: [.white.opacity(0.22), .clear, .clear],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .blendMode(.screen)
-                )
+                .clipShape(plate, style: FillStyle(eoFill: false, antialiased: true))
+                .overlay(plate.stroke(.white.opacity(playerHairlineOpacity), lineWidth: playerHairlineWidth))
             }
             .frame(width: side, height: side)
-            .clipShape(outer, style: FillStyle(eoFill: false, antialiased: true))
             .compositingGroup()
         }
-        .shadow(color: .black.opacity(0.28), radius: 16, x: 0, y: 10)
+        .shadow(color: .black.opacity(0.34), radius: 18, x: 0, y: 10)
     }
 
     @ViewBuilder

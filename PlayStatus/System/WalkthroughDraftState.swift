@@ -34,17 +34,6 @@ final class WalkthroughDraftState {
         }
     }
 
-    func reload(from model: NowPlayingModel) {
-        enableMusic = model.enableMusic
-        enableSpotify = model.enableSpotify
-        preferredProvider = model.preferredProvider
-        providerPriority = model.providerPriority
-        menuBarTextMode = model.menuBarTextMode
-        themeStyle = model.themeStyle
-        animatedArtworkEnabled = model.animatedArtworkEnabled
-        launchAtLoginEnabled = model.launchAtLoginEnabled
-    }
-
     func apply(to model: NowPlayingModel) {
         if model.enableMusic != enableMusic {
             model.enableMusic = enableMusic

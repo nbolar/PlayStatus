@@ -1,6 +1,5 @@
 import SwiftUI
 import AppKit
-import AVFoundation
 
 struct ProviderIconView: View {
     let icon: ProviderIconKind
@@ -22,30 +21,6 @@ struct ProviderIconView: View {
             }
         }
         .frame(width: size, height: size, alignment: .center)
-    }
-}
-
-struct ProviderBadge: View {
-    let provider: NowPlayingProvider
-    let isPlaying: Bool
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ProviderIconView(icon: provider.iconKind, size: 11, weight: .semibold)
-
-            Text(provider.displayName)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-
-            Text("•").foregroundStyle(.secondary.opacity(0.6))
-
-            Text(isPlaying ? "active" : "idle")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(Capsule().fill(Color.primary.opacity(0.08)))
-        .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 1))
     }
 }
 
@@ -98,6 +73,8 @@ struct ControlsRow: View {
                 isActive: isShuffleEnabled,
                 isEnabled: controlsEnabled,
                 helpText: isShuffleEnabled ? "Turn shuffle off" : "Turn shuffle on",
+                accessibilityTitle: "Shuffle",
+                accessibilityStateValue: isShuffleEnabled ? "On" : "Off",
                 contrastBoost: contrastBoost,
                 sizeScale: clampedControlScale,
                 action: onShuffle
@@ -133,6 +110,8 @@ struct ControlsRow: View {
                 isActive: repeatMode.isEnabled,
                 isEnabled: controlsEnabled,
                 helpText: repeatMode == .off ? "Turn repeat on" : repeatMode.displayName,
+                accessibilityTitle: "Repeat",
+                accessibilityStateValue: repeatMode == .off ? "Off" : repeatMode.displayName,
                 contrastBoost: contrastBoost,
                 sizeScale: clampedControlScale,
                 action: onRepeat
@@ -159,16 +138,21 @@ struct OutputControlsRow: View {
         Color.white
     }
 
-    private var controlFillOpacity: Double {
-        min(0.34, 0.08 + (0.18 * clampedContrastBoost))
-    }
-
-    private var controlStrokeOpacity: Double {
-        min(0.26, 0.10 + (0.08 * clampedContrastBoost))
+    /// The output menu and mute button are bare glyphs now, in the same register as the
+    /// transport. They used to be a stroked capsule and a stroked circle, which made the
+    /// quietest row on the surface look like the busiest.
+    private var controlGlyphOpacity: Double {
+        min(0.78, 0.58 + (0.14 * clampedContrastBoost))
     }
 
     private var clampedControlScale: CGFloat {
         min(max(controlScale, 0.80), 1.20)
+    }
+
+    private var selectedOutputDeviceName: String {
+        model.availableOutputDevices
+            .first { $0.id == model.selectedOutputDeviceID }?
+            .name ?? "System default"
     }
 
     var body: some View {
@@ -190,25 +174,22 @@ struct OutputControlsRow: View {
                     }
                 }
             } label: {
-                HStack(spacing: 5 * clampedControlScale) {
-                    Image(systemName: "hifispeaker.fill")
-                        .font(.system(size: 10 * clampedControlScale, weight: .semibold))
-
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 8 * clampedControlScale, weight: .bold))
-                        .opacity(0.78)
-                }
-                .font(.system(size: 10 * clampedControlScale, weight: .semibold, design: .rounded))
-                .foregroundStyle(controlForeground.opacity(0.90))
-                .padding(.horizontal, 8 * clampedControlScale)
-                .padding(.vertical, 5 * clampedControlScale)
-                .background(Capsule().fill(Color.primary.opacity(controlFillOpacity)))
-                .overlay(Capsule().stroke(.white.opacity(controlStrokeOpacity), lineWidth: 1))
+                // One legible glyph instead of a 11pt speaker plus a 7pt chevron, which at
+                // that size read as an ambiguous little box. The chevron is gone — a menu
+                // announces itself when you press it — and the device name is on hover.
+                Image(systemName: "hifispeaker.fill")
+                    .font(.system(size: 13 * clampedControlScale, weight: .semibold))
+                    .foregroundStyle(controlForeground.opacity(controlGlyphOpacity))
+                    .frame(width: 22 * clampedControlScale, height: 22 * clampedControlScale)
+                    .contentShape(Rectangle())
             }
+            .hoverHint(selectedOutputDeviceName)
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .tint(controlForeground.opacity(0.90))
             .buttonStyle(.plain)
+            .accessibilityLabel(Text("Output device"))
+            .accessibilityValue(Text(selectedOutputDeviceName))
             // Menu derives a wide ideal width from its item content. Keep its
             // hit target aligned to the icon control so it cannot consume the
             // volume slider's lane in compact player surfaces.
@@ -218,36 +199,56 @@ struct OutputControlsRow: View {
                 model.toggleOutputMute()
             } label: {
                 Image(systemName: model.outputMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                    .font(.system(size: 10 * clampedControlScale, weight: .semibold))
+                    .font(.system(size: 11 * clampedControlScale, weight: .semibold))
                     .frame(width: 22 * clampedControlScale, height: 22 * clampedControlScale)
-                    .background(Circle().fill(Color.primary.opacity(controlFillOpacity)))
-                    .overlay(Circle().stroke(.white.opacity(controlStrokeOpacity), lineWidth: 1))
-                    .foregroundStyle(model.outputMuted ? controlForeground.opacity(0.65) : controlForeground.opacity(0.94))
+                    .contentShape(Circle())
+                    .foregroundStyle(controlForeground.opacity(model.outputMuted ? 0.44 : controlGlyphOpacity))
             }
             .buttonStyle(.plain)
+            .help(model.outputMuted ? "Unmute" : "Mute")
+            .accessibilityLabel(Text("Mute"))
+            .accessibilityValue(Text(model.outputMuted ? "On" : "Off"))
 
-            Slider(
-                value: Binding(
-                    get: { model.outputVolume },
-                    set: { model.setOutputVolume($0) }
-                ),
-                in: 0...1
+            // The same rail the progress bar uses, rather than a stock `Slider` with a
+            // permanent knob — the two sit one row apart and were speaking different
+            // languages. Volume follows the pointer, so it updates continuously.
+            PlayerRail(
+                value: model.outputVolume,
+                contrastBoost: contrastBoost,
+                updatesContinuously: true,
+                onScrub: { model.setOutputVolume($0) }
             )
             .frame(minWidth: 84 * clampedControlScale, maxWidth: .infinity)
             .layoutPriority(1)
-            .tint(controlForeground.opacity(0.88))
             .opacity(model.outputMuted ? 0.55 : 1.0)
-            .accessibilityLabel("Output volume")
+            .accessibilityElement()
+            .accessibilityLabel(Text("Output volume"))
+            .accessibilityValue(Text("\(Int((model.outputVolume * 100).rounded())) percent"))
+            .accessibilityAdjustableAction { direction in
+                let step = 0.05
+                switch direction {
+                case .increment:
+                    model.setOutputVolume(min(1, model.outputVolume + step))
+                case .decrement:
+                    model.setOutputVolume(max(0, model.outputVolume - step))
+                @unknown default:
+                    break
+                }
+            }
 
             if showFavorite, let onFavorite {
                 GlassButton(
                     systemName: favoriteIsActive ? "heart.fill" : "heart",
                     compact: true,
+                    isActive: favoriteIsActive,
+                    activeColor: Color(red: 0.94, green: 0.36, blue: 0.38),
+                    helpText: favoriteIsActive ? "Remove from Favorites" : "Add to Favorites",
+                    accessibilityTitle: "Favorite",
+                    accessibilityStateValue: favoriteIsActive ? "On" : "Off",
                     contrastBoost: contrastBoost,
                     sizeScale: clampedControlScale,
                     action: onFavorite
                 )
-                    .foregroundStyle(favoriteIsActive ? Color.red.opacity(0.9) : controlForeground.opacity(0.94))
                     .scaleEffect(favoritePulseActive ? 1.16 : 1.0)
                     .animation(.spring(response: 0.22, dampingFraction: 0.70), value: favoritePulseActive)
                     .onChange(of: favoritePulseToken) { _, _ in
@@ -270,8 +271,18 @@ struct GlassButton: View {
     var isPrimary: Bool = false
     var compact: Bool = false
     var isActive: Bool = false
+    var activeColor: Color = Color(red: 0.68, green: 0.88, blue: 1.0)
     var isEnabled: Bool = true
     var helpText: String? = nil
+    /// The control's stable name for VoiceOver. Without it an icon-only button falls back to
+    /// its SF Symbol name — "backward fill", "forward fill" — which is what these announced
+    /// before, since `helpText` only ever reached the tooltip.
+    ///
+    /// Kept separate from `helpText` because a tooltip describes the *action* and changes
+    /// with state ("Turn shuffle on" / "Turn shuffle off"), whereas a name must not: the
+    /// state belongs in `accessibilityStateValue`.
+    var accessibilityTitle: String? = nil
+    var accessibilityStateValue: String? = nil
     var contrastBoost: Double = 0
     var sizeScale: CGFloat = 1
     let action: () -> Void
@@ -279,84 +290,82 @@ struct GlassButton: View {
     @State private var isHovering = false
     @State private var isPressed = false
 
-    private var clampedContrastBoost: Double {
-        min(max(contrastBoost, 0), 1)
-    }
-
+    /// Only the play button gets a shape.
+    ///
+    /// Every transport control used to be a filled, stroked rounded rect, so nine of them
+    /// on one surface left the eye with no primary — the play button was 8pt wider than
+    /// its neighbours and that was the whole hierarchy. Now the secondary controls are
+    /// bare glyphs that pick up a faint disc on hover, and play is a solid white disc with
+    /// a dark glyph: the one filled control in the window.
     private var iconColor: Color {
-        isActive ? Color(red: 0.68, green: 0.88, blue: 1.0) : Color.white
+        if isPrimary { return Color(red: 0.10, green: 0.09, blue: 0.09) }
+        return isActive ? activeColor : Color.white
     }
 
-    private var fillOpacity: Double {
-        let base = isPrimary ? 0.13 : 0.08
-        let activeBoost = isActive ? 0.10 : 0
-        return min(0.46, base + activeBoost + (0.20 * clampedContrastBoost))
+    private var iconOpacity: Double {
+        if isPrimary { return 1 }
+        if isActive { return 0.96 }
+        return isHovering ? 0.96 : 0.72
     }
 
-    private var strokeOpacity: Double {
-        let base = isPrimary ? 0.18 : 0.12
-        let activeBoost = isActive ? 0.12 : 0
-        return min(0.38, base + activeBoost + (0.08 * clampedContrastBoost))
+    private var primaryFillOpacity: Double {
+        isHovering ? 1.0 : 0.94
     }
 
-    private var highlightOpacity: Double {
-        let base = isHovering ? 0.16 : 0.06
-        return max(0.03, base - (0.06 * clampedContrastBoost))
+    /// An "on" control used to wear a filled disc, which made shuffle-on the most saturated
+    /// object on the surface — louder than the play button, which is the actual primary. On
+    /// state is carried by the glyph's tint plus a dot beneath it instead; the disc is now
+    /// only ever a hover affordance.
+    private var hoverDiscOpacity: Double {
+        guard !isPrimary else { return 0 }
+        return isHovering ? 0.12 : 0
     }
+
+    private var dotSize: CGFloat { 3 * clampedSizeScale }
 
     private var clampedSizeScale: CGFloat {
         min(max(sizeScale, 0.80), 1.20)
     }
 
     private var iconSize: CGFloat {
-        (compact ? 12 : 13) * clampedSizeScale
+        (compact ? 12 : (isPrimary ? 15 : 14)) * clampedSizeScale
     }
 
-    private var buttonWidth: CGFloat {
-        (compact ? 30 : (isPrimary ? 40 : 32)) * clampedSizeScale
-    }
-
-    private var buttonHeight: CGFloat {
-        (compact ? 26 : (isPrimary ? 32 : 28)) * clampedSizeScale
-    }
-
-    private var cornerRadius: CGFloat {
-        (compact ? 10 : 12) * clampedSizeScale
+    private var buttonSide: CGFloat {
+        (compact ? 26 : (isPrimary ? 38 : 30)) * clampedSizeScale
     }
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: iconSize, weight: .semibold))
-                .frame(width: buttonWidth, height: buttonHeight)
-                .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .font(.system(size: iconSize, weight: isPrimary ? .bold : .semibold))
+                .frame(width: buttonSide, height: buttonSide)
+                // State in form as well as colour, so "on" survives a colourblind reading.
+                .overlay(alignment: .bottom) {
+                    Circle()
+                        .fill(activeColor)
+                        .frame(width: dotSize, height: dotSize)
+                        .opacity(isActive && !isPrimary ? 1 : 0)
+                        .offset(y: -1)
+                }
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
-        .foregroundStyle(iconColor.opacity(isPrimary ? 0.98 : 0.92))
+        .foregroundStyle(iconColor.opacity(iconOpacity))
         .background(
             ZStack {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.primary.opacity(fillOpacity))
-
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.black.opacity(0.18 * clampedContrastBoost))
-
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [.white.opacity(highlightOpacity), .clear],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .blendMode(.plusLighter)
-
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(.white.opacity(strokeOpacity), lineWidth: 1)
+                if isPrimary {
+                    Circle()
+                        .fill(.white.opacity(primaryFillOpacity))
+                        .shadow(color: .black.opacity(0.28), radius: 6, x: 0, y: 2)
+                } else {
+                    Circle()
+                        .fill((isActive ? activeColor : .white).opacity(hoverDiscOpacity))
+                }
             }
         )
-        .opacity(isEnabled ? 1 : 0.46)
+        .opacity(isEnabled ? 1 : 0.40)
         .scaleEffect(isPressed ? 0.96 : 1.0)
         .animation(.spring(response: 0.22, dampingFraction: 0.72), value: isPressed)
         .animation(.easeInOut(duration: 0.16), value: isActive)
@@ -379,6 +388,120 @@ struct GlassButton: View {
                 .onEnded { _ in isPressed = false }
         )
         .help(helpText ?? "")
+        .accessibilityLabel(Text(accessibilityTitle ?? helpText ?? systemName))
+        .accessibilityValue(Text(accessibilityStateValue ?? ""))
+    }
+}
+
+/// The one rail in the app.
+///
+/// Playback position and output volume sat side by side as two different objects — a custom
+/// hairline capsule above a stock `Slider` — which made the volume row the least considered
+/// thing in a window where everything else had been stripped back. One view now draws both, so
+/// they cannot drift apart again.
+///
+/// Thin at rest, thicker with a knob under the pointer: a readout most of the time, a control
+/// only while you are aiming at it.
+struct PlayerRail: View {
+    let value: Double
+    var isEnabled: Bool = true
+    var contrastBoost: Double = 0
+    /// Volume follows the pointer; seeking commits on release so the track does not scrub
+    /// through every intermediate position.
+    var updatesContinuously: Bool = false
+    let onScrub: (Double) -> Void
+    var onInteractionChanged: ((Bool) -> Void)? = nil
+
+    @State private var isDragging = false
+    @State private var dragValue: Double = 0
+    @State private var hovering = false
+
+    private var clampedContrastBoost: Double {
+        min(max(contrastBoost, 0), 1)
+    }
+
+    private var baseOpacity: Double {
+        min(0.30, 0.14 + (0.12 * clampedContrastBoost))
+    }
+
+    private var fillOpacity: Double {
+        min(0.95, 0.86 + (0.09 * clampedContrastBoost))
+    }
+
+    private var interactionActive: Bool {
+        isEnabled && (hovering || isDragging)
+    }
+
+    private var railHeight: CGFloat {
+        interactionActive ? 8 : 4
+    }
+
+    /// The drawn capsule is centred in this lane and the whole lane is the hit target, so
+    /// thinning the rail did not shrink the thing you have to hit.
+    private let laneHeight: CGFloat = 14
+
+    private var knobDiameter: CGFloat { 12 }
+
+    private var resolvedValue: Double {
+        min(max(isDragging ? dragValue : value, 0), 1)
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let filled = width * CGFloat(resolvedValue)
+
+            ZStack(alignment: .leading) {
+                Capsule().fill(.white.opacity(baseOpacity))
+                Capsule()
+                    .fill(.white.opacity(fillOpacity))
+                    .frame(width: max(railHeight, filled))
+            }
+            .frame(height: railHeight)
+            .overlay(alignment: .leading) {
+                Circle()
+                    .fill(.white)
+                    .shadow(color: .black.opacity(0.32), radius: 3, x: 0, y: 1)
+                    .frame(width: knobDiameter, height: knobDiameter)
+                    .offset(x: min(max(filled - (knobDiameter / 2), 0), max(0, width - knobDiameter)))
+                    .opacity(interactionActive ? 1 : 0)
+                    .allowsHitTesting(false)
+            }
+            .frame(height: laneHeight)
+            .contentShape(Rectangle())
+            .onHover { isInside in
+                guard isEnabled else {
+                    hovering = false
+                    return
+                }
+                withAnimation(.easeInOut(duration: 0.14)) {
+                    hovering = isInside
+                }
+            }
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        guard isEnabled, width > 0 else { return }
+                        isDragging = true
+                        let x = min(max(0, gesture.location.x), width)
+                        dragValue = Double(x / width)
+                        if updatesContinuously {
+                            onScrub(dragValue)
+                        }
+                    }
+                    .onEnded { _ in
+                        guard isEnabled else { return }
+                        isDragging = false
+                        onScrub(dragValue)
+                    }
+            )
+        }
+        .frame(height: laneHeight)
+        .opacity(isEnabled ? 1.0 : 0.55)
+        .animation(.easeInOut(duration: 0.14), value: interactionActive)
+        .onChange(of: interactionActive) { _, active in
+            onInteractionChanged?(active)
+        }
     }
 }
 
@@ -390,91 +513,71 @@ struct ProgressBlock: View {
     var contrastBoost: Double = 0
     let onSeek: (Double) -> Void
 
-    @State private var isDragging = false
-    @State private var dragValue: Double = 0
-    @State private var railHovering = false
-
-    private var clampedContrastBoost: Double {
-        min(max(contrastBoost, 0), 1)
-    }
-
-    private var railBaseOpacity: Double {
-        min(0.28, 0.10 + (0.12 * clampedContrastBoost))
-    }
-
-    private var railFillOpacity: Double {
-        min(0.50, 0.35 + (0.10 * clampedContrastBoost))
-    }
+    @State private var scrubPreview: Double?
+    @State private var railInteractionActive = false
 
     private var timeColor: Color {
         Color.white
     }
 
-    private var railInteractionActive: Bool {
-        canSeek && (railHovering || isDragging)
+    /// Time remaining rather than track length: the number you actually want mid-track.
+    private var trailingTimeText: String {
+        let remaining = duration - displayedElapsed
+        guard duration > 0, remaining.isFinite, remaining >= 0.5 else { return formatTime(duration) }
+        return "−\(formatTime(remaining))"
     }
 
-    private var railHeight: CGFloat {
-        railInteractionActive ? 10 : 7
+    private var displayedElapsed: Double {
+        guard let scrubPreview else { return elapsed }
+        return duration * scrubPreview
     }
 
     var body: some View {
-        VStack(spacing: 6) {
-            GeometryReader { geo in
-                let width = geo.size.width
-                let resolvedProgress = isDragging ? dragValue : progress
-
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(railBaseOpacity))
-                    Capsule().fill(.white.opacity(railFillOpacity))
-                        .frame(width: max(6, width * CGFloat(min(max(resolvedProgress, 0), 1))))
-                        .blendMode(.screen)
+        VStack(spacing: 5) {
+            PlayerRail(
+                value: progress,
+                isEnabled: canSeek,
+                contrastBoost: contrastBoost,
+                onScrub: { target in
+                    scrubPreview = nil
+                    onSeek(target)
+                },
+                onInteractionChanged: { active in
+                    railInteractionActive = active
                 }
-                .frame(height: railHeight)
-                .contentShape(Rectangle())
-                .onHover { hovering in
-                    guard canSeek else {
-                        railHovering = false
-                        return
-                    }
-                    withAnimation(.easeInOut(duration: 0.14)) {
-                        railHovering = hovering
-                    }
-                }
-                .highPriorityGesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            guard canSeek else { return }
-                            isDragging = true
-                            let x = min(max(0, value.location.x), width)
-                            dragValue = Double(x / width)
-                        }
-                        .onEnded { _ in
-                            guard canSeek else { return }
-                            isDragging = false
-                            onSeek(dragValue)
-                        }
-                )
-            }
-            .frame(height: railHeight)
-            .opacity(canSeek ? 1.0 : 0.55)
-            .animation(.easeInOut(duration: 0.14), value: railInteractionActive)
+            )
             .background(
                 DetachedWindowDragLockBridge(locked: railInteractionActive)
                     .frame(width: 0, height: 0)
             )
+            // Seekable without a mouse. The rail was previously invisible to VoiceOver
+            // entirely — a drag gesture on an unlabelled rectangle.
+            .accessibilityElement()
+            .accessibilityLabel(Text("Playback position"))
+            .accessibilityValue(Text("\(formatTime(elapsed)) of \(formatTime(duration))"))
+            .accessibilityAdjustableAction { direction in
+                guard canSeek, duration > 0 else { return }
+                let step = 5.0 / duration
+                switch direction {
+                case .increment:
+                    onSeek(min(1, progress + step))
+                case .decrement:
+                    onSeek(max(0, progress - step))
+                @unknown default:
+                    break
+                }
+            }
 
             HStack {
-                Text(formatTime(isDragging ? (duration * dragValue) : elapsed))
-                    .monospacedDigit()
+                Text(formatTime(displayedElapsed))
                     .frame(width: 42, alignment: .leading)
                 Spacer()
-                Text(formatTime(duration))
-                    .monospacedDigit()
+                Text(trailingTimeText)
                     .frame(width: 42, alignment: .trailing)
             }
-            .font(.system(size: 11, weight: .medium, design: .rounded))
-            .foregroundStyle(timeColor.opacity(0.86))
+            .monospacedDigit()
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(timeColor.opacity(0.50))
         }
     }
 

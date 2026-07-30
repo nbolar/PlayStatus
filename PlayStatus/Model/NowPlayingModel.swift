@@ -54,12 +54,30 @@ final class NowPlayingModel: ObservableObject {
         case pausedTrack
         case idle
 
+        /// What the app polls at when it has to discover changes for itself.
         var interval: TimeInterval {
             switch self {
             case .playing:
                 return 0.5
             case .pausedTrack:
                 return 1.0
+            case .idle:
+                return 5.0
+            }
+        }
+
+        /// What it polls at once the player is broadcasting its own changes.
+        ///
+        /// Track changes and play/pause arrive as notifications, so polling is left with two
+        /// jobs: correcting the locally extrapolated position for drift, and noticing a seek
+        /// the user performed inside Music or Spotify — neither of which needs half-second
+        /// resolution. Idle is unchanged: with nothing playing there is nothing to broadcast.
+        var eventDrivenInterval: TimeInterval {
+            switch self {
+            case .playing:
+                return 2.0
+            case .pausedTrack:
+                return 3.0
             case .idle:
                 return 5.0
             }
@@ -75,15 +93,6 @@ final class NowPlayingModel: ObservableObject {
                 return "idle"
             }
         }
-    }
-
-    private enum StatusBarMarquee {
-        static let gap = "     "
-        static let targetPointsPerSecond: CGFloat = 240
-        static let minimumStepInterval: TimeInterval = 0.12
-        static let maximumStepInterval: TimeInterval = 0.22
-        static let pauseDuration: TimeInterval = 0.55
-        static let titleFont = NSFont.systemFont(ofSize: 13, weight: .regular)
     }
 
     private struct ResumeVolumeRampState {
@@ -103,7 +112,7 @@ final class NowPlayingModel: ObservableObject {
     @AppStorage("enableMusic") var enableMusic: Bool = true { didSet { refresh() } }
     @AppStorage("enableSpotify") var enableSpotify: Bool = true { didSet { refresh() } }
     @AppStorage("providerPriority") private var providerPriorityRaw: String = ProviderPriority.musicFirst.rawValue { didSet { refresh() } }
-    @AppStorage("menuBarTextMode") private var menuBarTextModeRaw: String = MenuBarTextMode.artistAndSong.rawValue { didSet { refresh(); configureMarquee(forceRestart: true); bumpStatusBarConfigRevision() } }
+    @AppStorage("menuBarTextMode") private var menuBarTextModeRaw: String = MenuBarTextMode.artistAndSong.rawValue { didSet { refresh(); bumpStatusBarConfigRevision() } }
     @AppStorage("preferredProvider") private var preferredProviderRaw: String = PreferredProvider.automatic.rawValue { didSet { refresh() } }
     @AppStorage("themeStyle") private var themeStyleRaw: String = ThemeStyle.artworkAdaptive.rawValue {
         didSet {
@@ -125,7 +134,6 @@ final class NowPlayingModel: ObservableObject {
         didSet {
             UserDefaults.standard.set(ignoreParentheses, forKey: "ignoreParentheses")
             refresh()
-            configureMarquee(forceRestart: true)
             bumpStatusBarConfigRevision()
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -133,7 +141,7 @@ final class NowPlayingModel: ObservableObject {
             }
         }
     }
-    @AppStorage("scrollableTitle") var scrollableTitle: Bool = true { didSet { configureMarquee(forceRestart: true); bumpStatusBarConfigRevision() } }
+    @AppStorage("scrollableTitle") var scrollableTitle: Bool = true { didSet { bumpStatusBarConfigRevision() } }
     @AppStorage("slideTitleOnChange") var slideTitleOnChange: Bool = false
     @AppStorage("statusTextWidth") private var statusTextWidthStorage: Double = 140
     @AppStorage("artworkColorIntensity") private var artworkColorIntensityStorage: Double = 1.0
@@ -253,7 +261,6 @@ final class NowPlayingModel: ObservableObject {
     @Published var regularControlsContrastBoost: Double = 0
     @Published var statusBarConfigRevision: Int = 0
     @Published var appearanceRevision: Int = 0
-    @Published var menuBarDisplayTitle: String = "Not Playing"
     @Published var availableOutputDevices: [AudioOutputDevice] = []
     @Published var selectedOutputDeviceID: AudioDeviceID = 0
     @Published var outputVolume: Double = 1.0
@@ -295,14 +302,6 @@ final class NowPlayingModel: ObservableObject {
     @Published var animatedArtworkState: AnimatedArtworkState = .none
     @Published var animatedArtworkStatusMessage: String = "Idle"
     @Published var animatedArtworkLastError: String = ""
-    private var marqueeTimer: DispatchSourceTimer?
-    private var marqueeSignature: String = ""
-    private var marqueeTrack: [Character] = []
-    private var marqueeTrackDoubled: [Character] = []
-    private var marqueeIndex: Int = 0
-    private var marqueeStepInterval: TimeInterval = StatusBarMarquee.minimumStepInterval
-    private var marqueePauseTicksRemaining: Int = 0
-
     // Internals
     private var cancellables = Set<AnyCancellable>()
     private var metadataRefreshTimer: DispatchSourceTimer?
@@ -310,6 +309,18 @@ final class NowPlayingModel: ObservableObject {
     private var currentMetadataPollInterval: TimeInterval = 0
     private var currentAudioPollInterval: TimeInterval = 0
     private var lastSnapshot: NowPlayingSnapshot?
+    private let playerEvents = PlayerEventObserver()
+    private let audioEvents = AudioOutputObserver()
+    private var lastPlayerEventAt: Date?
+    /// How long a broadcast counts as evidence that the players are still announcing changes.
+    /// Comfortably longer than a track, so a single long song cannot make the app think the
+    /// notifications have stopped.
+    private let playerEventFreshnessWindow: TimeInterval = 900
+    /// Consecutive polls that came back with nothing playing. The idle state waits for this to
+    /// reach `missedFetchesBeforeIdle` so a transient scripting error cannot blank the player.
+    private var missedFetchCount = 0
+    private let missedFetchesBeforeIdle = 3
+    private var cachedIdlePresentation: (value: PlayerIdlePresentation, provider: NowPlayingProvider, timestamp: CFAbsoluteTime)?
     private var launchAtLoginSupported: Bool = true
     private var fallbackArtworkTaskKey: String?
     private var pendingFallbackWork: DispatchWorkItem?
@@ -331,7 +342,6 @@ final class NowPlayingModel: ObservableObject {
     #endif
     private let refreshQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.refresh", qos: .utility)
     private let pollingTimerQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.polling", qos: .utility)
-    private let marqueeTimerQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.statusbar-title", qos: .utility)
     private var refreshInFlight = false
     private var refreshPending = false
     #if DEBUG
@@ -516,24 +526,16 @@ final class NowPlayingModel: ObservableObject {
         return CGFloat(clamped)
     }
 
+    /// Must match the font `StatusBarMarqueeView` measures and draws with, or the settings
+    /// preview will disagree with the status item about whether a title scrolls.
     var statusBarTitleFont: NSFont {
-        StatusBarMarquee.titleFont
-    }
-
-    var menuBarVisibleCharacters: Int {
-        max(10, Int((statusTextWidth / 7.3).rounded(.down)))
-    }
-
-    var menuBarLabelWidth: CGFloat {
-        if menuBarTextMode == .iconOnly { return 13 }
-        return statusTextWidth + 18 // icon + spacing
+        NSFont.systemFont(ofSize: 13, weight: .regular)
     }
 
     var statusTextWidthValue: Double {
         get { min(max(statusTextWidthStorage, 80), 320) }
         set {
             statusTextWidthStorage = min(max(newValue, 80), 320)
-            configureMarquee(forceRestart: true)
             bumpStatusBarConfigRevision()
         }
     }
@@ -607,6 +609,17 @@ final class NowPlayingModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        playerEvents.start { [weak self] provider in
+            self?.handlePlayerEvent(from: provider)
+        }
+
+        // Volume, mute and device changes are published by Core Audio, so the rail can track
+        // the media keys and Control Center immediately instead of catching up on the next
+        // ten-second poll.
+        audioEvents.start { [weak self] in
+            self?.refreshAudioState()
+        }
+
         updateMetadataPollingTimerIfNeeded()
         updateAudioPollingTimerIfNeeded()
         launchAtLoginSupported = launchAtLoginStatus() != nil
@@ -616,26 +629,42 @@ final class NowPlayingModel: ObservableObject {
     }
 
     var menuBarTitle: String {
+        let parts = menuBarTitleParts
+        guard let secondary = parts.secondary else { return parts.primary }
+        return parts.primary + menuBarTitleSeparator + secondary
+    }
+
+    /// What the status item draws, split into the half that identifies the track and the
+    /// half that qualifies it.
+    ///
+    /// In `artistAndSong` the song now leads. You recognise a track by its name faster
+    /// than by its artist, and the menu bar truncates from the right — so putting the
+    /// artist first meant the identifying half was the half that got cut. The secondary
+    /// part is rendered at reduced alpha, which halves its visual weight without giving up
+    /// the information.
+    var menuBarTitleParts: (primary: String, secondary: String?) {
         let cleanTitle = displayTitle
         let cleanArtist = artist
 
         if cleanTitle.isEmpty, cleanArtist.isEmpty {
-            return "Not Playing"
+            return ("Not Playing", nil)
         }
 
         switch menuBarTextMode {
         case .artist:
-            return cleanArtist.isEmpty ? cleanTitle : cleanArtist
+            return (cleanArtist.isEmpty ? cleanTitle : cleanArtist, nil)
         case .song:
-            return cleanTitle.isEmpty ? cleanArtist : cleanTitle
+            return (cleanTitle.isEmpty ? cleanArtist : cleanTitle, nil)
         case .artistAndSong:
-            if cleanTitle.isEmpty { return cleanArtist }
-            if cleanArtist.isEmpty { return cleanTitle }
-            return "\(cleanArtist) - \(cleanTitle)"
+            if cleanTitle.isEmpty { return (cleanArtist, nil) }
+            if cleanArtist.isEmpty { return (cleanTitle, nil) }
+            return (cleanTitle, cleanArtist)
         case .iconOnly:
-            return " "
+            return (" ", nil)
         }
     }
+
+    var menuBarTitleSeparator: String { " · " }
 
     var displayTitle: String {
         sanitizeTitle(title)
@@ -648,6 +677,15 @@ final class NowPlayingModel: ObservableObject {
         case (true, false):  return album
         case (true, true):   return "Music"
         }
+    }
+
+    /// The artist on its own line. The player gives the album its own, quieter line rather
+    /// than running both together behind a bullet, so `artistAlbumLine` is only the
+    /// fallback for surfaces with a single line to spend.
+    var metadataArtistLine: String {
+        if !artist.isEmpty { return artist }
+        if !album.isEmpty { return album }
+        return "Music"
     }
 
     var progress: Double { PlaybackClock.shared.progress }
@@ -672,6 +710,95 @@ final class NowPlayingModel: ObservableObject {
             return nil
         }
     }
+    /// Bumped when something outside the player view asks for the search field — currently
+    /// ⌘F. The popover owns the field's focus state, so it watches this rather than exposing
+    /// its `@FocusState` upward.
+    @Published var searchFocusRequestToken: Int = 0
+    /// Bumped to ask the field to close — Escape, from the keyboard monitor.
+    @Published var searchDismissRequestToken: Int = 0
+    /// Published upward by the popover so the keyboard monitor knows whether Escape should
+    /// close the field or the whole surface.
+    @Published var searchFieldIsOpen: Bool = false
+
+    func requestSearchFocus() {
+        searchFocusRequestToken &+= 1
+    }
+
+    func requestSearchDismiss() {
+        searchDismissRequestToken &+= 1
+    }
+
+    /// Identifies the current track for view identity and transitions.
+    ///
+    /// Only the fields that arrive together and identify the song: provider, title, artist.
+    /// Album and album artist are deliberately excluded — they can land on a later poll than
+    /// the title does, and any field in here re-runs the track-change transition when it
+    /// changes, which would show as the details refreshing a second time.
+    var trackIdentity: String {
+        "\(provider.rawValue)|\(title)|\(artist)"
+    }
+
+    /// True whenever there is no track to show or control.
+    ///
+    /// A menu bar player spends much of its life here, so this is a state to design rather
+    /// than a layout to disable — see `PlayerIdleView`.
+    var isIdle: Bool { !canControlPlayback }
+
+    /// The provider the idle state should talk about: whichever one is actually reporting,
+    /// or the user's preference when none is. Mirrors `openProviderApp`'s own resolution so
+    /// the copy and the button can never disagree about which app they mean.
+    var idleTargetProvider: NowPlayingProvider {
+        guard provider == .none else { return provider }
+        return preferredProvider == .spotify ? .spotify : .music
+    }
+
+    /// What the player says when nothing is playing, and what its one button does.
+    ///
+    /// Read from a SwiftUI body, which can evaluate many times a second, so the answer is
+    /// memoised briefly: resolving it enumerates running applications, and that has no
+    /// business happening once per render.
+    var idlePresentation: PlayerIdlePresentation {
+        let target = idleTargetProvider
+        let now = CFAbsoluteTimeGetCurrent()
+
+        if let cached = cachedIdlePresentation,
+           cached.provider == target,
+           now - cached.timestamp < 2.0 {
+            return cached.value
+        }
+
+        let resolved = resolveIdlePresentation(for: target)
+        cachedIdlePresentation = (resolved, target, now)
+        return resolved
+    }
+
+    private func resolveIdlePresentation(for target: NowPlayingProvider) -> PlayerIdlePresentation {
+        let name = target.displayName
+        let inspector = ProviderConnectionInspector.shared
+
+        guard inspector.isInstalled(target) else {
+            return PlayerIdlePresentation(
+                headline: "Nothing playing",
+                detail: "\(name) isn’t installed on this Mac.",
+                action: nil
+            )
+        }
+
+        guard inspector.isRunning(target) else {
+            return PlayerIdlePresentation(
+                headline: "Nothing playing",
+                detail: "\(name) isn’t running.",
+                action: .init(title: "Open \(name)", systemImage: "arrow.up.forward.app", kind: .openApp)
+            )
+        }
+
+        return PlayerIdlePresentation(
+            headline: "Nothing playing",
+            detail: "\(name) is open but idle.",
+            action: .init(title: "Play in \(name)", systemImage: "play.fill", kind: .play)
+        )
+    }
+
     var statusIcon: ProviderIconKind { provider.iconKind }
     var statusLine: String {
         if provider == .none { return "Idle" }
@@ -733,9 +860,30 @@ final class NowPlayingModel: ObservableObject {
         return timer
     }
 
+    /// True while the players are demonstrably broadcasting their changes.
+    ///
+    /// Requires a recent event rather than "ever saw one", so if broadcasts stop — an app
+    /// relaunch, a future macOS that renames the notification — the app falls back to polling
+    /// at full rate on its own instead of going quietly stale.
+    private var playerEventsAreLive: Bool {
+        guard let lastPlayerEventAt else { return false }
+        return Date().timeIntervalSince(lastPlayerEventAt) < playerEventFreshnessWindow
+    }
+
+    private func handlePlayerEvent(from provider: NowPlayingProvider) {
+        lastPlayerEventAt = Date()
+        #if DEBUG
+        NSLog("PlayStatus events: %@ broadcast a change", provider.rawValue)
+        #endif
+        // The notification means the change has already happened, so this read lands on a
+        // settled track rather than mid-flip.
+        refresh()
+        updateMetadataPollingTimerIfNeeded()
+    }
+
     private func updateMetadataPollingTimerIfNeeded(using snapshot: NowPlayingSnapshot? = nil) {
         let mode = metadataPollingMode(for: snapshot)
-        let interval = mode.interval
+        let interval = playerEventsAreLive ? mode.eventDrivenInterval : mode.interval
         guard abs(currentMetadataPollInterval - interval) > 0.001 else { return }
 
         cancelPollingTimer(&metadataRefreshTimer)
@@ -748,7 +896,12 @@ final class NowPlayingModel: ObservableObject {
         }
 
         #if DEBUG
-        NSLog("PlayStatus polling: metadata interval=%.2fs mode=%@", interval, mode.debugLabel)
+        NSLog(
+            "PlayStatus polling: metadata interval=%.2fs mode=%@ events=%@",
+            interval,
+            mode.debugLabel,
+            playerEventsAreLive ? "live" : "none"
+        )
         #endif
     }
 
@@ -802,7 +955,6 @@ final class NowPlayingModel: ObservableObject {
     deinit {
         cancelPollingTimer(&metadataRefreshTimer)
         cancelPollingTimer(&audioRefreshTimer)
-        stopMenuBarMarquee()
         resumeVolumeRampTask?.cancel()
         #if DEBUG
         flushDebugPollMetricsIfNeeded(force: true)
@@ -838,9 +990,22 @@ final class NowPlayingModel: ObservableObject {
         let chosen = chooseSnapshot(music: music, spotify: spotify)
 
         guard let snap = chosen else {
+            missedFetchCount += 1
+            // Going idle needs confirmation. `runAppleScript` returns nil for *any* scripting
+            // error, and errors are most likely exactly when the track is flipping — so a
+            // single empty poll is far more often a hiccup than the user stopping playback.
+            // Tearing the player down on one miss is what made skipping tracks blank the
+            // whole surface.
+            if let last = lastSnapshot,
+               !last.title.isEmpty,
+               missedFetchCount < missedFetchesBeforeIdle {
+                return
+            }
             apply(snapshot: NowPlayingSnapshot(provider: .none, isPlaying: false, title: "", artist: "", album: "", artwork: nil, nativeArtworkState: .none, elapsed: 0, duration: 0, canSeek: false))
             return
         }
+
+        missedFetchCount = 0
 
         // Keep progress smooth without re-tinting unless track/provider changed
         if let last = lastSnapshot, snapshotsSimilar(last, snap) {
@@ -859,6 +1024,7 @@ final class NowPlayingModel: ObservableObject {
                 (last.nativeArtworkState != .available || lastArtworkIdentity != currentArtworkIdentity)
 
             if shouldPromoteNativeArtwork, let artwork = snap.artwork?.normalizedArtworkForDisplay() {
+                lastSnapshot?.artwork = artwork
                 DispatchQueue.main.async {
                     self.artwork = artwork
                     self.updateTint(from: artwork)
@@ -912,6 +1078,26 @@ final class NowPlayingModel: ObservableObject {
 
         let previousSnapshot = lastSnapshot
         let trackChanged = !isSameTrack(previousSnapshot, resolvedSnapshot)
+
+        // Carry artwork across a re-apply of the same track.
+        //
+        // `apply` runs whenever anything in `snapshotsSimilar` changes — including
+        // `isPlaying` — and the Music provider only reads artwork data when the player is
+        // actually playing. Between tracks Music reports a beat of not-playing, so the first
+        // poll for a new song frequently arrives with no artwork at all. That produced two
+        // visible refreshes: the art cleared and the tint fell back to neutral, then the next
+        // poll (or the iTunes fallback) brought art back and re-tinted everything.
+        //
+        // Keeping the previous image for a track we are already showing collapses that back
+        // into one refresh, and stops a pointless fallback lookup for art we already have.
+        if resolvedSnapshot.artwork == nil,
+           let previousSnapshot,
+           trackIdentityMatches(previousSnapshot, resolvedSnapshot),
+           let carriedArtwork = previousSnapshot.artwork {
+            resolvedSnapshot.artwork = carriedArtwork
+            resolvedSnapshot.nativeArtworkState = previousSnapshot.nativeArtworkState
+        }
+
         lastSnapshot = resolvedSnapshot
 
         DispatchQueue.main.async {
@@ -930,9 +1116,16 @@ final class NowPlayingModel: ObservableObject {
                 duration: resolvedSnapshot.duration,
                 isPlaying: resolvedSnapshot.isPlaying
             )
-            self.artwork = resolvedSnapshot.artwork
-            self.updateTint(from: resolvedSnapshot.artwork)
-            self.configureMarquee()
+            // Only touch the artwork when the image actually differs. Assigning an equivalent
+            // image re-triggers the crossfade and re-derives the tint, which is the second
+            // half of the double refresh — the identity is content-based, so this compares
+            // what is on screen rather than which object it came from.
+            let displayedArtworkIdentity = self.artwork?.artworkTransitionIdentity
+            let incomingArtworkIdentity = resolvedSnapshot.artwork?.artworkTransitionIdentity
+            if displayedArtworkIdentity != incomingArtworkIdentity {
+                self.artwork = resolvedSnapshot.artwork
+                self.updateTint(from: resolvedSnapshot.artwork)
+            }
             self.updateMetadataPollingTimerIfNeeded(using: resolvedSnapshot)
         }
 
@@ -995,6 +1188,16 @@ final class NowPlayingModel: ObservableObject {
             Int(a.duration.rounded()) == Int(b.duration.rounded())
     }
 
+    /// Re-asks for lyrics, ignoring the cache.
+    ///
+    /// A miss is cached for 24 hours, and LRCLIB is community-contributed — a track with no
+    /// lyrics today often has them next week, and a transient network failure would otherwise
+    /// stick for the rest of the day. This gives the dead-end states something to do.
+    func retryLyricsFetch() {
+        guard let snapshot = lastSnapshot, !snapshot.title.isEmpty else { return }
+        startLyricsFetch(for: snapshot, forceRefresh: true, resetState: true)
+    }
+
     private func startLyricsFetch(for snapshot: NowPlayingSnapshot, forceRefresh: Bool, resetState: Bool) {
         let descriptor = LyricsTrackDescriptor(
             provider: snapshot.provider,
@@ -1045,6 +1248,10 @@ final class NowPlayingModel: ObservableObject {
                         "PlayStatus lyrics metrics: musicApp=\(self.lyricsMetricMusicAppHits) lrclib=\(self.lyricsMetricLRCLIBHits) unavailable=\(self.lyricsMetricUnavailable) failed=\(self.lyricsMetricFailures)"
                     )
                     #endif
+                case .instrumental:
+                    self.lyricsPayload = nil
+                    self.lyricsState = .instrumental
+                    self.lyricsLoadingProgress = nil
                 case .unavailable:
                     self.lyricsPayload = nil
                     self.lyricsState = .unavailable
@@ -1083,6 +1290,8 @@ final class NowPlayingModel: ObservableObject {
             switch outcome {
             case .available:
                 return "available"
+            case .instrumental:
+                return "instrumental"
             case .unavailable:
                 return "unavailable"
             case .failed:
@@ -1156,6 +1365,11 @@ final class NowPlayingModel: ObservableObject {
                 logTotal(outcome, "lrclib_success")
                 #endif
                 return outcome
+            case .instrumental:
+                #if DEBUG
+                logTotal(outcome, "lrclib_instrumental")
+                #endif
+                return outcome
             case .failed:
                 attempt += 1
                 guard attempt < maxAttempts else { break }
@@ -1214,6 +1428,8 @@ final class NowPlayingModel: ObservableObject {
         #endif
 
         switch musicFallbackOutcome {
+        case .instrumental:
+            return musicFallbackOutcome
         case .available:
             #if DEBUG
             logTotal(musicFallbackOutcome, "music_fallback_success")
@@ -1249,86 +1465,6 @@ final class NowPlayingModel: ObservableObject {
         glassTint = Color(resolvedSpec.tint)
         regularControlsContrastBoost = resolvedSpec.contrastBoost
         cardBackgroundPalette = resolvedSpec.palette.map { Color($0) } + [Color.clear]
-    }
-
-    // MARK: - Menu bar marquee (safe for status items)
-
-    private func configureMarquee(forceRestart: Bool = false) {
-        let base = menuBarTitle.isEmpty ? "Not Playing" : menuBarTitle
-        let signature = "\(base)|\(scrollableTitle)|\(menuBarTextMode.rawValue)|\(Int(statusTextWidth.rounded()))|\(isPlaying ? 1 : 0)"
-        if !forceRestart && signature == marqueeSignature {
-            return
-        }
-        marqueeSignature = signature
-        stopMenuBarMarquee()
-        marqueeTrack = []
-        marqueeTrackDoubled = []
-        marqueeIndex = 0
-        marqueeStepInterval = StatusBarMarquee.minimumStepInterval
-        marqueePauseTicksRemaining = 0
-        menuBarDisplayTitle = base
-    }
-
-    private func startMenuBarMarqueeIfNeeded() {
-        guard marqueeTimer == nil, !marqueeTrack.isEmpty else { return }
-        let timer = DispatchSource.makeTimerSource(queue: marqueeTimerQueue)
-        let interval = marqueeStepInterval
-        timer.schedule(
-            deadline: .now() + interval,
-            repeating: interval,
-            leeway: .milliseconds(30)
-        )
-        timer.setEventHandler { [weak self] in
-            DispatchQueue.main.async { [weak self] in
-                self?.advanceMenuBarMarquee()
-            }
-        }
-        marqueeTimer = timer
-        timer.resume()
-    }
-
-    private func stopMenuBarMarquee() {
-        marqueeTimer?.setEventHandler {}
-        marqueeTimer?.cancel()
-        marqueeTimer = nil
-    }
-
-    private func advanceMenuBarMarquee() {
-        guard !marqueeTrack.isEmpty else { return }
-
-        if marqueePauseTicksRemaining > 0 {
-            marqueePauseTicksRemaining -= 1
-            return
-        }
-
-        marqueeIndex = (marqueeIndex + 1) % marqueeTrack.count
-        menuBarDisplayTitle = currentMenuBarMarqueeTitle()
-        if marqueeIndex == 0 {
-            marqueePauseTicksRemaining = marqueePauseTickCount()
-        }
-    }
-
-    private func currentMenuBarMarqueeTitle() -> String {
-        guard !marqueeTrack.isEmpty, marqueeTrackDoubled.count >= marqueeTrack.count else {
-            return menuBarTitle.isEmpty ? "Not Playing" : menuBarTitle
-        }
-        let endIndex = min(marqueeIndex + marqueeTrack.count, marqueeTrackDoubled.count)
-        return String(marqueeTrackDoubled[marqueeIndex..<endIndex])
-    }
-
-    private func resolvedMarqueeStepInterval(for track: [Character]) -> TimeInterval {
-        let trackString = String(track)
-        let measuredWidth = measuredTextWidth(trackString, font: statusBarTitleFont)
-        let averageStepWidth = measuredWidth / CGFloat(max(track.count, 1))
-        let rawInterval = Double(averageStepWidth / StatusBarMarquee.targetPointsPerSecond)
-        return min(
-            StatusBarMarquee.maximumStepInterval,
-            max(StatusBarMarquee.minimumStepInterval, rawInterval)
-        )
-    }
-
-    private func marqueePauseTickCount() -> Int {
-        max(1, Int((StatusBarMarquee.pauseDuration / max(marqueeStepInterval, 0.001)).rounded()))
     }
 
     private func bumpStatusBarConfigRevision() {
@@ -1668,11 +1804,6 @@ final class NowPlayingModel: ObservableObject {
     }
 
     @discardableResult
-    func favoriteCurrentTrack() -> Bool {
-        toggleCurrentTrackFavorite()
-    }
-
-    @discardableResult
     func toggleCurrentTrackFavorite() -> Bool {
         guard canFavoriteCurrentTrack else {
             return false
@@ -1726,13 +1857,6 @@ final class NowPlayingModel: ObservableObject {
         if !NSWorkspace.shared.open(webSearchURL) {
             NSLog("PlayStatusSwiftUI Spotify search failed: unable to open app or web search URL")
         }
-    }
-
-    func retryLyricsFetch() {
-        guard let snapshot = lastSnapshot,
-              snapshot.provider == .music,
-              !snapshot.title.isEmpty else { return }
-        startLyricsFetch(for: snapshot, forceRefresh: true, resetState: true)
     }
 
     func setLaunchAtLogin(enabled: Bool) {
@@ -2141,6 +2265,11 @@ final class NowPlayingModel: ObservableObject {
                       self.trackIdentityMatches(current, snapshot) else { return }
                 self.artwork = resolvedImage
                 self.updateTint(from: resolvedImage)
+                // Record it on the snapshot too, not just on screen. `apply` carries artwork
+                // forward across a re-apply of the same track by reading the last snapshot —
+                // without this write-back that carry finds nil and the art we just faded in
+                // gets cleared by the next poll.
+                self.lastSnapshot?.artwork = resolvedImage
             }
         }
     }

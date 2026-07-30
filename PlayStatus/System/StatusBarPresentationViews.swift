@@ -23,6 +23,9 @@ final class StatusBarMarqueeView: NSView {
 
     private var currentSignature: String = ""
     private var resolvedText: String = "Not Playing"
+    /// Character range of the qualifying half of the title (the artist, plus its
+    /// separator), drawn at reduced alpha. Empty when the title is a single part.
+    private var secondaryRange: NSRange?
     private var laneWidth: CGFloat = 120
     private var textWidth: CGFloat = 0
     private var shouldScroll = false
@@ -82,15 +85,29 @@ final class StatusBarMarqueeView: NSView {
         refreshTextAppearance()
     }
 
-    func update(text: String, enabled: Bool, laneWidth: CGFloat, slideOnChange: Bool) {
+    func update(
+        text: String,
+        secondarySuffix: String? = nil,
+        enabled: Bool,
+        laneWidth: CGFloat,
+        slideOnChange: Bool
+    ) {
         let text = text.isEmpty ? "Not Playing" : text
         let width = floor(max(80, laneWidth))
-        let signature = "\(text)|\(enabled)|\(Int(width.rounded()))|\(slideOnChange ? 1 : 0)"
+        let signature = "\(text)|\(secondarySuffix ?? "")|\(enabled)|\(Int(width.rounded()))|\(slideOnChange ? 1 : 0)"
         if signature == currentSignature { return }
         currentSignature = signature
 
         let previousText = resolvedText
         resolvedText = text
+        if let secondarySuffix, !secondarySuffix.isEmpty, text.hasSuffix(secondarySuffix) {
+            secondaryRange = NSRange(
+                location: (text as NSString).length - (secondarySuffix as NSString).length,
+                length: (secondarySuffix as NSString).length
+            )
+        } else {
+            secondaryRange = nil
+        }
         self.laneWidth = width
         textWidth = measuredTextWidth(text, font: font)
         shouldScroll = enabled && textWidth > width + 1
@@ -134,23 +151,17 @@ final class StatusBarMarqueeView: NSView {
 
     private func applyText(animateTransition: Bool) {
         let textColor = resolvedTextColor()
-        let attributes = textAttributes(textColor: textColor)
+        let attributed = attributedTitle(textColor: textColor)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         primaryTextLayer.foregroundColor = textColor.cgColor
         secondaryTextLayer.foregroundColor = textColor.cgColor
         primaryTextLayer.isHidden = !shouldScroll
-        primaryTextLayer.string = NSAttributedString(
-            string: resolvedText,
-            attributes: attributes
-        )
-        secondaryTextLayer.string = NSAttributedString(
-            string: resolvedText,
-            attributes: attributes
-        )
+        primaryTextLayer.string = attributed
+        secondaryTextLayer.string = attributed
         CATransaction.commit()
 
-        staticTextLabel.stringValue = resolvedText
+        staticTextLabel.attributedStringValue = attributed
         staticTextLabel.textColor = textColor
         staticTextLabel.isHidden = shouldScroll
 
@@ -241,6 +252,27 @@ final class StatusBarMarqueeView: NSView {
         ]
     }
 
+    /// The title, with its qualifying half dimmed. Attributed rather than two labels so the
+    /// marquee still measures, scrolls, and truncates one string.
+    private func attributedTitle(textColor: NSColor) -> NSAttributedString {
+        let attributed = NSMutableAttributedString(
+            string: resolvedText,
+            attributes: textAttributes(textColor: textColor)
+        )
+
+        if let secondaryRange,
+           secondaryRange.location >= 0,
+           NSMaxRange(secondaryRange) <= attributed.length {
+            attributed.addAttribute(
+                .foregroundColor,
+                value: textColor.withAlphaComponent(textColor.alphaComponent),
+                range: secondaryRange
+            )
+        }
+
+        return attributed
+    }
+
     private func resolvedTextColor() -> NSColor {
         let appearance = window?.effectiveAppearance ?? effectiveAppearance
         if #available(macOS 11.0, *) {
@@ -270,10 +302,16 @@ final class DetachedNowPlayingWindow: NSWindow {
     override var canBecomeMain: Bool { true }
 }
 
+/// Hosts the player in the detached window, and nothing else.
+///
+/// This used to stack three grounds inside one window: an `NSVisualEffectView(.popover)`,
+/// then a hardcoded `white 0.08 / alpha 0.28` wash over it, and then the player's own full
+/// surface on top of both — with the player dimmed to 80% to compensate for what was
+/// underneath it. That is the same "two cards in nearly the same colour" problem the popover
+/// had, one level up. The player surface is the window's background now; the window supplies
+/// the shadow and the corner mask.
 final class DetachedNowPlayingContainerController: NSViewController {
     private let hostController: NSHostingController<AnyView>
-    private let materialView = NSVisualEffectView()
-    private let neutralWashView = NSView()
     private let cornerRadius: CGFloat
 
     init(hostController: NSHostingController<AnyView>, cornerRadius: CGFloat = 18) {
@@ -289,8 +327,6 @@ final class DetachedNowPlayingContainerController: NSViewController {
     func applyAppearance(_ appearance: NSAppearance?) {
         guard isViewLoaded else { return }
         view.appearance = appearance
-        materialView.appearance = appearance
-        neutralWashView.appearance = appearance
         hostController.view.appearance = appearance
     }
 
@@ -299,50 +335,27 @@ final class DetachedNowPlayingContainerController: NSViewController {
         root.wantsLayer = true
         root.layer?.cornerRadius = cornerRadius
         root.layer?.masksToBounds = true
-        root.layer?.backgroundColor = NSColor.clear.cgColor
+        // The window is transparent so its corners can be rounded, and the player surface
+        // and lyrics pane are both translucent glass by design — so without an opaque base
+        // here the desktop shows through the whole player. This is the window's background,
+        // not a decorative layer: one flat colour, the same one the surface is built on.
+        root.layer?.backgroundColor = playerSurfaceGroundNSColor.cgColor
         view = root
-
-        materialView.translatesAutoresizingMaskIntoConstraints = false
-        materialView.material = .popover
-        materialView.blendingMode = .withinWindow
-        materialView.state = .active
-
-        neutralWashView.translatesAutoresizingMaskIntoConstraints = false
-        neutralWashView.wantsLayer = true
-        neutralWashView.layer?.backgroundColor = NSColor(calibratedWhite: 0.08, alpha: 0.28).cgColor
-
-        root.addSubview(materialView)
-        materialView.addSubview(neutralWashView)
-
-        NSLayoutConstraint.activate([
-            materialView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-            materialView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            materialView.topAnchor.constraint(equalTo: root.topAnchor),
-            materialView.bottomAnchor.constraint(equalTo: root.bottomAnchor),
-
-            neutralWashView.leadingAnchor.constraint(equalTo: materialView.leadingAnchor),
-            neutralWashView.trailingAnchor.constraint(equalTo: materialView.trailingAnchor),
-            neutralWashView.topAnchor.constraint(equalTo: materialView.topAnchor),
-            neutralWashView.bottomAnchor.constraint(equalTo: materialView.bottomAnchor)
-        ])
 
         addChild(hostController)
         let hostView = hostController.view
         hostView.translatesAutoresizingMaskIntoConstraints = false
         hostView.wantsLayer = true
         hostView.layer?.backgroundColor = NSColor.clear.cgColor
-        materialView.addSubview(hostView)
+        root.addSubview(hostView)
 
         NSLayoutConstraint.activate([
-            hostView.leadingAnchor.constraint(equalTo: materialView.leadingAnchor),
-            hostView.trailingAnchor.constraint(equalTo: materialView.trailingAnchor),
-            hostView.topAnchor.constraint(equalTo: materialView.topAnchor),
-            hostView.bottomAnchor.constraint(equalTo: materialView.bottomAnchor)
+            hostView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            hostView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            hostView.topAnchor.constraint(equalTo: root.topAnchor),
+            hostView.bottomAnchor.constraint(equalTo: root.bottomAnchor)
         ])
 
-        let inheritedAppearance = hostController.view.appearance
-        root.appearance = inheritedAppearance
-        materialView.appearance = inheritedAppearance
-        neutralWashView.appearance = inheritedAppearance
+        root.appearance = hostController.view.appearance
     }
 }

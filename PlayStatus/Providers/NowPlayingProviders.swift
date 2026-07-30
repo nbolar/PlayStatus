@@ -72,16 +72,51 @@ enum MusicProvider {
     private static var cachedArtworkTrackKey: String?
     private static var cachedArtworkImage: NSImage?
 
+    /// Runs the metadata script, re-running it while the result is self-inconsistent.
+    ///
+    /// The script brackets its reads with the track's persistent ID; when those two differ
+    /// the track flipped mid-script and the fields describe two different songs. Returns the
+    /// last result either way — the caller must not treat a tear as "nothing is playing".
+    private static func readMusicMetadata(script: String, attempts: Int) -> String? {
+        var lastResult: String?
+
+        for _ in 0..<max(1, attempts) {
+            guard let candidate = runAppleScript(script) else { return lastResult }
+            lastResult = candidate
+
+            let fields = candidate.components(separatedBy: "||")
+            let endID = fields.count > 13 ? fields[13] : ""
+            let startID = fields.count > 16 ? fields[16] : ""
+            if startID.isEmpty || endID.isEmpty || startID == endID {
+                return candidate
+            }
+        }
+
+        return lastResult
+    }
+
     static func fetch(includeArtwork: Bool = true) -> NowPlayingSnapshot? {
         guard providerAppIsRunning(bundleIdentifier: "com.apple.Music") else {
             return nil
         }
 
+        // `current track` is re-resolved on every one of the reads below, so a track that
+        // flips mid-script yields a snapshot with some fields from the old track and some
+        // from the new one — an old title next to a new duration, and no artwork, because
+        // the artwork script's persistent-ID check then fails. Publishing that produced a
+        // visible double refresh: the torn snapshot landed, then the next poll corrected it.
+        //
+        // Bracketing the read with the persistent ID lets us detect the tear and skip the
+        // poll instead. The next one is milliseconds away.
         let metaScript = """
         tell application "Music"
             if it is running then
                 set pState to (player state as string)
                 if pState is "playing" or pState is "paused" then
+                    set tStartID to ""
+                    try
+                        set tStartID to (persistent ID of current track as string)
+                    end try
                     set tName to name of current track
                     set tArtist to artist of current track
                     set tAlbum to album of current track
@@ -131,17 +166,21 @@ enum MusicProvider {
                     try
                         set tRepeat to (song repeat as string)
                     end try
-                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDur as string) & "||" & (pPos as string) & "||" & (tLoved as string) & "||" & tAlbumArtist & "||" & tComposer & "||" & tGenre & "||" & (tDiscNumber as string) & "||" & (tTrackNumber as string) & "||" & (tYear as string) & "||" & tPersistentID & "||" & (tShuffle as string) & "||" & tRepeat
+                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDur as string) & "||" & (pPos as string) & "||" & (tLoved as string) & "||" & tAlbumArtist & "||" & tComposer & "||" & tGenre & "||" & (tDiscNumber as string) & "||" & (tTrackNumber as string) & "||" & (tYear as string) & "||" & tPersistentID & "||" & (tShuffle as string) & "||" & tRepeat & "||" & tStartID
                 else
-                    return pState & "||||||||||||||||"
+                    return pState & "|||||||||||||||||"
                 end if
             else
-                return "stopped||||||||||||||||"
+                return "stopped|||||||||||||||||"
             end if
         end tell
         """
 
-        guard let result = runAppleScript(metaScript) else { return nil }
+        // A torn read is re-read, never reported as nil: nil from this function means "no
+        // player", which the model turns into the idle state — so signalling a tear that way
+        // blanked the whole player mid-skip. Three attempts, then take whatever we have,
+        // because a slightly mixed snapshot beats no snapshot.
+        guard let result = readMusicMetadata(script: metaScript, attempts: 3) else { return nil }
         let parts = result.components(separatedBy: "||")
         let state = parts.first ?? "stopped"
 
@@ -355,11 +394,6 @@ enum MusicProvider {
     }
 
     @discardableResult
-    static func likeCurrentTrack() -> Bool {
-        setCurrentTrackFavorited(true) != nil
-    }
-
-    @discardableResult
     static func setCurrentTrackFavorited(_ isFavorited: Bool) -> Bool? {
         let targetValue = isFavorited ? "true" : "false"
         let script = """
@@ -437,6 +471,26 @@ enum MusicProvider {
 }
 
 enum SpotifyProvider {
+    /// See `MusicProvider.readMusicMetadata`. Spotify re-resolves `current track` per property
+    /// too, so the same bracketing and the same "never report a tear as nil" rule apply.
+    private static func readSpotifyMetadata(script: String, attempts: Int) -> String? {
+        var lastResult: String?
+
+        for _ in 0..<max(1, attempts) {
+            guard let candidate = runAppleScript(script) else { return lastResult }
+            lastResult = candidate
+
+            let fields = candidate.components(separatedBy: "||")
+            let startID = fields.count > 11 ? fields[11] : ""
+            let endID = fields.count > 12 ? fields[12] : ""
+            if startID.isEmpty || endID.isEmpty || startID == endID {
+                return candidate
+            }
+        }
+
+        return lastResult
+    }
+
     static func fetch(includeArtwork: Bool = true) -> NowPlayingSnapshot? {
         guard providerAppIsRunning(bundleIdentifier: "com.spotify.client") else {
             return nil
@@ -447,6 +501,10 @@ enum SpotifyProvider {
             if it is running then
                 set pState to (player state as string)
                 if pState is "playing" or pState is "paused" then
+                    set tStartID to ""
+                    try
+                        set tStartID to (id of current track as string)
+                    end try
                     set tName to name of current track
                     set tArtist to artist of current track
                     set tAlbum to album of current track
@@ -469,17 +527,22 @@ enum SpotifyProvider {
                     try
                         set tRepeat to (repeating as boolean)
                     end try
-                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDurMs as string) & "||" & (pPos as string) & "||" & artURL & "||" & tAlbumArtist & "||" & (tTrackNumber as string) & "||" & (tShuffle as string) & "||" & (tRepeat as string)
+                    set tEndID to ""
+                    try
+                        set tEndID to (id of current track as string)
+                    end try
+                    return pState & "||" & tName & "||" & tArtist & "||" & tAlbum & "||" & (tDurMs as string) & "||" & (pPos as string) & "||" & artURL & "||" & tAlbumArtist & "||" & (tTrackNumber as string) & "||" & (tShuffle as string) & "||" & (tRepeat as string) & "||" & tStartID & "||" & tEndID
                 else
-                    return pState & "|||||||||||"
+                    return pState & "|||||||||||||"
                 end if
             else
-                return "stopped|||||||||||"
+                return "stopped|||||||||||||"
             end if
         end tell
         """
 
-        guard let result = runAppleScript(metaScript) else { return nil }
+        // Same torn-read handling as Music: re-read, never report a tear as "no player".
+        guard let result = readSpotifyMetadata(script: metaScript, attempts: 3) else { return nil }
         let parts = result.components(separatedBy: "||")
         let state = parts.first ?? "stopped"
 
