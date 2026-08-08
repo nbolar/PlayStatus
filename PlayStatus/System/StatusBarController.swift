@@ -163,6 +163,16 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             }
             .store(in: &cancellables)
 
+        // `dropFirst` because publishing the initial value on subscribe would open the player
+        // at launch, which is precisely what a menu bar app must not do.
+        model.$popoverToggleRequestToken
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.togglePopover(nil)
+            }
+            .store(in: &cancellables)
+
         model.$detachedWindowLevelRevision
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
@@ -210,9 +220,66 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         }
     }
 
+    /// Handles `playstatus://` URLs.
+    ///
+    /// Routes to the same model methods the App Intents use, so the two automation front
+    /// doors cannot drift apart. Unknown hosts are ignored rather than reported: these arrive
+    /// from scripts and launchers, where a dialog would be worse than a no-op.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.scheme?.lowercased() == "playstatus" {
+            handlePlayStatusURL(url)
+        }
+    }
+
+    private func handlePlayStatusURL(_ url: URL) {
+        // `playstatus://next` parses the verb as the host; `playstatus:next` as the path.
+        // Scripts and launchers write both, so accept either.
+        let command = (url.host?.isEmpty == false ? url.host! : url.path)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .lowercased()
+        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+
+        func value(_ name: String) -> Double? {
+            query.first { $0.name.lowercased() == name }
+                .flatMap { $0.value }
+                .flatMap(Double.init)
+        }
+
+        switch command {
+        case "playpause", "toggleplay":
+            model.playPause()
+        case "next":
+            model.nextTrack()
+        case "previous", "prev":
+            model.previousTrack()
+        case "favorite", "like":
+            _ = model.toggleCurrentTrackFavorite()
+        case "toggle", "player":
+            model.requestTogglePlayerSurface()
+        case "shuffle":
+            model.toggleShuffle()
+        case "repeat":
+            model.cycleRepeatMode()
+        case "volume":
+            guard let level = value("level") else { return }
+            // Accept both 0–1 and 0–100, since both conventions get written by hand.
+            let normalized = level > 1 ? level / 100 : level
+            model.setOutputVolume(min(max(normalized, 0), 1))
+        case "seek":
+            guard let seconds = value("seconds") else { return }
+            model.seek(toSeconds: seconds)
+        default:
+            #if DEBUG
+            NSLog("PlayStatus url: ignoring unknown command %@", command)
+            #endif
+        }
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         persistDetachedWindowOrigin()
         HotkeyManager.shared.unregisterAll()
+        // Quitting mid-track must not lose the play in progress.
+        model.flushPlaybackSession()
     }
 
     @objc private func togglePopover(_ sender: Any?) {
@@ -542,14 +609,29 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     /// Target frame for the popover's backing window: sized to the current mode, top
     /// edge held where it is, centred on the status item. Returns nil when the window is
     /// already there. Shared by the morph and the ordinary layout pass so both agree.
+    /// Rounds a target frame size up to whole points.
+    ///
+    /// `currentSurfaceContentSize` reports SwiftUI's ideal size, which is fractional — 274.3pt
+    /// where the window is 275pt. A window never adopts the fraction, so comparing the two
+    /// raw values finds a 0.7pt "difference" that no resize can ever close: the early-out
+    /// below never fires, every content change schedules a resize, and each one folds the
+    /// leftover fraction into the origin via `round(maxY - height)`. Measured, that walked the
+    /// detached window upward exactly 1pt per track change, indefinitely.
+    ///
+    /// Rounding up — rather than to nearest — because this size has to *contain* the content;
+    /// half a point short is a clipped descender.
+    private func snappedFrameSize(_ size: NSSize) -> NSSize {
+        NSSize(width: ceil(size.width), height: ceil(size.height))
+    }
+
     private func popoverTargetFrame(for window: NSWindow) -> NSRect? {
         let targetSize = currentSurfaceContentSize(
             anchorWindow: window,
             updatesHeightCap: model.surfaceMode == .popover
         )
-        let targetFrameSize = window.frameRect(
+        let targetFrameSize = snappedFrameSize(window.frameRect(
             forContentRect: NSRect(origin: .zero, size: targetSize)
-        ).size
+        ).size)
         let current = window.frame
         if abs(current.width - targetFrameSize.width) < 0.5
             && abs(current.height - targetFrameSize.height) < 0.5 {
@@ -583,9 +665,9 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             anchorWindow: window,
             updatesHeightCap: model.surfaceMode == .detached
         )
-        let targetFrameSize = window.frameRect(
+        let targetFrameSize = snappedFrameSize(window.frameRect(
             forContentRect: NSRect(origin: .zero, size: targetContentSize)
-        ).size
+        ).size)
         let current = window.frame
         if abs(current.width - targetFrameSize.width) < 0.5
             && abs(current.height - targetFrameSize.height) < 0.5 {
@@ -598,6 +680,13 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             width: targetFrameSize.width,
             height: targetFrameSize.height
         )
+        #if DEBUG
+        NSLog(
+            "PlayStatus detached: resize from (%.1f,%.1f %.1fx%.1f) to (%.1f,%.1f %.1fx%.1f)",
+            current.origin.x, current.origin.y, current.width, current.height,
+            targetFrame.origin.x, targetFrame.origin.y, targetFrame.width, targetFrame.height
+        )
+        #endif
         return clampedDetachedFrame(targetFrame, preferredScreen: window.screen)
     }
 

@@ -60,9 +60,18 @@ struct ControlsRow: View {
     let onRepeat: () -> Void
     var contrastBoost: Double = 0
     var controlScale: CGFloat = 1
+    /// Whether the four secondary controls are at full strength.
+    ///
+    /// Play/pause is never dimmed — the surface always has one legible control — so callers
+    /// that have no hover signal can leave this alone and get the old, always-lit row.
+    var secondariesRevealed: Bool = true
 
     private var clampedControlScale: CGFloat {
         min(max(controlScale, 0.80), 1.20)
+    }
+
+    private var secondaryOpacity: Double {
+        secondariesRevealed ? 1 : playerTransportSecondaryRestingOpacity
     }
 
     var body: some View {
@@ -79,6 +88,7 @@ struct ControlsRow: View {
                 sizeScale: clampedControlScale,
                 action: onShuffle
             )
+            .opacity(secondaryOpacity)
             GlassButton(
                 systemName: "backward.fill",
                 isEnabled: controlsEnabled,
@@ -87,6 +97,7 @@ struct ControlsRow: View {
                 sizeScale: clampedControlScale,
                 action: onPrev
             )
+            .opacity(secondaryOpacity)
             GlassButton(
                 systemName: isPlaying ? "pause.fill" : "play.fill",
                 isPrimary: true,
@@ -104,6 +115,7 @@ struct ControlsRow: View {
                 sizeScale: clampedControlScale,
                 action: onNext
             )
+            .opacity(secondaryOpacity)
             GlassButton(
                 systemName: repeatMode.systemImageName,
                 compact: true,
@@ -116,7 +128,9 @@ struct ControlsRow: View {
                 sizeScale: clampedControlScale,
                 action: onRepeat
             )
+            .opacity(secondaryOpacity)
         }
+        .animation(.easeInOut(duration: 0.18), value: secondariesRevealed)
     }
 }
 
@@ -295,8 +309,8 @@ struct GlassButton: View {
     /// Every transport control used to be a filled, stroked rounded rect, so nine of them
     /// on one surface left the eye with no primary — the play button was 8pt wider than
     /// its neighbours and that was the whole hierarchy. Now the secondary controls are
-    /// bare glyphs that pick up a faint disc on hover, and play is a solid white disc with
-    /// a dark glyph: the one filled control in the window.
+    /// bare glyphs that pick up a faint fill on hover, and play is a solid white squircle
+    /// with a dark glyph: the one filled control in the window.
     private var iconColor: Color {
         if isPrimary { return Color(red: 0.10, green: 0.09, blue: 0.09) }
         return isActive ? activeColor : Color.white
@@ -323,6 +337,23 @@ struct GlassButton: View {
 
     private var dotSize: CGFloat { 3 * clampedSizeScale }
 
+    /// The transport is squircles, not circles.
+    ///
+    /// A filled disc is what every macOS media control looks like, so the play button read
+    /// as generic chrome dropped onto the artwork. Continuous corners at roughly a third of
+    /// the side put it in the same radius family as the app icon and the artwork tile it
+    /// sits under, which is the only other geometry on this surface.
+    ///
+    /// Secondaries follow at a proportionally tighter radius so the hover disc does not
+    /// disagree with the shape it appears next to.
+    private var cornerRadius: CGFloat {
+        buttonSide * (isPrimary ? 0.34 : 0.28)
+    }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
     private var clampedSizeScale: CGFloat {
         min(max(sizeScale, 0.80), 1.20)
     }
@@ -348,7 +379,7 @@ struct GlassButton: View {
                         .opacity(isActive && !isPrimary ? 1 : 0)
                         .offset(y: -1)
                 }
-                .contentShape(Circle())
+                .contentShape(shape)
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
@@ -356,11 +387,11 @@ struct GlassButton: View {
         .background(
             ZStack {
                 if isPrimary {
-                    Circle()
+                    shape
                         .fill(.white.opacity(primaryFillOpacity))
                         .shadow(color: .black.opacity(0.28), radius: 6, x: 0, y: 2)
                 } else {
-                    Circle()
+                    shape
                         .fill((isActive ? activeColor : .white).opacity(hoverDiscOpacity))
                 }
             }
@@ -409,6 +440,12 @@ struct PlayerRail: View {
     /// Volume follows the pointer; seeking commits on release so the track does not scrub
     /// through every intermediate position.
     var updatesContinuously: Bool = false
+    /// Applied to `value` changes so a rail whose value advances on its own can glide rather
+    /// than step. Left nil by rails that only move when the user moves them, like volume.
+    var advanceAnimation: Animation? = nil
+    /// Changes exactly when `value` is refreshed, giving `.animation(_:value:)` something
+    /// stable to trigger on.
+    var advanceEpoch: Int = 0
     let onScrub: (Double) -> Void
     var onInteractionChanged: ((Bool) -> Void)? = nil
 
@@ -446,6 +483,12 @@ struct PlayerRail: View {
         min(max(isDragging ? dragValue : value, 0), 1)
     }
 
+    /// Never animate under the pointer: a drag must track the cursor exactly, and a glide
+    /// toward a projected position would fight it.
+    private var resolvedAdvanceAnimation: Animation? {
+        isDragging ? nil : advanceAnimation
+    }
+
     var body: some View {
         GeometryReader { geo in
             let width = geo.size.width
@@ -456,6 +499,7 @@ struct PlayerRail: View {
                 Capsule()
                     .fill(.white.opacity(fillOpacity))
                     .frame(width: max(railHeight, filled))
+                    .animation(resolvedAdvanceAnimation, value: advanceEpoch)
             }
             .frame(height: railHeight)
             .overlay(alignment: .leading) {
@@ -464,6 +508,8 @@ struct PlayerRail: View {
                     .shadow(color: .black.opacity(0.32), radius: 3, x: 0, y: 1)
                     .frame(width: knobDiameter, height: knobDiameter)
                     .offset(x: min(max(filled - (knobDiameter / 2), 0), max(0, width - knobDiameter)))
+                    // Same animation as the fill, or the knob would lag behind its own rail.
+                    .animation(resolvedAdvanceAnimation, value: advanceEpoch)
                     .opacity(interactionActive ? 1 : 0)
                     .allowsHitTesting(false)
             }
@@ -511,6 +557,9 @@ struct ProgressBlock: View {
     let duration: Double
     let canSeek: Bool
     var contrastBoost: Double = 0
+    /// Passed through to the rail so the scrubber glides between position samples.
+    var advanceAnimation: Animation? = nil
+    var advanceEpoch: Int = 0
     let onSeek: (Double) -> Void
 
     @State private var scrubPreview: Double?
@@ -538,6 +587,8 @@ struct ProgressBlock: View {
                 value: progress,
                 isEnabled: canSeek,
                 contrastBoost: contrastBoost,
+                advanceAnimation: advanceAnimation,
+                advanceEpoch: advanceEpoch,
                 onScrub: { target in
                     scrubPreview = nil
                     onSeek(target)

@@ -266,6 +266,9 @@ struct MiniExpandedDetailsPane: View {
                     DetailPaneTabChip(tab: .credits, isSelected: selectedTab == .credits, tint: model.glassTint) {
                         model.selectMiniDetailsTab(.credits)
                     }
+                    DetailPaneTabChip(tab: .history, isSelected: selectedTab == .history, tint: model.glassTint) {
+                        model.selectMiniDetailsTab(.history)
+                    }
 
                     Spacer(minLength: 0)
                     miniDetailSourceBadge
@@ -276,6 +279,8 @@ struct MiniExpandedDetailsPane: View {
                     lyricsPaneContent
                 case .credits:
                     creditsPaneContent
+                case .history:
+                    historyPaneContent
                 }
             }
             .padding(.horizontal, 14)
@@ -317,11 +322,12 @@ struct MiniExpandedDetailsPane: View {
                 style: .mini
             )
         case .loading:
-            let progress = model.lyricsLoadingProgress
-            LyricsLoadingPulseBlock(
-                primaryFontSize: 12,
-                secondaryText: miniLoadingMessage(progress: progress),
-                secondaryFontSize: 11
+            LyricsFetchProgressView(
+                progress: model.lyricsLoadingProgress,
+                tint: model.glassTint,
+                isCompact: true,
+                lineFontSize: model.miniLyricsInactiveFontSize,
+                startsImmediately: model.lyricsFetchIsUserInitiated
             )
             .frame(maxWidth: .infinity, alignment: .leading)
         case .instrumental:
@@ -332,7 +338,7 @@ struct MiniExpandedDetailsPane: View {
             )
         case .unavailable:
             DetailPaneStateMessage(
-                message: "No lyrics found for this track.",
+                message: LyricsDeadEndCopy.unavailable(afterRetry: model.lyricsRetryFoundNothing),
                 icon: .sfSymbol("text.bubble"),
                 style: .mini,
                 retryTitle: "Look again",
@@ -340,7 +346,7 @@ struct MiniExpandedDetailsPane: View {
             )
         case .failed:
             DetailPaneStateMessage(
-                message: "Couldn't fetch lyrics right now.",
+                message: LyricsDeadEndCopy.failed(afterRetry: model.lyricsRetryFoundNothing),
                 icon: .sfSymbol("exclamationmark.octagon"),
                 style: .mini,
                 retryTitle: "Try again",
@@ -370,9 +376,24 @@ struct MiniExpandedDetailsPane: View {
         }
     }
 
-    private func miniLoadingMessage(progress: LyricsLoadingProgress?) -> String {
-        guard let progress else { return "Preparing lyric request" }
-        return "\(progress.stage.displayTitle) · Attempt \(progress.attempt) of \(progress.maxAttempts)"
+    @ViewBuilder
+    private var historyPaneContent: some View {
+        if model.playHistory.isEmpty {
+            DetailPaneStateMessage(
+                message: "Nothing played yet.",
+                icon: .sfSymbol("clock.arrow.circlepath"),
+                style: .mini
+            )
+        } else {
+            HistoryPaneContent(
+                entries: model.playHistory,
+                style: .compact,
+                tint: model.glassTint,
+                playCounts: model.playHistoryPlayCounts,
+                onReplay: { model.replayHistoryEntry($0) },
+                onRemove: { model.removeHistoryEntry($0) }
+            )
+        }
     }
 
     @ViewBuilder
@@ -393,6 +414,10 @@ struct MiniExpandedDetailsPane: View {
         case .credits:
             if let sourceName = model.creditsPayload?.sourceName, !sourceName.isEmpty {
                 DetailPaneSourceBadge(text: sourceName, style: .mini)
+            }
+        case .history:
+            if !model.playHistory.isEmpty {
+                DetailPaneSourceBadge(text: model.playHistoryBadgeText, style: .mini)
             }
         }
     }
@@ -443,6 +468,7 @@ struct MiniExpandedDetailsPane: View {
 
                         ForEach(lines) { line in
                             let isActive = line.id == activeLineID
+                            let isSeekable = (model.lyricsPayload?.isTimed ?? false) && line.startTime != nil
                             Text(line.text)
                                 .font(.system(
                                     size: isActive ? model.miniLyricsActiveFontSize : model.miniLyricsInactiveFontSize,
@@ -454,6 +480,12 @@ struct MiniExpandedDetailsPane: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, isActive ? 5 : 1)
                                 .animation(enableLyricLineAnimations ? .easeInOut(duration: 0.24) : nil, value: isActive)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    guard isSeekable, let start = line.startTime else { return }
+                                    model.seek(toSeconds: start)
+                                }
+                                .accessibilityAddTraits(isSeekable ? .isButton : [])
                                 .id(line.id)
                         }
 
@@ -856,6 +888,9 @@ struct RegularDetailsPane: View {
                 DetailPaneTabChip(tab: .credits, isSelected: selectedTab == .credits, tint: glassTint) {
                     model.selectRegularDetailsTab(.credits)
                 }
+                DetailPaneTabChip(tab: .history, isSelected: selectedTab == .history, tint: glassTint) {
+                    model.selectRegularDetailsTab(.history)
+                }
 
                 Spacer(minLength: 0)
 
@@ -870,6 +905,8 @@ struct RegularDetailsPane: View {
                     lyricsTabContent
                 case .credits:
                     creditsTabContent
+                case .history:
+                    historyTabContent
                 }
             }
             // Clears the tab row: 12pt top inset + a 12pt label + 6pt gap + the 1.5pt rule,
@@ -902,6 +939,10 @@ struct RegularDetailsPane: View {
             if let sourceName = creditsPayload?.sourceName, !sourceName.isEmpty {
                 DetailPaneSourceBadge(text: sourceName)
             }
+        case .history:
+            if !model.playHistory.isEmpty {
+                DetailPaneSourceBadge(text: model.playHistoryBadgeText)
+            }
         }
     }
 
@@ -922,14 +963,14 @@ struct RegularDetailsPane: View {
             )
         case .unavailable:
             DetailPaneStateMessage(
-                message: "No lyrics found for this track.",
+                message: LyricsDeadEndCopy.unavailable(afterRetry: model.lyricsRetryFoundNothing),
                 icon: .sfSymbol("text.bubble"),
                 retryTitle: "Look again",
                 onRetry: { model.retryLyricsFetch() }
             )
         case .failed:
             DetailPaneStateMessage(
-                message: "Couldn't fetch lyrics right now.",
+                message: LyricsDeadEndCopy.failed(afterRetry: model.lyricsRetryFoundNothing),
                 icon: .sfSymbol("exclamationmark.bubble"),
                 retryTitle: "Try again",
                 onRetry: { model.retryLyricsFetch() }
@@ -942,7 +983,11 @@ struct RegularDetailsPane: View {
                 inactiveFontSize: inactiveFontSize,
                 activeFontSize: activeFontSize,
                 activeStyle: DetailPaneAccent.legible(glassTint, in: colorScheme),
-                inactiveStyle: colorScheme == .dark ? .white.opacity(0.42) : .secondary.opacity(0.72)
+                inactiveStyle: colorScheme == .dark ? .white.opacity(0.42) : .secondary.opacity(0.72),
+                onSeekToLine: { line in
+                    guard let start = line.startTime else { return }
+                    model.seek(toSeconds: start)
+                }
             )
         }
     }
@@ -965,55 +1010,34 @@ struct RegularDetailsPane: View {
     }
 
     @ViewBuilder
-    private func loadingProgressView(progress: LyricsLoadingProgress?) -> some View {
-        let attempt = progress?.attempt ?? 1
-        let maxAttempts = progress?.maxAttempts ?? 1
-
-        LyricsLoadingPulseBlock(
-            primaryFontSize: 13,
-            secondaryText: progress.map { "\($0.stage.displayTitle) · Attempt \(attempt) of \(maxAttempts)" },
-            secondaryFontSize: 12
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .padding(.horizontal, 2)
-    }
-}
-
-struct LyricsLoadingPulseBlock: View {
-    let primaryFontSize: CGFloat
-    let secondaryText: String?
-    let secondaryFontSize: CGFloat
-    @Environment(\.colorScheme) private var colorScheme
-
-    private func primaryStyle(opacity: Double) -> Color {
-        colorScheme == .dark ? .white.opacity(opacity) : .primary.opacity(min(0.92, opacity + 0.05))
-    }
-
-    private func secondaryStyle(opacity: Double) -> Color {
-        colorScheme == .dark ? .white.opacity(opacity) : .secondary.opacity(min(0.86, opacity + 0.08))
-    }
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
-            let wave = (sin((2.0 * .pi / 1.7) * t) + 1.0) * 0.5
-            let primaryOpacity = 0.62 + (0.32 * wave)
-            let secondaryOpacity = 0.56 + (0.22 * wave)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Loading lyrics…")
-                    .font(.system(size: primaryFontSize, weight: .semibold, design: .rounded))
-                    .foregroundStyle(primaryStyle(opacity: primaryOpacity))
-
-                if let secondaryText, !secondaryText.isEmpty {
-                    Text(secondaryText)
-                        .font(.system(size: secondaryFontSize, weight: .medium, design: .rounded))
-                        .foregroundStyle(secondaryStyle(opacity: secondaryOpacity))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-            }
+    private var historyTabContent: some View {
+        if model.playHistory.isEmpty {
+            DetailPaneStateMessage(
+                message: "Nothing played yet.\nTracks appear here once you've listened to them.",
+                icon: .sfSymbol("clock.arrow.circlepath")
+            )
+        } else {
+            HistoryPaneContent(
+                entries: model.playHistory,
+                style: .regular,
+                tint: glassTint,
+                playCounts: model.playHistoryPlayCounts,
+                onReplay: { model.replayHistoryEntry($0) },
+                onRemove: { model.removeHistoryEntry($0) }
+            )
         }
+    }
+
+    @ViewBuilder
+    private func loadingProgressView(progress: LyricsLoadingProgress?) -> some View {
+        LyricsFetchProgressView(
+            progress: progress,
+            tint: glassTint,
+            lineFontSize: inactiveFontSize,
+            startsImmediately: model.lyricsFetchIsUserInitiated
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 2)
     }
 }
 
@@ -1024,7 +1048,10 @@ struct RegularLyricsScrollContent: View {
     let activeFontSize: CGFloat
     var activeStyle: Color = .primary
     var inactiveStyle: Color = .secondary.opacity(0.72)
+    /// Absent for untimed lyrics, which have no position to seek to.
+    var onSeekToLine: ((LyricsLine) -> Void)? = nil
     @State private var activeLineID: UUID?
+    @State private var hoveredLineID: UUID?
     @State private var coordinator = LyricsScrollCoordinator()
     private let maxRenderableLines: Int = 500
 
@@ -1094,16 +1121,46 @@ struct RegularLyricsScrollContent: View {
     }
 
     private func lyricLineView(line: LyricsLine, isActive: Bool) -> some View {
-        Text(line.text)
+        let isSeekable = canSeek(to: line)
+        let isHovered = isSeekable && hoveredLineID == line.id
+
+        return Text(line.text)
             .font(.system(
                 size: isActive ? activeFontSize : inactiveFontSize,
                 weight: isActive ? .semibold : .regular
             ))
-            .foregroundStyle(isActive ? activeStyle : inactiveStyle)
+            .foregroundStyle(isActive ? activeStyle : (isHovered ? activeStyle.opacity(0.75) : inactiveStyle))
             .lineLimit(3)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 5)
+            .padding(.horizontal, 6)
+            // Inset by the same amount the padding adds, so turning lines into hit targets does
+            // not shift the column of text away from where it has always sat.
+            .padding(.horizontal, -6)
+            .background(seekHighlight(isVisible: isHovered))
             .scaleEffect(isActive ? 1.03 : 1.0, anchor: .leading)
             .animation(.easeInOut(duration: 0.34), value: isActive)
+            .animation(.easeOut(duration: 0.12), value: isHovered)
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                guard isSeekable else { return }
+                hoveredLineID = hovering ? line.id : (hoveredLineID == line.id ? nil : hoveredLineID)
+            }
+            .onTapGesture {
+                guard isSeekable else { return }
+                onSeekToLine?(line)
+            }
+            .accessibilityAddTraits(isSeekable ? .isButton : [])
+            .accessibilityHint(isSeekable ? Text("Play from this line") : Text(""))
+    }
+
+    private func canSeek(to line: LyricsLine) -> Bool {
+        isTimed && line.startTime != nil && onSeekToLine != nil
+    }
+
+    @ViewBuilder
+    private func seekHighlight(isVisible: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(activeStyle.opacity(isVisible ? 0.10 : 0))
     }
 }

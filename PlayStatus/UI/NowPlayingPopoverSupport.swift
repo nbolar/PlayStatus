@@ -102,6 +102,15 @@ let modeIncomingFadeDelay: Double = 0.06
 /// at rest is a piece of artwork with a title under it.
 let playerControlClusterRestingOpacity: Double = 0
 
+/// Opacity of shuffle, repeat and the skip buttons when the pointer is elsewhere.
+///
+/// Unlike the top-row cluster this does not go to zero: play/pause stays at full strength
+/// and the transport keeps its shape, so a player at rest reads as one bright control with
+/// four ghosted ones beside it rather than a row that vanishes and reappears. Low enough to
+/// stay out of the artwork, high enough that the controls are still discoverable without
+/// moving the pointer.
+let playerTransportSecondaryRestingOpacity: Double = 0.30
+
 // MARK: - Surface tokens
 
 /// One radius for every player surface — popover, mini card, detached window. Shapes
@@ -434,6 +443,68 @@ private struct HoverHintModifier: ViewModifier {
     }
 }
 
+/// The mini card's resting progress line: what the card shows while the pointer is away
+/// and the full scrubber is not on screen. Deliberately not a `PlayerRail` — there is no
+/// pointer here to seek with, so it carries no knob, no hit target and no gesture, and it
+/// shares only the rail's fill/track opacities so the hover hand-off reads as one element
+/// thickening rather than two different controls swapping places.
+struct MiniRestingProgressRail: View {
+    @ObservedObject private var clock = PlaybackClock.shared
+    var contrastBoost: Double = 0
+    /// When set, the fill takes the artwork tint rather than white.
+    var tint: Color? = nil
+
+    private var clampedContrastBoost: Double {
+        min(max(contrastBoost, 0), 1)
+    }
+
+    /// Lighter than `PlayerRail`'s equivalents on purpose. The scrubber is a control you
+    /// are pointing at; this is a status line read in passing, at the edge of a card whose
+    /// subject is the artwork, so it sits well below the metadata in the card's hierarchy
+    /// and only climbs toward the rail's weights as bright artwork forces it to.
+    private var trackOpacity: Double {
+        min(0.20, 0.07 + (0.11 * clampedContrastBoost))
+    }
+
+    private var fillOpacity: Double {
+        min(0.80, 0.56 + (0.20 * clampedContrastBoost))
+    }
+
+    /// A tinted fill is doing the same job with less contrast to spend, so it gets a
+    /// little more opacity back than the white fill would take.
+    private var resolvedFill: Color {
+        guard let tint else { return .white.opacity(fillOpacity) }
+        return tint.opacity(min(0.92, fillOpacity + 0.12))
+    }
+
+    var body: some View {
+        // A live stream has no meaningful position, and an unstarted track would pin the
+        // rail at zero — in both cases the line says nothing and is better absent.
+        if clock.canSeek {
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(.white.opacity(trackOpacity))
+
+                    // Driven to where the position will be at the next sync, over exactly that
+                    // interval, so Core Animation carries the motion. Redrawing this per frame
+                    // instead would re-render inside the popover on every tick — the cost the
+                    // vinyl overlay was rewritten to avoid.
+                    Capsule()
+                        .fill(resolvedFill)
+                        .frame(width: max(0, proxy.size.width * clock.projectedProgress))
+                        .animation(clock.progressAnimation, value: clock.positionEpoch)
+                }
+            }
+            .frame(height: 2.5)
+            .allowsHitTesting(false)
+            // The rail is already announced by the scrubber on hover; a second
+            // unreachable copy of the same value is only noise in the rotor.
+            .accessibilityHidden(true)
+        }
+    }
+}
+
 struct PlaybackProgressBlock: View {
     @ObservedObject private var clock = PlaybackClock.shared
     var contrastBoost: Double = 0
@@ -441,11 +512,15 @@ struct PlaybackProgressBlock: View {
 
     var body: some View {
         ProgressBlock(
-            progress: clock.progress,
+            // The rail is driven to the projected position and animated there; the time label
+            // reads the true current value, so the two never disagree by more than the poll.
+            progress: clock.projectedProgress,
             elapsed: clock.liveElapsed,
             duration: clock.duration,
             canSeek: clock.canSeek,
             contrastBoost: contrastBoost,
+            advanceAnimation: clock.progressAnimation,
+            advanceEpoch: clock.positionEpoch,
             onSeek: onSeek
         )
     }

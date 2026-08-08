@@ -25,7 +25,18 @@ private struct ArtworkMotionModifier: ViewModifier {
     /// intent, and the artwork often arrives under a cursor that never moved.
     @State private var hoverEntryAnchor: CGPoint?
     @State private var filmDriftPhase = false
-    @State private var vinylBaseTurns: Double = 0
+    /// Full turns of the disc, animated by CoreAnimation rather than recomputed per
+    /// frame. A `TimelineView` here used to redraw the overlay 60×/s, and each of those
+    /// redraws landed outside whatever animation transaction was in flight — so during
+    /// a settings pane transition the disc painted at the pane's *target* position and
+    /// opacity while everything around it interpolated, and it appeared to teleport in
+    /// fully opaque. One animated value keeps the overlay an ordinary participant in
+    /// ancestor transitions (and stops three settings tiles re-rendering continuously).
+    @State private var vinylTurns: Double = 0
+    /// Where `vinylTurns` stood when the current spin animation was started, and when
+    /// it started. The spin is linear, so these two reproduce the exact presentation
+    /// angle at any moment — which is what lets the disc stop where it visually is.
+    @State private var vinylSpinAnchorTurns: Double = 0
     @State private var vinylSpinStartDate: Date? = nil
     @State private var wasVinylSpinning = false
 
@@ -113,36 +124,18 @@ private struct ArtworkMotionModifier: ViewModifier {
         return filmDriftPhase ? 1.06 : 1.0
     }
 
-    private var artworkSide: CGFloat {
-        max(0, min(viewSize.width, viewSize.height))
-    }
-
-    private var vinylDiscDiameter: CGFloat {
-        artworkSide * 0.98
-    }
-
-    private var vinylCenterLabelDiameter: CGFloat {
-        vinylDiscDiameter * 0.82
-    }
-
-    private var vinylLabelRingWidth: CGFloat {
-        max(1.6, vinylCenterLabelDiameter * 0.055)
-    }
-
-    private var vinylHubHoleDiameter: CGFloat {
-        vinylCenterLabelDiameter * 0.13
-    }
-
-    private var vinylGrooveWidth: CGFloat {
-        max(1.4, vinylDiscDiameter * 0.034)
-    }
-
     private var filmDriftAnimation: Animation {
         .linear(duration: filmDriftDuration).repeatForever(autoreverses: true)
     }
 
+    /// Deliberately free of any dependency on the measured `viewSize`. The disc used to
+    /// wait on that state, which is written from a background `GeometryReader` during
+    /// `onAppear` and therefore only lands on a *later* render pass — so on a fresh
+    /// mount the overlay did not exist for the frames a containing transition was
+    /// sliding through, and could only appear afterwards, already at rest. The disc now
+    /// takes its size from layout instead, and is present from the very first frame.
     private var shouldShowVinylOverlay: Bool {
-        style == .vinylSpin && isEnabled && !hasAnimatedStream && artworkSide > 1
+        style == .vinylSpin && isEnabled && !hasAnimatedStream
     }
 
     private var shouldShowFilmOverlay: Bool {
@@ -230,6 +223,12 @@ private struct ArtworkMotionModifier: ViewModifier {
             .rotation3DEffect(.degrees(parallaxTiltY), axis: (x: 0, y: 1, z: 0))
             .overlay { vinylOverlay }
             .overlay { filmOverlay }
+            // The overlays are gated on a measured size, so on a fresh mount they
+            // arrive a frame or more after the view itself — too late to ride any
+            // transition the surrounding container is running. They carry their own
+            // fade so they never snap in at full strength.
+            .animation(.easeOut(duration: 0.28), value: shouldShowVinylOverlay)
+            .animation(.easeOut(duration: 0.28), value: shouldShowFilmOverlay)
             .animation(
                 .interactiveSpring(response: 0.28, dampingFraction: 0.84, blendDuration: 0.1),
                 value: pointerLocation
@@ -244,18 +243,20 @@ private struct ArtworkMotionModifier: ViewModifier {
     @ViewBuilder
     private var vinylOverlay: some View {
         if shouldShowVinylOverlay {
-            VinylPlaybackOverlay(
-                artworkSide: artworkSide,
-                tint: tint,
-                artworkImage: artworkImage,
-                vinylDiscDiameter: vinylDiscDiameter,
-                vinylCenterLabelDiameter: vinylCenterLabelDiameter,
-                vinylLabelRingWidth: vinylLabelRingWidth,
-                vinylHubHoleDiameter: vinylHubHoleDiameter,
-                vinylGrooveWidth: vinylGrooveWidth,
-                shouldSpinVinyl: shouldSpinVinyl,
-                rotationDegrees: vinylRotationDegrees(at:)
-            )
+            GeometryReader { proxy in
+                let side = max(0, min(proxy.size.width, proxy.size.height))
+                if side > 1 {
+                    VinylPlaybackOverlay(
+                        artworkSide: side,
+                        tint: tint,
+                        artworkImage: artworkImage,
+                        shouldSpinVinyl: shouldSpinVinyl,
+                        rotationTurns: vinylTurns
+                    )
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                }
+            }
+            .transition(.opacity)
         }
     }
 
@@ -270,15 +271,13 @@ private struct ArtworkMotionModifier: ViewModifier {
                 filmDriftPhase: filmDriftPhase,
                 reduceMotion: reduceMotion
             )
+            .transition(.opacity)
         }
     }
 
     private func synchronizeAnimationState(allowVinylSettle: Bool) {
         if shouldSpinVinyl {
-            if vinylSpinStartDate == nil {
-                vinylSpinStartDate = Date()
-            }
-            wasVinylSpinning = true
+            startVinylMotion()
         } else {
             stopVinylMotion(allowSettle: allowVinylSettle)
         }
@@ -290,30 +289,46 @@ private struct ArtworkMotionModifier: ViewModifier {
         }
     }
 
-    private func vinylRotationDegrees(at date: Date) -> Double {
-        vinylTurns(at: date) * 360
-    }
-
-    private func vinylTurns(at date: Date) -> Double {
-        guard shouldSpinVinyl, let startDate = vinylSpinStartDate else {
-            return vinylBaseTurns
+    private func startVinylMotion() {
+        guard vinylSpinStartDate == nil else { return }
+        vinylSpinAnchorTurns = vinylTurns
+        vinylSpinStartDate = Date()
+        wasVinylSpinning = true
+        // One turn, repeated forever: the value restarts each cycle, so the angle is
+        // continuous modulo a full rotation and never accumulates unbounded.
+        withAnimation(.linear(duration: vinylRotationDuration).repeatForever(autoreverses: false)) {
+            vinylTurns = vinylSpinAnchorTurns + 1
         }
-        let elapsed = max(0, date.timeIntervalSince(startDate))
-        return vinylBaseTurns + (elapsed / vinylRotationDuration)
     }
 
     private func stopVinylMotion(allowSettle: Bool) {
-        if let startDate = vinylSpinStartDate {
-            let elapsed = max(0, Date().timeIntervalSince(startDate))
-            vinylBaseTurns += elapsed / vinylRotationDuration
-            vinylSpinStartDate = nil
+        let settled = currentVinylTurns()
+        vinylSpinStartDate = nil
+
+        // Cancelling a `repeatForever` animation means writing the value with
+        // animation explicitly off; anything less leaves the repeat running.
+        var halt = Transaction()
+        halt.animation = nil
+        halt.disablesAnimations = true
+        withTransaction(halt) {
+            vinylTurns = settled
         }
+
         if wasVinylSpinning && allowSettle {
             withAnimation(.easeOut(duration: 0.85)) {
-                vinylBaseTurns += 0.08
+                vinylTurns = settled + 0.08
             }
         }
         wasVinylSpinning = false
+    }
+
+    /// The angle the disc is actually showing right now. The spin animation is linear
+    /// and repeats every turn, so elapsed time gives the presentation value exactly.
+    private func currentVinylTurns() -> Double {
+        guard let startDate = vinylSpinStartDate else { return vinylTurns }
+        let elapsed = max(0, Date().timeIntervalSince(startDate))
+        let progress = (elapsed / vinylRotationDuration).truncatingRemainder(dividingBy: 1)
+        return vinylSpinAnchorTurns + progress
     }
 }
 
@@ -335,13 +350,14 @@ private struct VinylPlaybackOverlay: View {
     let artworkSide: CGFloat
     let tint: Color
     let artworkImage: NSImage?
-    let vinylDiscDiameter: CGFloat
-    let vinylCenterLabelDiameter: CGFloat
-    let vinylLabelRingWidth: CGFloat
-    let vinylHubHoleDiameter: CGFloat
-    let vinylGrooveWidth: CGFloat
     let shouldSpinVinyl: Bool
-    let rotationDegrees: (Date) -> Double
+    let rotationTurns: Double
+
+    private var vinylDiscDiameter: CGFloat { artworkSide * 0.98 }
+    private var vinylCenterLabelDiameter: CGFloat { vinylDiscDiameter * 0.82 }
+    private var vinylLabelRingWidth: CGFloat { max(1.6, vinylCenterLabelDiameter * 0.055) }
+    private var vinylHubHoleDiameter: CGFloat { vinylCenterLabelDiameter * 0.13 }
+    private var vinylGrooveWidth: CGFloat { max(1.4, vinylDiscDiameter * 0.034) }
 
     var body: some View {
         ZStack {
@@ -363,17 +379,21 @@ private struct VinylPlaybackOverlay: View {
                 .blendMode(.screen)
                 .opacity(0.62)
 
-            TimelineView(.periodic(from: Date(), by: 1.0 / 60.0)) { context in
-                vinylDisc(date: context.date)
-            }
-            .frame(width: vinylDiscDiameter, height: vinylDiscDiameter)
+            vinylDisc
+                .frame(width: vinylDiscDiameter, height: vinylDiscDiameter)
         }
         .frame(width: artworkSide, height: artworkSide)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        // The screen blends composite straight into the destination, so an
+        // ancestor's opacity — the settings tab transition, the popover fade —
+        // skips them and the disc stays fully visible while everything around
+        // it fades. Grouping resolves the blends against the disc's own black
+        // fill first, leaving one layer that honours inherited opacity.
+        .compositingGroup()
         .allowsHitTesting(false)
     }
 
-    private func vinylDisc(date: Date) -> some View {
+    private var vinylDisc: some View {
         ZStack {
             Circle()
                 .fill(
@@ -433,7 +453,7 @@ private struct VinylPlaybackOverlay: View {
                 .frame(width: vinylHubHoleDiameter * 0.42, height: vinylHubHoleDiameter * 0.42)
         }
         .frame(width: vinylDiscDiameter, height: vinylDiscDiameter)
-        .rotationEffect(.degrees(rotationDegrees(date)))
+        .rotationEffect(.degrees(rotationTurns * 360))
         .opacity(shouldSpinVinyl ? 0.99 : 0.94)
     }
 

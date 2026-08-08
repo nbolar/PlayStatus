@@ -125,6 +125,8 @@ struct PlayStatusSettingsView: View {
             artworkMotionContent
         case .sources:
             sourcesContent
+        case .scrobbling:
+            scrobblingContent
         case .shortcuts:
             shortcutsContent
         case .general:
@@ -201,6 +203,24 @@ struct PlayStatusSettingsView: View {
                     options: PopoverSizePreset.allCases,
                     optionLabel: { $0.displayName }
                 )
+            }
+
+            SettingsCard(header: "Mini player") {
+                SettingsSwitchRow(
+                    title: "Show progress at rest",
+                    caption: "A slim line under the title while the pointer is away. Hovering still shows the full scrubber.",
+                    isOn: $model.miniRestingProgressEnabled
+                )
+
+                SettingsRowDivider()
+
+                SettingsSwitchRow(
+                    title: "Tint with album colour",
+                    caption: "Uses the artwork's colour instead of white. Contrast varies with the album.",
+                    isOn: $model.miniRestingProgressUsesTint
+                )
+                .disabled(!model.miniRestingProgressEnabled)
+                .opacity(model.miniRestingProgressEnabled ? 1 : 0.5)
             }
 
             SettingsCard(header: "Detached window") {
@@ -481,6 +501,10 @@ struct PlayStatusSettingsView: View {
         }
     }
 
+    private var scrobblingContent: some View {
+        ScrobblingSettingsContent(scrobbler: ScrobbleService.shared)
+    }
+
     // MARK: - App
 
     private var generalContent: some View {
@@ -543,6 +567,54 @@ struct PlayStatusSettingsView: View {
                     caption: "Artwork and streams reload on reopen, so they may appear a moment late",
                     isOn: $model.reduceHiddenMemoryUsage
                 )
+            }
+
+            SettingsCard {
+                SettingsSwitchRow(
+                    title: "Record play history",
+                    caption: "Keep a local list of what you've listened to, shown in the player's History tab",
+                    isOn: $model.recordPlayHistory
+                )
+
+                SettingsRowDivider()
+
+                SettingsSwitchRow(
+                    title: "Include skipped tracks",
+                    caption: "Tracks you moved past early are marked as skips",
+                    isOn: $model.recordSkippedTracks
+                )
+                .disabled(!model.recordPlayHistory)
+
+                SettingsRowDivider()
+
+                SettingsStackedRow(
+                    title: "History",
+                    caption: "Kept on this Mac only, never uploaded"
+                ) {
+                    HStack(spacing: 10) {
+                        Text(model.playHistoryUsageText)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        Spacer(minLength: 8)
+
+                        Picker("", selection: $model.playHistoryRetentionLimit) {
+                            ForEach(NowPlayingModel.playHistoryRetentionChoices, id: \.self) { limit in
+                                Text("Keep \(limit)").tag(limit)
+                            }
+                        }
+                        .labelsHidden()
+                        .controlSize(.small)
+                        .fixedSize()
+
+                        Button("Clear") {
+                            model.clearPlayHistory()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(model.playHistory.isEmpty)
+                    }
+                }
             }
 
             SettingsCard {

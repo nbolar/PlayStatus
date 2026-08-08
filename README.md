@@ -7,7 +7,7 @@
 [![Open Source Love svg1](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/nbolar/playstatus/)
 [![GitHub All Releases](https://img.shields.io/github/downloads/nbolar/playstatus/total)](https://github.com/nbolar/PlayStatus/releases/latest/)
 
-PlayStatus is a native SwiftUI macOS menu bar app for controlling Apple Music and Spotify without living in a full desktop window all day. The current generation of the app is a full SwiftUI relaunch with a richer now-playing surface, better onboarding, customizable display themes, provider-aware search, lyrics and credits, a detached floating player, and a cleaner settings flow.
+PlayStatus is a native SwiftUI macOS menu bar app for controlling Apple Music and Spotify without living in a full desktop window all day. The current generation of the app is a full SwiftUI relaunch with a richer now-playing surface, better onboarding, customizable display themes, provider-aware search, lyrics and credits, play history, Last.fm scrobbling, Shortcuts support, a detached floating player, and a cleaner settings flow.
 
 ## Why this version feels different
 
@@ -16,6 +16,7 @@ PlayStatus is a native SwiftUI macOS menu bar app for controlling Apple Music an
 - Lyrics, credits, and provider-aware search now live inside the main player instead of feeling like separate utility flows.
 - Display tuning is much deeper: menu bar text modes, detached window sizing, theme presets, animated artwork, artwork motion styles, and progress-strip options all live in Settings.
 - The app is more efficient when closed: media caches, onboarding previews, and heavy Settings surfaces can unload when they are not visible.
+- PlayStatus now remembers what you played, scrobbles it to Last.fm, and can be driven from Shortcuts, Spotlight, or any launcher that can open a URL.
 
 ## What the app looks like now
 
@@ -106,7 +107,25 @@ brew upgrade --cask --greedy nbolar/playstatus/playstatus
   - Apple Music searches your Music library and can play a matching result.
 - The mini player has its own quick lyrics and credits toggles.
 
-### 5. Personalize the visual feel
+### 5. Look back at what you've played
+
+- `History` is a third tab beside `Lyrics` and `Credits`, in both the regular and mini player.
+- One row per track, most recently played first. A track you've played repeatedly shows a `×N` count rather than filling the list with duplicates.
+- Tracks you skipped early are recorded too, marked with a skip glyph.
+- Click a row to play it again. Next then walks *up* the list — the tracks you played after it — and shuffles your library once it runs out.
+- Right-click a row to copy it, open it in Music or Spotify, or remove it.
+- History is stored on this Mac only and is never uploaded.
+
+### 6. Scrobble to Last.fm
+
+- Connect an account in `Settings -> Scrobbling`. PlayStatus opens Last.fm in your browser; your password is never entered into the app.
+- A track scrobbles once you've heard half of it or four minutes, whichever comes first — the same rule Last.fm's own clients use.
+- Scrobbles are sent the moment they're earned, not when the track ends, so quitting mid-track doesn't lose them.
+- Your profile also shows what's playing right now, if you leave "now playing" updates on.
+- If Last.fm is unreachable, plays queue up on this Mac and go out when it comes back. Nothing is lost by being offline.
+- Scrobbling can be turned off per provider, or paused entirely without disconnecting.
+
+### 7. Personalize the visual feel
 
 - Theme presets: `Artwork Adaptive`, `Frosted`, `Midnight`, `Warm Studio`, `High Contrast`, `Graphite`.
 - Animated artwork can use static motion, and supported tracks can use animated editorial streams.
@@ -138,6 +157,15 @@ brew upgrade --cask --greedy nbolar/playstatus/playstatus
 - Enable or disable Apple Music and Spotify independently
 - Expand the details pane automatically for new tracks
 
+### Scrobbling
+
+- Connect or disconnect a Last.fm account
+- Enable or pause scrobbling without disconnecting
+- Scrobble from Music and from Spotify, independently
+- Send `now playing` updates
+- Ignore tracks shorter than a chosen length
+- Pending-scrobble count with a manual retry
+
 ### Hotkeys
 
 Global shortcuts are configurable in `Settings -> Hotkeys`. Default bindings are:
@@ -160,11 +188,62 @@ Global shortcuts are configurable in `Settings -> Hotkeys`. Default bindings are
 - Check for updates through Sparkle
 - Clear the local media cache
 - Reduce hidden memory usage when all surfaces are closed
+- Record play history, and whether to include skipped tracks
+- History retention limit, and clearing history
 
 ### License
 
 - MIT license text
 - LRCLIB attribution and disclaimer for third-party lyrics
+
+## Automation
+
+PlayStatus can be driven from Shortcuts, Spotlight, and anything that can open a URL — Raycast, Alfred, Stream Deck, a shell script, or `cron`. Nothing needs to be enabled first, and none of it brings the app to the foreground.
+
+### Shortcuts and Spotlight
+
+These actions appear under **PlayStatus** in Shortcuts.app:
+
+| Action | Returns |
+| --- | --- |
+| Play or Pause | — |
+| Next Track | — |
+| Previous Track | — |
+| Toggle Shuffle | Whether shuffle is now on |
+| Cycle Repeat Mode | The new repeat mode |
+| Toggle Favorite | Whether the track is now favorited |
+| Set Output Volume | — |
+| Show or Hide Player | — |
+| Get Current Track | A track with title, artist, album, source, duration, playing state, and artwork |
+| Get Recently Played | Recent tracks, newest first |
+
+`Get Current Track` and `Get Recently Played` hand back artwork as a file, so it can flow straight into other Shortcuts actions.
+
+Spotlight recognises spoken phrases for the common ones — "What's playing in PlayStatus", "Next track in PlayStatus", "Recently played in PlayStatus".
+
+Actions that need a running player return a real error rather than doing nothing, so a Shortcut that fails is debuggable. `Toggle Favorite` is Apple Music only; Spotify's scripting interface has no equivalent.
+
+### URL scheme
+
+```
+playstatus://playpause
+playstatus://next
+playstatus://previous
+playstatus://favorite
+playstatus://toggle              # show or hide the player
+playstatus://shuffle
+playstatus://repeat
+playstatus://volume?level=35     # 0–100, or 0–1
+playstatus://seek?seconds=90
+```
+
+Open one from a terminal with:
+
+```sh
+open "playstatus://next"
+```
+
+Unknown commands are ignored rather than reported — these arrive from scripts and launchers, where a dialog would be worse than doing nothing.
 
 ## Walkthrough and onboarding
 
@@ -181,6 +260,10 @@ The new SwiftUI version includes a dedicated walkthrough window for both first-r
 - Lyrics may be fetched from LRCLIB, and artwork or animated artwork lookups may use public Apple/iTunes endpoints when needed.
 - The media cache stores lyrics and artwork locally on your Mac and caps itself at 50 MB.
 - Lyrics are third-party content and may be incomplete or unavailable.
+- Play history is stored on this Mac and never uploaded. It holds up to 5,000 plays, trimmed oldest-first, and can be cleared from `Settings -> General`.
+- Nothing is sent to Last.fm unless you connect an account. Scrobbling sends the track title, artist, album, duration, and the time the play started — the same fields any scrobbler sends.
+- Your Last.fm session key is stored in the macOS Keychain, never in preferences. Disconnecting deletes it. PlayStatus never sees or stores your Last.fm password: sign-in happens on Last.fm's own site in your browser.
+- Replaying a track from history stages a playlist named `PlayStatus Queue` in your Music library, reused and overwritten each time. With iCloud Music Library enabled it will sync to your other devices.
 
 ## Compatibility
 

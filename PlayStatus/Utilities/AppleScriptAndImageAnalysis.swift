@@ -230,7 +230,7 @@ extension NSImage {
         let bottomRight = averageColor(xRange: 20...39, yRange: 20...39)
         let center = averageColor(xRange: 12...27, yRange: 12...27)
         let cross = blend(topRight, bottomLeft, ratio: 0.5)
-        let accent = mostVibrantColor(in: data, width: w, height: h)
+        let accent = dominantAccentColor(in: data, width: w, height: h)
 
         return [
             lift(accent, sat: 1.45, bright: 1.10),
@@ -243,40 +243,125 @@ extension NSImage {
         ]
     }
 
-    private func mostVibrantColor(in data: UnsafeMutablePointer<UInt8>, width: Int, height: Int) -> NSColor {
-        var best = NSColor(calibratedWhite: 0.5, alpha: 1)
-        var bestScore: CGFloat = -1
+    /// The colour the album actually reads as, used as the leading stop of the palette.
+    ///
+    /// This used to be a straight per-pixel argmax of `s * (0.55 + b * 0.45)` — the single
+    /// most vibrant pixel on the cover, however few of its kind there were. On a pale blue
+    /// sleeve with a small salmon tracklist that picks the salmon: a colour covering a few
+    /// percent of the artwork became the colour of the whole window, and the surface came
+    /// out warm brown for an album nobody would describe as warm.
+    ///
+    /// Vibrancy still decides between candidates, but coverage now decides which candidates
+    /// are in the running. Pixels are binned by hue and scored as a family, so a large
+    /// muted field can outrank a small saturated accent — while a genuinely vivid album
+    /// still leads with its vivid colour, because it holds both.
+    private func dominantAccentColor(in data: UnsafeMutablePointer<UInt8>, width: Int, height: Int) -> NSColor {
+        let bucketCount = 12
 
-        for y in stride(from: 0, to: height, by: 2) {
-            for x in stride(from: 0, to: width, by: 2) {
-                let idx = (y * width + x) * 4
-                let alpha = CGFloat(data[idx + 3]) / 255.0
-                guard alpha > 0.02 else { continue }
+        var counts = [Double](repeating: 0, count: bucketCount)
+        var sumRed = [Double](repeating: 0, count: bucketCount)
+        var sumGreen = [Double](repeating: 0, count: bucketCount)
+        var sumBlue = [Double](repeating: 0, count: bucketCount)
+        var sumSaturation = [Double](repeating: 0, count: bucketCount)
+        var sumBrightness = [Double](repeating: 0, count: bucketCount)
 
-                let color = NSColor(
-                    calibratedRed: CGFloat(data[idx]) / 255.0,
-                    green: CGFloat(data[idx + 1]) / 255.0,
-                    blue: CGFloat(data[idx + 2]) / 255.0,
-                    alpha: 1
-                )
+        // Every visible pixel, chromatic or not — coverage has to be a share of the whole
+        // cover, or a black-and-white sleeve with one coloured corner reports that corner
+        // as 100% of the artwork.
+        var visiblePixels: Double = 0
+        var fallbackRed: Double = 0
+        var fallbackGreen: Double = 0
+        var fallbackBlue: Double = 0
 
-                let rgb = color.usingColorSpace(.deviceRGB) ?? color
-                var h: CGFloat = 0
-                var s: CGFloat = 0
-                var b: CGFloat = 0
-                var a: CGFloat = 0
-                rgb.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        for y in 0..<height {
+            for x in 0..<width {
+                let idx = ((y * width) + x) * 4
+                guard Double(data[idx + 3]) / 255.0 > 0.02 else { continue }
 
-                // Prefer colors that are both saturated and bright enough to tint the card.
-                let score = s * (0.55 + (b * 0.45))
-                if score > bestScore {
-                    bestScore = score
-                    best = color
+                let red = Double(data[idx]) / 255.0
+                let green = Double(data[idx + 1]) / 255.0
+                let blue = Double(data[idx + 2]) / 255.0
+
+                visiblePixels += 1
+                fallbackRed += red
+                fallbackGreen += green
+                fallbackBlue += blue
+
+                let maxComponent = max(red, max(green, blue))
+                let minComponent = min(red, min(green, blue))
+                let delta = maxComponent - minComponent
+                let saturation = maxComponent > 0 ? delta / maxComponent : 0
+
+                // Near-grey and near-black pixels have no hue worth binning, and letting
+                // them in would spread noise across every bucket.
+                guard saturation >= 0.15, maxComponent >= 0.12, delta > 0 else { continue }
+
+                var hue: Double
+                if maxComponent == red {
+                    hue = (green - blue) / delta
+                } else if maxComponent == green {
+                    hue = 2 + ((blue - red) / delta)
+                } else {
+                    hue = 4 + ((red - green) / delta)
                 }
+                hue = (hue / 6).truncatingRemainder(dividingBy: 1)
+                if hue < 0 { hue += 1 }
+
+                let bucket = min(bucketCount - 1, Int(hue * Double(bucketCount)))
+                counts[bucket] += 1
+                sumRed[bucket] += red
+                sumGreen[bucket] += green
+                sumBlue[bucket] += blue
+                sumSaturation[bucket] += saturation
+                sumBrightness[bucket] += maxComponent
             }
         }
 
-        return best
+        guard visiblePixels > 0 else { return NSColor(calibratedWhite: 0.5, alpha: 1) }
+
+        var bestScore: Double = 0
+        var bestColor: NSColor?
+
+        for bucket in 0..<bucketCount {
+            // Scored over a three-bucket window so a hue straddling a bin edge — reds split
+            // across the 0/1 wrap especially — is not penalised for landing on the seam.
+            let window = [
+                (bucket + bucketCount - 1) % bucketCount,
+                bucket,
+                (bucket + 1) % bucketCount
+            ]
+
+            let windowCount = window.reduce(0.0) { $0 + counts[$1] }
+            let coverage = windowCount / visiblePixels
+            // Below this a bucket is speckle — a JPEG fringe or a few stray pixels.
+            guard windowCount > 0, coverage >= 0.015 else { continue }
+
+            let meanSaturation = window.reduce(0.0) { $0 + sumSaturation[$1] } / windowCount
+            let meanBrightness = window.reduce(0.0) { $0 + sumBrightness[$1] } / windowCount
+            let vibrancy = meanSaturation * (0.55 + (meanBrightness * 0.45))
+
+            // Coverage is compressed rather than linear: a field twice the size counts for
+            // clearly more, but not so much that a large dull mass always beats a vivid one.
+            let score = vibrancy * pow(coverage, 0.75)
+            guard score > bestScore else { continue }
+
+            bestScore = score
+            bestColor = NSColor(
+                calibratedRed: CGFloat(window.reduce(0.0) { $0 + sumRed[$1] } / windowCount),
+                green: CGFloat(window.reduce(0.0) { $0 + sumGreen[$1] } / windowCount),
+                blue: CGFloat(window.reduce(0.0) { $0 + sumBlue[$1] } / windowCount),
+                alpha: 1
+            )
+        }
+
+        // No bucket cleared the floor: a monochrome cover. Its own average is the honest
+        // answer, and `LiquidGlassBackground` has an achromatic path waiting for it.
+        return bestColor ?? NSColor(
+            calibratedRed: CGFloat(fallbackRed / visiblePixels),
+            green: CGFloat(fallbackGreen / visiblePixels),
+            blue: CGFloat(fallbackBlue / visiblePixels),
+            alpha: 1
+        )
     }
 
     private func blend(_ lhs: NSColor, _ rhs: NSColor, ratio: CGFloat) -> NSColor {

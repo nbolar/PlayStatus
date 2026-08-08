@@ -253,6 +253,8 @@ private enum HoverMotionStylePreviewArtwork {
 private extension ArtworkMotionStyle {
     var previewCaption: String {
         switch self {
+        case .noMotion:
+            return "Leaves the artwork completely still. No tilt, spin, or texture."
         case .parallaxByPointer:
             return "Tilts and shifts with pointer position. Hover your cursor over the artwork"
         case .vinylSpin:
@@ -283,6 +285,7 @@ enum SettingsTab: String, CaseIterable {
     case appearance
     case artworkMotion
     case sources
+    case scrobbling
     case shortcuts
     case general
     case about
@@ -298,6 +301,7 @@ enum SettingsTab: String, CaseIterable {
         case .appearance: return "Appearance"
         case .artworkMotion: return "Artwork Motion"
         case .sources: return "Sources"
+        case .scrobbling: return "Scrobbling"
         case .shortcuts: return "Shortcuts"
         case .general: return "General"
         case .about: return "About"
@@ -307,7 +311,7 @@ enum SettingsTab: String, CaseIterable {
     var group: SettingsTabGroup {
         switch self {
         case .menuBar, .playerWindow, .appearance, .artworkMotion: return .look
-        case .sources, .shortcuts: return .behavior
+        case .sources, .scrobbling, .shortcuts: return .behavior
         case .general, .about: return .app
         }
     }
@@ -319,6 +323,7 @@ enum SettingsTab: String, CaseIterable {
         case .appearance: return "circle.lefthalf.filled"
         case .artworkMotion: return "waveform"
         case .sources: return "music.note.list"
+        case .scrobbling: return "waveform.badge.magnifyingglass"
         case .shortcuts: return "keyboard"
         case .general: return "gearshape"
         case .about: return "info.circle"
@@ -338,7 +343,8 @@ enum SettingsTab: String, CaseIterable {
                     "scrollable title", "slide", "title width", "marquee", "status text"]
         case .playerWindow:
             return ["popover size", "detached", "always on top", "float", "lyrics",
-                    "credits", "details pane", "font size", "expand"]
+                    "credits", "details pane", "font size", "expand",
+                    "mini player", "progress", "progress bar", "progress at rest"]
         case .appearance:
             return ["light", "dark", "follow system", "theme", "frosted", "midnight",
                     "warm studio", "high contrast", "graphite", "album colour blend",
@@ -349,12 +355,16 @@ enum SettingsTab: String, CaseIterable {
         case .sources:
             return ["preferred app", "music", "spotify", "priority", "automation",
                     "permissions", "connection", "verify"]
+        case .scrobbling:
+            return ["last.fm", "lastfm", "scrobble", "scrobbling", "account",
+                    "now playing", "sign in", "connect", "listening"]
         case .shortcuts:
             return ["hotkey", "hotkeys", "keyboard", "play pause", "next track",
                     "previous track", "favourite", "favorite", "detached mode"]
         case .general:
             return ["launch at login", "startup", "updates", "sparkle", "media cache",
-                    "memory", "walkthrough", "coachmarks", "advanced"]
+                    "memory", "walkthrough", "coachmarks", "advanced",
+                    "history", "play history", "recently played", "skips", "retention"]
         case .about:
             return ["version", "licence", "license", "mit", "lyrics attribution", "lrclib"]
         }

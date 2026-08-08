@@ -145,6 +145,22 @@ enum DetailPaneAccent {
     }
 }
 
+/// The two lyric dead ends, in their first-time and post-retry wording.
+///
+/// A retry that lands on the same outcome used to redraw the identical sentence. The fetch really
+/// had run — it just finished faster than the pane took to show anything — so the honest fix is
+/// copy that reports the re-check, not more animation. Shared because the mini and regular panes
+/// word these independently and had already started to drift.
+enum LyricsDeadEndCopy {
+    static func unavailable(afterRetry: Bool) -> String {
+        afterRetry ? "Still no lyrics for this track." : "No lyrics found for this track."
+    }
+
+    static func failed(afterRetry: Bool) -> String {
+        afterRetry ? "Still couldn't fetch lyrics." : "Couldn't fetch lyrics right now."
+    }
+}
+
 struct DetailPaneStateMessage: View {
     let message: String
     let icon: DetailPaneStateIcon

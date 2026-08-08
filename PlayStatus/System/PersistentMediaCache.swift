@@ -339,6 +339,57 @@ actor PersistentMediaCache {
         }
 
         pruneAndPersist()
+        reclaimOrphanedFiles()
+    }
+
+    /// Deletes cached files the index does not know about.
+    ///
+    /// `pruneAndPersist` walks the index and drops entries whose file is gone. This is the
+    /// other direction: files whose *entry* is gone. They were unreachable — every read goes
+    /// through `entriesByLookupKey` — and counted by neither `maxEntries` nor `maxTotalBytes`,
+    /// so the cache's real footprint could exceed its stated 50 MB ceiling indefinitely.
+    ///
+    /// They accumulated because `pruneAndPersist` only wrote the index when it had pruned
+    /// something, so a freshly stored object frequently never made it in. `upsert` now forces
+    /// an index write, which stops new ones; this clears the backlog. Measured on a real cache
+    /// before the fix: 379 of 784 files unreachable.
+    ///
+    /// Runs once per launch, from `ensureInitialized`, after the index is loaded — it must see
+    /// the full set of known filenames or it would delete live entries.
+    private func reclaimOrphanedFiles() {
+        let known = Set(entriesByLookupKey.values.map(\.filename))
+        var reclaimedCount = 0
+        var reclaimedBytes = 0
+
+        for namespace in CacheNamespace.allCases {
+            let directory = namespaceDirectoryURL(namespace)
+            guard let contents = try? fileManager.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: [.fileSizeKey],
+                options: [.skipsHiddenFiles]
+            ) else { continue }
+
+            for url in contents {
+                guard !known.contains(url.lastPathComponent) else { continue }
+                let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                do {
+                    try fileManager.removeItem(at: url)
+                    reclaimedCount += 1
+                    reclaimedBytes += size
+                } catch {
+                    // A file we cannot delete is not worth failing initialization over; it
+                    // will be offered again next launch.
+                    continue
+                }
+            }
+        }
+
+        #if DEBUG
+        if reclaimedCount > 0 {
+            NSLog("PlayStatus cache: reclaimed %d orphaned files (%.1f MB)",
+                  reclaimedCount, Double(reclaimedBytes) / 1_048_576)
+        }
+        #endif
     }
 
     private func upsert(
@@ -380,10 +431,17 @@ actor PersistentMediaCache {
             return
         }
 
-        pruneAndPersist()
+        pruneAndPersist(forceIndexWrite: true)
     }
 
-    private func pruneAndPersist() {
+    /// - Parameter forceIndexWrite: Write the index even when nothing was pruned.
+    ///
+    ///   Required after an `upsert`. The prune pass only reports `didMutate` for entries it
+    ///   *removes*, so a freshly stored object left the index untouched and was forgotten on
+    ///   the next launch — the file stayed on disk, orphaned, counted by neither the entry cap
+    ///   nor the byte cap. Measured on a real cache before this was fixed: 379 of 784 files
+    ///   were unreachable.
+    private func pruneAndPersist(forceIndexWrite: Bool = false) {
         let now = Date()
         var didMutate = false
 
@@ -407,7 +465,7 @@ actor PersistentMediaCache {
             didMutate = true
         }
 
-        if didMutate {
+        if didMutate || forceIndexWrite {
             persistIndex()
         } else if !fileManager.fileExists(atPath: indexURL.path) {
             persistIndex()

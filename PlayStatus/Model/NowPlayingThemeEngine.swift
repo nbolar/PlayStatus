@@ -4,7 +4,19 @@ struct NowPlayingThemeSpec {
     let tint: NSColor
     let palette: [NSColor]
     let contrastBoost: Double
+    /// How much of `palette` the surface should actually let through, on top of the alpha
+    /// already baked into each colour.
+    ///
+    /// The surface used to hardcode 0.45 here, which multiplied the baked alphas a second
+    /// time: the adaptive palette's leading stop reached the window at 0.62 × 0.45 ≈ 0.28
+    /// over a near-black ground, so every album converged on the same charcoal. The presets
+    /// keep that 0.45 — they are tuned as a wash and look correct at it — while artwork,
+    /// which is the whole point of the adaptive style, arrives at its full baked strength.
+    let paletteStrength: Double
 }
+
+/// Presets are deliberately a tint over the ground rather than a fill.
+private let presetPaletteStrength: Double = 0.45
 
 enum NowPlayingThemeEngine {
     static func resolveTheme(
@@ -49,7 +61,8 @@ enum NowPlayingThemeEngine {
                     themedColor(neutral, alpha: 0.16, artworkColorIntensity: artworkColorIntensity),
                     themedColor(neutral, alpha: 0.10, artworkColorIntensity: artworkColorIntensity)
                 ],
-                contrastBoost: controlContrastBoost(for: neutral)
+                contrastBoost: controlContrastBoost(for: neutral),
+                paletteStrength: 1.0
             )
         }
 
@@ -61,7 +74,8 @@ enum NowPlayingThemeEngine {
                 palette: zip(palette, opacities).map { color, alpha in
                     themedColor(color, alpha: alpha, artworkColorIntensity: artworkColorIntensity)
                 },
-                contrastBoost: controlContrastBoost(for: average)
+                contrastBoost: controlContrastBoost(for: average),
+                paletteStrength: 1.0
             )
         }
 
@@ -73,7 +87,8 @@ enum NowPlayingThemeEngine {
                 themedColor(average, alpha: 0.34, artworkColorIntensity: artworkColorIntensity),
                 themedColor(average, alpha: 0.24, artworkColorIntensity: artworkColorIntensity)
             ],
-            contrastBoost: controlContrastBoost(for: average)
+            contrastBoost: controlContrastBoost(for: average),
+            paletteStrength: 1.0
         )
     }
 
@@ -94,7 +109,8 @@ enum NowPlayingThemeEngine {
                     themedColor(nsColor(red: 0.73, green: 0.82, blue: 0.95), alpha: 0.28, artworkColorIntensity: artworkColorIntensity),
                     themedColor(nsColor(red: 0.93, green: 0.95, blue: 0.99), alpha: 0.22, artworkColorIntensity: artworkColorIntensity)
                 ],
-                contrastBoost: 0.72
+                contrastBoost: 0.72,
+                paletteStrength: presetPaletteStrength
             )
         case .midnight:
             return NowPlayingThemeSpec(
@@ -105,7 +121,8 @@ enum NowPlayingThemeEngine {
                     themedColor(nsColor(red: 0.25, green: 0.30, blue: 0.46), alpha: 0.56, artworkColorIntensity: artworkColorIntensity),
                     themedColor(nsColor(red: 0.34, green: 0.41, blue: 0.57), alpha: 0.40, artworkColorIntensity: artworkColorIntensity)
                 ],
-                contrastBoost: 0.18
+                contrastBoost: 0.18,
+                paletteStrength: presetPaletteStrength
             )
         case .warmStudio:
             return NowPlayingThemeSpec(
@@ -116,7 +133,8 @@ enum NowPlayingThemeEngine {
                     themedColor(nsColor(red: 0.78, green: 0.35, blue: 0.18), alpha: 0.48, artworkColorIntensity: artworkColorIntensity),
                     themedColor(nsColor(red: 0.93, green: 0.64, blue: 0.34), alpha: 0.30, artworkColorIntensity: artworkColorIntensity)
                 ],
-                contrastBoost: 0.44
+                contrastBoost: 0.44,
+                paletteStrength: presetPaletteStrength
             )
         case .highContrast:
             return NowPlayingThemeSpec(
@@ -127,7 +145,8 @@ enum NowPlayingThemeEngine {
                     themedColor(nsColor(red: 0.18, green: 0.22, blue: 0.30), alpha: 0.64, artworkColorIntensity: artworkColorIntensity),
                     themedColor(nsColor(red: 0.84, green: 0.90, blue: 0.99), alpha: 0.22, artworkColorIntensity: artworkColorIntensity)
                 ],
-                contrastBoost: 1.0
+                contrastBoost: 1.0,
+                paletteStrength: presetPaletteStrength
             )
         case .graphite:
             return NowPlayingThemeSpec(
@@ -138,7 +157,8 @@ enum NowPlayingThemeEngine {
                     themedColor(nsColor(red: 0.42, green: 0.45, blue: 0.50), alpha: 0.46, artworkColorIntensity: artworkColorIntensity),
                     themedColor(nsColor(red: 0.62, green: 0.66, blue: 0.72), alpha: 0.28, artworkColorIntensity: artworkColorIntensity)
                 ],
-                contrastBoost: 0.56
+                contrastBoost: 0.56,
+                paletteStrength: presetPaletteStrength
             )
         }
     }
@@ -160,7 +180,11 @@ enum NowPlayingThemeEngine {
         return NowPlayingThemeSpec(
             tint: blend(base.tint, artwork.tint, ratio: clampedAmount),
             palette: blendedPalette,
-            contrastBoost: base.contrastBoost + ((artwork.contrastBoost - base.contrastBoost) * Double(clampedAmount))
+            contrastBoost: base.contrastBoost + ((artwork.contrastBoost - base.contrastBoost) * Double(clampedAmount)),
+            // Ramped alongside the colours: sliding artwork blend up on a preset should walk
+            // the surface toward the album's full strength, not snap to it at the first notch.
+            paletteStrength: base.paletteStrength
+                + ((artwork.paletteStrength - base.paletteStrength) * Double(clampedAmount))
         )
     }
 

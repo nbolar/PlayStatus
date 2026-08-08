@@ -363,12 +363,16 @@ enum PreferredProvider: String, CaseIterable {
 }
 
 enum ArtworkMotionStyle: String, CaseIterable {
+    /// Deliberately not spelled `none` — that would collide with `Optional.none`
+    /// wherever this type is used optionally, and silently resolve to nil.
+    case noMotion = "none"
     case parallaxByPointer
     case vinylSpin
     case filmGrainDrift
 
     var displayName: String {
         switch self {
+        case .noMotion: return "None"
         case .parallaxByPointer: return "Parallax by Pointer"
         case .vinylSpin: return "Vinyl Spin"
         case .filmGrainDrift: return "Film Grain Drift"
@@ -437,11 +441,13 @@ enum LyricsState: Equatable {
 enum DetailsPaneTab: String, CaseIterable {
     case lyrics
     case credits
+    case history
 
     var displayName: String {
         switch self {
         case .lyrics: return "Lyrics"
         case .credits: return "Credits"
+        case .history: return "History"
         }
     }
 
@@ -449,8 +455,10 @@ enum DetailsPaneTab: String, CaseIterable {
         switch self {
         case .lyrics: return "quote.bubble"
         case .credits: return "info.circle"
+        case .history: return "clock.arrow.circlepath"
         }
     }
+
 }
 
 enum LyricsLoadingStage: Int, CaseIterable, Equatable {
@@ -532,9 +540,24 @@ struct NowPlayingSnapshot: Equatable {
     var artist: String
     var albumArtist: String = ""
     var album: String
+    /// The player's own identifier for this track: Music's persistent ID, Spotify's
+    /// `spotify:track:…` URI. Empty when the provider did not report one.
+    ///
+    /// Deliberately *not* part of `trackIdentityMatches` — that comparison stays
+    /// metadata-based, because the same song re-read through the broadcast and script paths
+    /// must continue to compare equal. This field exists so a recorded play can be linked
+    /// back to the exact track later; it is not a freshness signal.
+    var trackIdentity: String = ""
     var artwork: NSImage?
     var nativeArtworkState: NativeArtworkState
     var elapsed: Double
+    /// `systemUptime` at the moment `elapsed` was read from the player.
+    ///
+    /// Carried separately because the gap between reading the position and applying it is not
+    /// constant — a cheap broadcast-path read applies ~50ms later, the periodic full read
+    /// ~280ms later. Anchoring the clock to "now" instead of to this makes that difference show
+    /// up as a jump in playback position every time the expensive path comes round.
+    var elapsedSampledAtUptime: TimeInterval = ProcessInfo.processInfo.systemUptime
     var duration: Double
     var canSeek: Bool
     var isShuffleEnabled: Bool = false

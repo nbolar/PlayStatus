@@ -8,13 +8,15 @@ import AppKit
 /// framing nothing, with two identical 18pt radii stacked on top of each other. The card
 /// is gone; this view inherited its job, so the palette is applied here.
 ///
-/// The palette arrives at roughly 45% of the strength the card used, over a dark ground.
-/// Album colour should tint the room, not paint it: at full strength the artwork — the
-/// one thing in the window that is supposed to be colourful — had nothing to contrast
-/// against, and white type needed drop shadows to survive.
+/// The palette sits over a dark ground, at whatever strength the theme engine asked for.
+/// Album colour should tint the room, not paint it: the ground stays under everything so
+/// the artwork — the one thing in the window that is supposed to be colourful — keeps
+/// something to contrast against and white type survives without a drop shadow.
 struct LiquidGlassBackground: View {
     let tint: Color
     var palette: [Color] = []
+    /// Set by the theme engine, not by this view. See `NowPlayingThemeSpec.paletteStrength`.
+    var paletteOpacity: Double = 1
     var readabilityBoost: Double = 0
     var transparencyMultiplier: Double = 1
     /// False in the detached window, where the `NSWindow` already casts a shadow — drawing a
@@ -33,10 +35,15 @@ struct LiquidGlassBackground: View {
         min(max(readabilityBoost, 0), 1)
     }
 
-    /// How much of the palette reaches the surface. The old card ran its gradient at
-    /// 0.90 × 0.90; this is the "~45% of the effect at each stop" rebase.
+    /// How much of the palette reaches the surface.
+    ///
+    /// This was a hardcoded 0.45, applied on top of the alpha the theme engine had already
+    /// baked into each colour — so the adaptive palette's leading stop landed at ~0.28 over
+    /// a 0.62–0.86 ground and no album could move the surface far from charcoal. The engine
+    /// owns that decision now and hands it down as `paletteOpacity`; the multiplier here is
+    /// only the user's transparency setting.
     private var paletteStrength: Double {
-        0.45 * clampedTransparencyMultiplier
+        min(max(paletteOpacity, 0), 1) * clampedTransparencyMultiplier
     }
 
     /// The warm charcoal the palette sits on. Bright artwork pushes it darker, which is

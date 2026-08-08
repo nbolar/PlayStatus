@@ -345,6 +345,17 @@ struct MiniNowPlayingCard: View {
                 toggleMiniDetails(tab: .credits)
             }
 
+            // See the regular cluster: no filled variant exists, so `isOn` carries the state.
+            MiniDetailToggleControl(
+                isOn: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .history,
+                systemName: "clock.arrow.circlepath",
+                helpText: model.miniLyricsEnabled && model.selectedMiniDetailsTab == .history ? "Hide history" : "Show history",
+                transitionActive: transitionActive,
+                sizeScale: miniControlScale
+            ) {
+                toggleMiniDetails(tab: .history)
+            }
+
             SettingsOpenControl {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 16 * miniControlScale, weight: .semibold))
@@ -381,6 +392,10 @@ struct MiniNowPlayingCard: View {
         .animation(.easeInOut(duration: 0.16), value: pointerHovering)
         .animation(modePrimaryRevealAnimation, value: primaryContentVisible)
         .animation(modeSecondaryRevealAnimation, value: secondaryContentVisible)
+    }
+
+    private var showRestingProgressRail: Bool {
+        model.miniRestingProgressEnabled
     }
 
     private func miniCardBottomPanel(
@@ -489,6 +504,20 @@ struct MiniNowPlayingCard: View {
                 .opacity(primaryContentVisible ? 1 : 0)
                 .offset(y: primaryContentVisible ? 0 : 8)
                 .animation(modePrimaryRevealAnimation, value: primaryContentVisible)
+
+                // The resting line. It occupies the same margins the hover scrubber lands
+                // on, so the two cross-fade in place: this fades out as the block below
+                // fades in, rather than one element vanishing somewhere else on the card.
+                // Suppressed on an idle card for the same reason the hover block is —
+                // there is no position to report.
+                if showRestingProgressRail && !infoExpanded && !model.isIdle {
+                    MiniRestingProgressRail(
+                        contrastBoost: miniInfoBandContrastBoost,
+                        tint: model.miniRestingProgressUsesTint ? model.glassTint : nil
+                    )
+                        .opacity(primaryContentVisible ? 1 : 0)
+                        .transition(.opacity)
+                }
 
                 // Hovering an idle card used to reveal a progress rail, five transport
                 // controls and a volume slider, none of which had anything to act on.

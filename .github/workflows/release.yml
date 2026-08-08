@@ -28,6 +28,38 @@ jobs:
           # `release_tag` is validated separately by release-build.sh.
           ref: ${{ github.ref }}
 
+      - name: Write Last.fm credentials
+        env:
+          LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+          LASTFM_SHARED_SECRET: ${{ secrets.LASTFM_SHARED_SECRET }}
+        run: |
+          set -euo pipefail
+          # PlayStatus/Secrets.plist is gitignored, so the checkout never contains it. Without
+          # this step a release would ship with scrobbling permanently unavailable — hence the
+          # explicit check rather than letting an empty value through silently.
+          if [ -z "${LASTFM_API_KEY}" ] || [ -z "${LASTFM_SHARED_SECRET}" ]; then
+            echo "::error::Missing LASTFM_API_KEY and/or LASTFM_SHARED_SECRET. Add them as secrets on the 'release' environment (Settings -> Secrets and variables -> Actions -> Manage environment secrets -> release), alongside the signing and notarization secrets."
+            exit 1
+          fi
+          # The file is gitignored, so it does not exist in the checkout and PlistBuddy has
+          # nothing to open. Create an empty plist first, then add the keys — PlistBuddy
+          # handles XML escaping, which a heredoc would not.
+          cat > PlayStatus/Secrets.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict/></plist>
+          PLIST
+          sed -i '' 's/^          //' PlayStatus/Secrets.plist
+          /usr/libexec/PlistBuddy \
+            -c "Add :LastFMAPIKey string ${LASTFM_API_KEY}" \
+            -c "Add :LastFMSharedSecret string ${LASTFM_SHARED_SECRET}" \
+            PlayStatus/Secrets.plist
+          plutil -lint PlayStatus/Secrets.plist
+          # Confirm both keys are non-empty without ever printing them.
+          test -n "$(/usr/libexec/PlistBuddy -c 'Print :LastFMAPIKey' PlayStatus/Secrets.plist)"
+          test -n "$(/usr/libexec/PlistBuddy -c 'Print :LastFMSharedSecret' PlayStatus/Secrets.plist)"
+          echo "Secrets.plist written and verified."
+
       - name: Import Developer ID certificate
         env:
           CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_P12_BASE64 }}

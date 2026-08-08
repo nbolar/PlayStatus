@@ -446,6 +446,7 @@ struct NowPlayingPopover: View {
             LiquidGlassBackground(
                 tint: model.glassTint,
                 palette: model.cardBackgroundPalette,
+                paletteOpacity: model.cardPaletteStrength,
                 readabilityBoost: regularControlContrastBoost,
                 castsShadow: !isDetached
             )
@@ -712,7 +713,13 @@ struct NowPlayingPopover: View {
         regularControlContrastBoost: Double,
         regularControlScale: CGFloat
     ) -> some View {
-        VStack(spacing: 0) {
+        // Same pointer signal the top-row cluster uses, so the whole window brightens on one
+        // hover instead of the transport and the cluster waking up independently. The
+        // coachmark override is honoured here too: a walkthrough pointing at these controls
+        // cannot leave them dimmed.
+        let transportRevealed = regularPointerHovering || onboarding.shouldForceModeCoachmarkControls()
+
+        return VStack(spacing: 0) {
             HStack {
                 Spacer(minLength: 0)
                 ControlsRow(
@@ -726,7 +733,8 @@ struct NowPlayingPopover: View {
                     onNext: { model.nextTrack() },
                     onRepeat: { model.cycleRepeatMode() },
                     contrastBoost: regularControlContrastBoost,
-                    controlScale: regularControlScale
+                    controlScale: regularControlScale,
+                    secondariesRevealed: transportRevealed
                 )
                 Spacer(minLength: 0)
             }
@@ -885,6 +893,20 @@ struct NowPlayingPopover: View {
             sizeScale: controlScale
         ) {
             toggleRegularDetails(tab: .credits)
+        }
+
+        // `clock.arrow.circlepath` has no filled counterpart, so unlike the two above the
+        // symbol stays constant and `isOn` alone carries the active state through the
+        // control's own palette and chrome.
+        RegularDetailToggleControl(
+            isOn: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .history,
+            systemName: "clock.arrow.circlepath",
+            helpText: model.lyricsPanelExpanded && model.selectedRegularDetailsTab == .history ? "Hide history" : "Show history",
+            transitionActive: modeTransitionActive,
+            contrastBoost: contrastBoost,
+            sizeScale: controlScale
+        ) {
+            toggleRegularDetails(tab: .history)
         }
     }
 

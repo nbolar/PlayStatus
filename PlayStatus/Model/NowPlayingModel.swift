@@ -4,48 +4,6 @@ import Combine
 import ServiceManagement
 import CoreAudio
 
-/// Holds only the rapidly-changing playback position values.
-/// Separated from NowPlayingModel so that the 0.5-second elapsed/duration
-/// tick does NOT trigger objectWillChange on NowPlayingModel, which would
-/// force the entire NowPlayingPopover view tree to re-render on every tick.
-/// On macOS 26, every SwiftUI body re-render inside an NSPopover invokes
-/// DesignLibrary.AppKitPlatformGlassDefinition — keeping the tick isolated
-/// here prevents the glass compositor from running in a hot loop.
-final class PlaybackClock: ObservableObject {
-    static let shared = PlaybackClock()
-    @Published var elapsed: Double = 0
-    @Published var duration: Double = 0
-    private var isAdvancing = false
-    private var lastSyncUptime: TimeInterval = ProcessInfo.processInfo.systemUptime
-
-    var liveElapsed: Double {
-        let upperBound = duration > 0 ? duration : .greatestFiniteMagnitude
-        let resolvedElapsed: Double
-        if isAdvancing {
-            let delta = max(0, ProcessInfo.processInfo.systemUptime - lastSyncUptime)
-            resolvedElapsed = elapsed + delta
-        } else {
-            resolvedElapsed = elapsed
-        }
-        return min(max(resolvedElapsed, 0), upperBound)
-    }
-
-    var progress: Double {
-        guard duration > 0 else { return 0 }
-        return min(max(liveElapsed / duration, 0), 1)
-    }
-    var canSeek: Bool { duration > 0.5 }
-
-    func sync(elapsed: Double, duration: Double, isPlaying: Bool) {
-        self.elapsed = max(0, elapsed)
-        self.duration = max(0, duration)
-        self.isAdvancing = isPlaying && duration > 0.5
-        self.lastSyncUptime = ProcessInfo.processInfo.systemUptime
-    }
-
-    private init() {}
-}
-
 final class NowPlayingModel: ObservableObject {
     static let shared = NowPlayingModel()
 
@@ -176,6 +134,17 @@ final class NowPlayingModel: ObservableObject {
             objectWillChange.send()
         }
     }
+    @AppStorage("recordPlayHistory") var recordPlayHistory: Bool = true
+    /// Skips are recorded by default: "what did I pass over" is part of what makes a history
+    /// worth reading. They are never scrobbled regardless of this setting.
+    @AppStorage("recordSkippedTracks") var recordSkippedTracks: Bool = true
+    @AppStorage("playHistoryRetentionLimit") var playHistoryRetentionLimit: Int = PlayHistoryStore.maximumRetainedEntries {
+        didSet {
+            let limit = playHistoryRetentionLimit
+            Task { await PlayHistoryStore.shared.setRetentionLimit(limit) }
+            reloadPlayHistory()
+        }
+    }
     @AppStorage("showLyricsPanel") var showLyricsPanel: Bool = true { didSet { requestPopoverLayoutRefresh() } }
     @AppStorage("expandLyricsByDefault") var expandLyricsByDefault: Bool = false {
         didSet {
@@ -221,6 +190,15 @@ final class NowPlayingModel: ObservableObject {
             requestPopoverLayoutRefresh()
         }
     }
+    /// Shows a slim progress rail along the mini card's metadata while the pointer is
+    /// away. Hovering still swaps in the full scrubber, so this only governs the resting
+    /// state. Default on — it is the one thing the resting card could not tell you.
+    @AppStorage("miniRestingProgressEnabled") var miniRestingProgressEnabled: Bool = true
+    /// Fills the mini card's resting line with the artwork tint instead of white. Scoped
+    /// to that line alone: it is an indicator glanced at from across the desk, where
+    /// colour is doing no work a scrubber's white fill needs to do. The tint is
+    /// album-derived, so unlike white its contrast is never guaranteed.
+    @AppStorage("miniRestingProgressUsesTint") var miniRestingProgressUsesTint: Bool = true
     @AppStorage("detachedWindowAlwaysOnTop") var detachedWindowAlwaysOnTop: Bool = true {
         didSet {
             detachedWindowLevelRevision &+= 1
@@ -258,6 +236,9 @@ final class NowPlayingModel: ObservableObject {
         Color.white.opacity(0.10),
         Color.clear
     ]
+    /// How much of `cardBackgroundPalette` the player surface lets through. Owned by the
+    /// theme engine — artwork arrives at full strength, presets at their tuned wash.
+    @Published var cardPaletteStrength: Double = 1.0
     @Published var regularControlsContrastBoost: Double = 0
     @Published var statusBarConfigRevision: Int = 0
     @Published var appearanceRevision: Int = 0
@@ -273,11 +254,31 @@ final class NowPlayingModel: ObservableObject {
     @Published var coachmarkSurfaceRevealRequestToken: Int = 0
     @Published var detachedWindowLevelRevision: Int = 0
     @Published var detachedModeToggleRequestToken: Int = 0
+    /// Bumped to ask `StatusBarController` to show or hide the player.
+    ///
+    /// The controller owns the popover and the detached window; automation entry points —
+    /// App Intents and the URL scheme — only have the model, so they go through the same
+    /// token pattern the detached-mode controls already use.
+    @Published var popoverToggleRequestToken: Int = 0
     @Published var detachedCloseRequestToken: Int = 0
     @Published var miniLyricsTransitionToken: Int = 0
     @Published private(set) var surfaceContentHeightCap: CGFloat?
     @Published var selectedMiniDetailsTab: DetailsPaneTab = .lyrics
     @Published var selectedRegularDetailsTab: DetailsPaneTab = .lyrics
+    /// Newest first, **one row per track**. The copy the panes render from, so they never have
+    /// to await an actor mid-layout.
+    ///
+    /// Collapsed rather than raw. Replaying from history records those plays back into
+    /// history, so a raw log fills with repeats of whatever you have been replaying —
+    /// measured at 22 entries covering 10 tracks, one of them nine times. The queue built from
+    /// this list then collapsed to a single track, and Next abandoned history immediately.
+    /// Showing each track once keeps the list stable, and keeps what plays next matching what
+    /// is on screen. The store still keeps every play; only the presentation collapses.
+    @Published private(set) var playHistory: [PlayHistoryEntry] = []
+    /// How many times each `collapseIdentity` appears in the full store.
+    @Published private(set) var playHistoryPlayCounts: [String: Int] = [:]
+    /// Total plays recorded, across all repeats.
+    @Published private(set) var playHistoryTotalPlays: Int = 0
     @Published var lyricsPayload: LyricsPayload? {
         didSet {
             guard lyricsPayload != oldValue else { return }
@@ -297,6 +298,12 @@ final class NowPlayingModel: ObservableObject {
         }
     }
     @Published var lyricsLoadingProgress: LyricsLoadingProgress?
+    /// True while the in-flight fetch came from the user tapping retry, which the progress view
+    /// uses to skip the grace period it applies to automatic fetches.
+    @Published var lyricsFetchIsUserInitiated = false
+    /// True when a retry the user asked for came back with the same dead end it started from.
+    /// The pane says so, rather than redrawing the original sentence as though nothing ran.
+    @Published var lyricsRetryFoundNothing = false
     @Published var lyricsPanelExpanded: Bool = false
     @Published var animatedArtworkHLSURL: URL? = nil
     @Published var animatedArtworkState: AnimatedArtworkState = .none
@@ -310,6 +317,22 @@ final class NowPlayingModel: ObservableObject {
     private var currentAudioPollInterval: TimeInterval = 0
     private var lastSnapshot: NowPlayingSnapshot?
     private let playerEvents = PlayerEventObserver()
+
+    /// Guards the three `scan*` fields below, which are written from the main actor and read on
+    /// the refresh queue.
+    private let providerScanLock = NSLock()
+    private var scanActiveProvider: NowPlayingProvider = .none
+    private var scanForcedProviders: Set<NowPlayingProvider> = []
+    private var scanLastFetchUptime: [NowPlayingProvider: TimeInterval] = [:]
+
+    /// Longest a player that started on its own can go unnoticed if its broadcast is missed.
+    private let idleProviderRescanInterval: TimeInterval = 10
+
+    /// How many polled-but-unannounced changes it takes to stop trusting broadcasts.
+    private let unannouncedChangesBeforeDistrust = 2
+    /// How recently a broadcast must have landed to be credited with explaining a change.
+    private let announcedChangeGrace: TimeInterval = 3
+    private var unannouncedChangeCount = 0
     private let audioEvents = AudioOutputObserver()
     private var lastPlayerEventAt: Date?
     /// How long a broadcast counts as evidence that the players are still announcing changes.
@@ -323,6 +346,14 @@ final class NowPlayingModel: ObservableObject {
     private var cachedIdlePresentation: (value: PlayerIdlePresentation, provider: NowPlayingProvider, timestamp: CFAbsoluteTime)?
     private var launchAtLoginSupported: Bool = true
     private var fallbackArtworkTaskKey: String?
+    private var pendingCarriedArtworkExpiry: DispatchWorkItem?
+    /// How long the outgoing cover may stand in for one that is still being looked up.
+    ///
+    /// Sized against the thing it is covering: the iTunes fallback resolves in ~620ms measured,
+    /// so this clears it comfortably. Deliberately not generous — when the lookup is going to
+    /// fail, every extra moment here is the *previous* album sitting under the current song's
+    /// title, and that is worse than the blank it is standing in for.
+    private let carriedArtworkGrace: TimeInterval = 1.5
     private var pendingFallbackWork: DispatchWorkItem?
     private var lyricsFetchTask: Task<Void, Never>?
     private var animatedArtworkResolveTask: Task<Void, Never>?
@@ -341,6 +372,11 @@ final class NowPlayingModel: ObservableObject {
     private var lyricsMetricFailures: Int = 0
     #endif
     private let refreshQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.refresh", qos: .utility)
+    /// Separate from `refreshQueue` on purpose. The provisional read exists to beat the full
+    /// fetch to the screen, and sharing that serial queue means queuing behind the very work it
+    /// is racing — under rapid skipping it lost every time, and the fast publish silently never
+    /// happened. Higher QoS for the same reason: it is on the path to a visible update.
+    private let provisionalQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.provisional", qos: .userInitiated)
     private let pollingTimerQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.polling", qos: .utility)
     private var refreshInFlight = false
     private var refreshPending = false
@@ -559,22 +595,39 @@ final class NowPlayingModel: ObservableObject {
         return base * surfaceRegularScaleFactor
     }
 
-    var miniPopoverWidth: CGFloat { 380 * surfaceMiniScaleFactor }
+    /// Surface metrics are rounded to whole points before they can reach a window.
+    ///
+    /// A scale factor of 0.85 or 1.10 turns most of these into fractions — 239 × 0.90 = 215.1,
+    /// 205 × 0.85 = 174.25. A window can never adopt a fraction, so SwiftUI's ideal size and
+    /// the window's real size stay permanently unequal, and every layout pass sees a
+    /// difference that no resize can close. `StatusBarController` already rounds the *frame*
+    /// for this reason, after fractional sizes were measured walking the detached window 1pt
+    /// per track change; these are the same fractions arriving through the content size, where
+    /// `NSHostingView.updateAnimatedWindowSize` compares them itself and no app-side
+    /// `sizeApproximatelyEqual` guard applies.
+    ///
+    /// Rounding each component rather than only the totals keeps base + pane == total, so a
+    /// pane cannot be off by a point from the space reserved for it.
+    private func surfacePoints(_ value: CGFloat) -> CGFloat {
+        value.rounded()
+    }
+
+    var miniPopoverWidth: CGFloat { surfacePoints(380 * surfaceMiniScaleFactor) }
 
     var regularPopoverWidth: CGFloat {
         // Artwork + spacing + readable text/controls column + container padding.
         let baseArtwork = CGFloat(min(max(artworkDisplaySizeStorage, 120), 260))
         let base = max(410, baseArtwork + 330)
-        return base * surfaceRegularScaleFactor
+        return surfacePoints(base * surfaceRegularScaleFactor)
     }
 
     var popoverWidth: CGFloat {
         miniMode ? miniPopoverWidth : regularPopoverWidth
     }
 
-    var miniBaseHeight: CGFloat { 380 * surfaceMiniScaleFactor }
+    var miniBaseHeight: CGFloat { surfacePoints(380 * surfaceMiniScaleFactor) }
     var miniLyricsPaneHeight: CGFloat {
-        lyricsPaneSizePreset.miniContentHeight * surfaceMiniScaleFactor
+        surfacePoints(lyricsPaneSizePreset.miniContentHeight * surfaceMiniScaleFactor)
     }
     var miniExpandedHeight: CGFloat { miniBaseHeight + miniLyricsPaneHeight }
 
@@ -583,13 +636,13 @@ final class NowPlayingModel: ObservableObject {
     }
 
     var regularLyricsPaneHeight: CGFloat {
-        1 + (lyricsPaneSizePreset.regularContentHeight * surfaceRegularScaleFactor)
+        1 + surfacePoints(lyricsPaneSizePreset.regularContentHeight * surfaceRegularScaleFactor)
     }
 
     var estimatedRegularPopoverHeight: CGFloat {
         let baseArtwork = CGFloat(min(max(artworkDisplaySizeStorage, 120), 260))
         let base = max(220, baseArtwork + 54)
-        return base * surfaceRegularScaleFactor
+        return surfacePoints(base * surfaceRegularScaleFactor)
     }
 
     var regularPopoverHeight: CGFloat {
@@ -609,8 +662,8 @@ final class NowPlayingModel: ObservableObject {
             }
             .store(in: &cancellables)
 
-        playerEvents.start { [weak self] provider in
-            self?.handlePlayerEvent(from: provider)
+        playerEvents.start { [weak self] provider, payload in
+            self?.handlePlayerEvent(from: provider, payload: payload)
         }
 
         // Volume, mute and device changes are published by Core Audio, so the rail can track
@@ -619,6 +672,21 @@ final class NowPlayingModel: ObservableObject {
         audioEvents.start { [weak self] in
             self?.refreshAudioState()
         }
+
+        MainActor.assumeIsolated {
+            PlaybackSessionTracker.shared.onPlayFinished = { [weak self] play in
+                self?.handlePlayFinished(play)
+            }
+            PlaybackSessionTracker.shared.onPlayStarted = { track in
+                ScrobbleService.shared.handlePlayStarted(track)
+            }
+            PlaybackSessionTracker.shared.onPlayReachedThreshold = { track, startedAt in
+                ScrobbleService.shared.handleThresholdReached(track, startedAt: startedAt)
+            }
+        }
+        let retention = playHistoryRetentionLimit
+        Task { await PlayHistoryStore.shared.setRetentionLimit(retention) }
+        reloadPlayHistory()
 
         updateMetadataPollingTimerIfNeeded()
         updateAudioPollingTimerIfNeeded()
@@ -862,23 +930,258 @@ final class NowPlayingModel: ObservableObject {
 
     /// True while the players are demonstrably broadcasting their changes.
     ///
-    /// Requires a recent event rather than "ever saw one", so if broadcasts stop — an app
-    /// relaunch, a future macOS that renames the notification — the app falls back to polling
-    /// at full rate on its own instead of going quietly stale.
+    /// Whether playback changes can be expected to announce themselves.
+    ///
+    /// This used to require having *seen* a broadcast, which meant every launch began at the
+    /// half-second cadence and stayed there until the track happened to turn over — measured at
+    /// 66 seconds in one session, but unbounded in principle, because a paused player and a
+    /// long track both broadcast nothing. The startup cost was real: at 0.5s with both apps
+    /// open the refresh could not physically keep up with its own timer.
+    ///
+    /// So the assumption is inverted. Broadcasts are presumed to work, because on every macOS
+    /// this app supports they do, and the app polls at the relaxed cadence from launch. What
+    /// earns distrust is not silence — silence is the normal state of a playing track — but a
+    /// change discovered by polling that *should* have been announced and wasn't. Two of those
+    /// in a row and the app returns to full-rate polling on its own.
+    ///
+    /// Two rather than one because a poll can legitimately beat an in-flight notification by a
+    /// few milliseconds; one such race should not cost the user the relaxed cadence.
     private var playerEventsAreLive: Bool {
-        guard let lastPlayerEventAt else { return false }
+        guard unannouncedChangeCount < unannouncedChangesBeforeDistrust else { return false }
+        guard let lastPlayerEventAt else { return true }
         return Date().timeIntervalSince(lastPlayerEventAt) < playerEventFreshnessWindow
     }
 
-    private func handlePlayerEvent(from provider: NowPlayingProvider) {
-        lastPlayerEventAt = Date()
+    /// Notices a change that arrived without the player announcing it.
+    ///
+    /// Deliberately narrow: only track identity and play/pause, the two things both players
+    /// reliably broadcast. Shuffle, repeat and favourite are excluded because toggling them
+    /// inside the player broadcasts nothing by design, so counting them would condemn a
+    /// perfectly healthy notification path.
+    private func noteChangeAnnouncement(previous: NowPlayingSnapshot, current: NowPlayingSnapshot) {
+        // Discovering a player that was already going when the app launched is not a missed
+        // broadcast — there was nothing to miss.
+        guard !previous.title.isEmpty, previous.provider != .none else { return }
+
+        let changed = !trackIdentityMatches(previous, current) || previous.isPlaying != current.isPlaying
+        guard changed else { return }
+
+        if let lastPlayerEventAt,
+           Date().timeIntervalSince(lastPlayerEventAt) < announcedChangeGrace {
+            unannouncedChangeCount = 0
+            return
+        }
+
+        unannouncedChangeCount += 1
         #if DEBUG
-        NSLog("PlayStatus events: %@ broadcast a change", provider.rawValue)
+        NSLog(
+            "PlayStatus events: unannounced change %d/%d (live=%@)",
+            unannouncedChangeCount,
+            unannouncedChangesBeforeDistrust,
+            playerEventsAreLive ? "yes" : "no"
+        )
         #endif
+    }
+
+    /// Which players are worth asking on this pass.
+    ///
+    /// Both apps used to be read every cycle regardless of what they were doing, so a Music
+    /// window left open and stopped cost a full metadata read every poll forever while
+    /// contributing nothing. The player the user is actually listening to is always read; the
+    /// other one is read when it has something to say (it broadcast), when nothing is playing
+    /// at all (we have no idea who to trust yet), or when its rescan falls due.
+    ///
+    /// The rescan is the safety net, not the mechanism. Detection normally rides on the
+    /// broadcast and is immediate; this only bounds how long a *missed* broadcast can hide a
+    /// player that started up on its own.
+    private func providersToScan() -> Set<NowPlayingProvider> {
+        let now = ProcessInfo.processInfo.systemUptime
+
+        providerScanLock.lock()
+        defer { providerScanLock.unlock() }
+
+        var scan = scanForcedProviders
+        scanForcedProviders.removeAll()
+
+        // No active player means no basis for skipping either of them.
+        if scanActiveProvider == .none {
+            scan.insert(.music)
+            scan.insert(.spotify)
+        } else {
+            scan.insert(scanActiveProvider)
+        }
+
+        for provider in [NowPlayingProvider.music, .spotify] where !scan.contains(provider) {
+            let last = scanLastFetchUptime[provider] ?? 0
+            if now - last >= idleProviderRescanInterval {
+                scan.insert(provider)
+            }
+        }
+
+        for provider in scan {
+            scanLastFetchUptime[provider] = now
+        }
+        return scan
+    }
+
+    /// Records who the user is actually listening to, for `providersToScan`.
+    private func noteActiveProvider(_ provider: NowPlayingProvider) {
+        providerScanLock.lock()
+        scanActiveProvider = provider
+        providerScanLock.unlock()
+    }
+
+    private func handlePlayerEvent(from provider: NowPlayingProvider, payload: PlayerEventPayload?) {
+        lastPlayerEventAt = Date()
+        // Proof the path works, so any earlier suspicion is retired.
+        unannouncedChangeCount = 0
+
+        // A broadcast is the player saying something changed, so it gets read on the next pass
+        // even if it is the one we would otherwise be skipping. This is what makes a handover
+        // between Music and Spotify land immediately rather than at the rescan.
+        providerScanLock.lock()
+        scanForcedProviders.insert(provider)
+        providerScanLock.unlock()
+
+        // Hand the broadcast to the provider before triggering the read, so the refresh this
+        // schedules is the one that gets to use it rather than the one after.
+        if let payload {
+            switch provider {
+            case .music: MusicProvider.noteEvent(payload)
+            case .spotify: SpotifyProvider.noteEvent(payload)
+            case .none: break
+            }
+        }
+
+        #if DEBUG
+        NSLog(
+            "PlayStatus events: %@ broadcast a change payload=%@",
+            provider.rawValue,
+            payload == nil ? "none" : "parsed"
+        )
+        #endif
+
+        if let payload {
+            scheduleProvisionalPublish(from: payload, provider: provider)
+        }
+
         // The notification means the change has already happened, so this read lands on a
         // settled track rather than mid-flip.
         refresh()
         updateMetadataPollingTimerIfNeeded()
+    }
+
+    /// Publishes the new track ahead of the authoritative read — text *and* artwork together.
+    ///
+    /// A track change costs roughly 320ms before the full snapshot exists: ~50ms to ask where
+    /// playback is, ~117ms for the seven fields the broadcast omits, then the artwork and the
+    /// decode. The broadcast already knows the song's name, so almost all of that is spent
+    /// waiting for information we are not missing.
+    ///
+    /// The first version of this published the text alone and left the artwork to arrive with
+    /// the snapshot. That was wrong to look at: the new title appeared over the *previous*
+    /// song's cover for a third of a second, which reads as a glitch rather than as speed. The
+    /// artwork read is only ~19ms, so it is worth waiting for — everything visible on the card
+    /// changes in one step, just far sooner than it used to.
+    ///
+    /// Music only. Spotify's cover is fetched from a URL through `ArtworkCache`, which cannot
+    /// answer synchronously for a track it has not seen, so there is nothing to publish
+    /// atomically and Spotify keeps the ordinary path.
+    private func scheduleProvisionalPublish(from payload: PlayerEventPayload, provider: NowPlayingProvider) {
+        guard provider == .music else { return }
+        guard shouldPublishProvisionally(payload: payload, provider: provider) else {
+            #if DEBUG
+            NSLog("PlayStatus provisional: skip reason=notNewTrackOrProviderMismatch id=%@", payload.trackIdentity)
+            #endif
+            return
+        }
+        // Nothing is on screen to keep consistent, and this is exactly the state where the app
+        // is trying not to hold decoded images.
+        guard !shouldReduceTransientMemoryWhileHidden else {
+            #if DEBUG
+            NSLog("PlayStatus provisional: skip reason=memoryReduced")
+            #endif
+            return
+        }
+
+        provisionalQueue.async { [weak self] in
+            guard let self else { return }
+            #if DEBUG
+            let queued = CFAbsoluteTimeGetCurrent()
+            #endif
+            guard let artwork = MusicProvider.provisionalArtwork(forTrackIdentity: payload.trackIdentity) else {
+                #if DEBUG
+                NSLog("PlayStatus provisional: skip reason=noArtwork id=%@", payload.trackIdentity)
+                #endif
+                return
+            }
+            #if DEBUG
+            NSLog("PlayStatus provisional: artwork ready after %.0fms", (CFAbsoluteTimeGetCurrent() - queued) * 1000)
+            #endif
+            let normalized = artwork.normalizedArtworkForDisplay()
+            DispatchQueue.main.async {
+                self.publishProvisionalTrack(from: payload, provider: provider, artwork: normalized)
+            }
+        }
+    }
+
+    private func shouldPublishProvisionally(payload: PlayerEventPayload, provider: NowPlayingProvider) -> Bool {
+        // Only the player already on screen may paint ahead of arbitration. If the other app
+        // broadcasts — it might be idling in the background — deciding who wins is
+        // `chooseSnapshot`'s job, and guessing here would let a background player seize the
+        // display for a couple of hundred milliseconds.
+        guard let current = lastSnapshot,
+              current.provider == provider,
+              !current.title.isEmpty,
+              !payload.title.isEmpty else { return false }
+
+        // Same track means a play/pause or a seek, where the expensive fields are all cached
+        // and the normal path is already ~50ms. The win here is specific to a new track.
+        return current.title != payload.title
+            || current.artist != payload.artist
+            || current.album != payload.album
+    }
+
+    private func publishProvisionalTrack(
+        from payload: PlayerEventPayload,
+        provider: NowPlayingProvider,
+        artwork: NSImage
+    ) {
+        // Re-checked because the artwork read happened on another queue: the authoritative
+        // snapshot may have landed meanwhile, in which case there is nothing left to pre-empt
+        // and publishing again would only re-run the crossfade.
+        guard shouldPublishProvisionally(payload: payload, provider: provider) else {
+            #if DEBUG
+            NSLog("PlayStatus provisional: skip reason=snapshotAlreadyLanded")
+            #endif
+            return
+        }
+
+        self.provider = provider
+        self.isPlaying = payload.isPlaying
+        self.title = payload.title
+        self.artist = payload.artist
+        self.album = payload.album
+        self.albumArtist = payload.albumArtist ?? ""
+        // These describe the track being replaced. Clearing beats showing the previous song's
+        // personnel under the new song's title; the real values follow with the snapshot.
+        self.creditsPayload = nil
+
+        self.artwork = artwork
+        self.updateTint(from: artwork)
+        #if DEBUG
+        NSLog("PlayStatus artwork: set from=%@ id=%@", "provisional", artwork.artworkTransitionIdentity)
+        #endif
+
+        // A newly started track is at the beginning. Worst case this is wrong by the couple of
+        // hundred milliseconds it takes the real read to land and correct it — against a
+        // progress bar that would otherwise sit at the *previous* track's end position for
+        // just as long, which is the more obviously wrong of the two.
+        PlaybackClock.shared.sync(elapsed: 0, duration: payload.duration, isPlaying: payload.isPlaying)
+
+        #if DEBUG
+        NSLog("PlayStatus events: provisional publish (with artwork) title=%@", payload.title)
+        #endif
     }
 
     private func updateMetadataPollingTimerIfNeeded(using snapshot: NowPlayingSnapshot? = nil) {
@@ -975,8 +1278,26 @@ final class NowPlayingModel: ObservableObject {
             repeat {
                 self.refreshPending = false
 
-                let spotify = self.enableSpotify ? SpotifyProvider.fetch(includeArtwork: includeArtwork) : nil
-                let music = self.enableMusic ? MusicProvider.fetch(includeArtwork: includeArtwork) : nil
+                let scan = self.providersToScan()
+                var spotify = (self.enableSpotify && scan.contains(.spotify))
+                    ? SpotifyProvider.fetch(includeArtwork: includeArtwork)
+                    : nil
+                var music = (self.enableMusic && scan.contains(.music))
+                    ? MusicProvider.fetch(includeArtwork: includeArtwork)
+                    : nil
+
+                // Everything we agreed to look at came up empty, so the provider we skipped is
+                // the only remaining explanation for what the user might be hearing. Look at it
+                // now: reporting idle without checking is how the surface goes blank on a
+                // handover between the two apps.
+                if music == nil, spotify == nil {
+                    if self.enableSpotify, !scan.contains(.spotify) {
+                        spotify = SpotifyProvider.fetch(includeArtwork: includeArtwork)
+                    }
+                    if self.enableMusic, !scan.contains(.music) {
+                        music = MusicProvider.fetch(includeArtwork: includeArtwork)
+                    }
+                }
 
                 DispatchQueue.main.async { [weak self] in
                     self?.applyFetchedSnapshots(music: music, spotify: spotify)
@@ -1001,18 +1322,45 @@ final class NowPlayingModel: ObservableObject {
                missedFetchCount < missedFetchesBeforeIdle {
                 return
             }
+            // A staged history queue that runs out on its own just stops Music, and by this
+            // point there is no current playlist left to ask about — so this is the one place
+            // the armed flag is needed. Confirmed idle, not a transient miss, because the
+            // early return above has already been passed.
+            if historyQueueHandoffArmed {
+                historyQueueHandoffArmed = false
+                MusicProvider.shuffleLibrary()
+                refresh()
+                return
+            }
+
+            noteActiveProvider(.none)
+            // Only now — a transient empty poll returned above, and ending the play on one of
+            // those would cut every track short at the first scripting hiccup.
+            observePlaybackSession(nil)
             apply(snapshot: NowPlayingSnapshot(provider: .none, isPlaying: false, title: "", artist: "", album: "", artwork: nil, nativeArtworkState: .none, elapsed: 0, duration: 0, canSeek: false))
             return
         }
 
         missedFetchCount = 0
+        // Feed the tracker before the fast-path return below, so it sees every position sample
+        // and not just the polls that change something structural.
+        observePlaybackSession(snap)
+        // Only a *playing* provider earns the right to have the other one skipped. If what we
+        // are showing is paused, the other app may well be the one making sound — and it would
+        // have broadcast nothing, because from its side nothing changed.
+        noteActiveProvider(snap.isPlaying ? snap.provider : .none)
+
+        if let last = lastSnapshot {
+            noteChangeAnnouncement(previous: last, current: snap)
+        }
 
         // Keep progress smooth without re-tinting unless track/provider changed
         if let last = lastSnapshot, snapshotsSimilar(last, snap) {
             PlaybackClock.shared.sync(
                 elapsed: snap.elapsed,
                 duration: snap.duration,
-                isPlaying: snap.isPlaying
+                isPlaying: snap.isPlaying,
+                sampledAtUptime: snap.elapsedSampledAtUptime
             )
             lastSnapshot = snap
             // Same track: if native provider artwork arrives later (e.g. Spotify URL fetch),
@@ -1027,6 +1375,9 @@ final class NowPlayingModel: ObservableObject {
                 lastSnapshot?.artwork = artwork
                 DispatchQueue.main.async {
                     self.artwork = artwork
+                #if DEBUG
+                NSLog("PlayStatus artwork: set from=%@ id=%@", "promoteNative", self.artwork?.artworkTransitionIdentity ?? "nil")
+                #endif
                     self.updateTint(from: artwork)
                 }
             }
@@ -1034,6 +1385,243 @@ final class NowPlayingModel: ObservableObject {
         }
 
         apply(snapshot: snap)
+    }
+
+    /// Hands one observation to `PlaybackSessionTracker`.
+    ///
+    /// `applyFetchedSnapshots` is always dispatched onto the main queue by `refresh()`, but the
+    /// model itself is not `@MainActor`, so the isolation has to be asserted rather than
+    /// inferred. Same pattern as `PlayerEventObserver`.
+    private func observePlaybackSession(_ snapshot: NowPlayingSnapshot?) {
+        MainActor.assumeIsolated {
+            PlaybackSessionTracker.shared.observe(snapshot)
+        }
+    }
+
+    /// Ends any in-flight play and gets it onto disk before the process exits.
+    ///
+    /// `applicationWillTerminate` returns straight into exit, so the write cannot be left to a
+    /// detached task and the store's two-second debounce would never fire. This blocks the main
+    /// thread on the outstanding history work — bounded, because a hung write must not stop the
+    /// app from quitting.
+    ///
+    /// Nothing awaited here touches the main actor: `recordPlayFinished` hands its UI update to
+    /// a separate unawaited task precisely so this wait cannot deadlock against it.
+    func flushPlaybackSession() {
+        MainActor.assumeIsolated {
+            PlaybackSessionTracker.shared.flush()
+        }
+
+        let outstanding = historyWriteChain
+        let completed = DispatchSemaphore(value: 0)
+        Task.detached {
+            await outstanding?.value
+            await PlayHistoryStore.shared.flush()
+            completed.signal()
+        }
+        if completed.wait(timeout: .now() + 2) == .timedOut {
+            #if DEBUG
+            NSLog("PlayStatus history: flush timed out on terminate")
+            #endif
+        }
+    }
+
+    // MARK: Play history
+
+    /// Serializes history writes.
+    ///
+    /// Each finished play is a read-modify-write of the whole store, and termination needs a
+    /// single handle to wait on. Chaining keeps both properties without a lock.
+    private var historyWriteChain: Task<Void, Never>?
+
+    /// `Task.detached`, not `Task`, and the distinction is load-bearing.
+    ///
+    /// `handlePlayFinished` is reached through `MainActor.assumeIsolated`, so a plain `Task`
+    /// inherits main-actor isolation. Termination then blocks the main thread waiting for this
+    /// chain, which can never be scheduled — the flush times out and the last play is lost.
+    /// Detaching keeps history writes on the global executor, where the wait can actually be
+    /// satisfied.
+    private func enqueueHistoryWork(_ work: @escaping @Sendable () async -> Void) {
+        let previous = historyWriteChain
+        historyWriteChain = Task.detached {
+            await previous?.value
+            await work()
+        }
+    }
+
+    /// History records a play once it has ended, because only then is the listened time final.
+    /// Scrobbling does not wait — see `onPlayReachedThreshold`.
+    private func handlePlayFinished(_ play: CompletedPlay) {
+        recordPlayInHistory(play)
+    }
+
+    private func recordPlayInHistory(_ play: CompletedPlay) {
+        guard recordPlayHistory else { return }
+        guard play.reachedScrobbleThreshold || recordSkippedTracks else { return }
+
+        // The artwork on screen right now still belongs to the play that just ended: the
+        // tracker is fed at the top of `applyFetchedSnapshots`, before `apply` swaps in the
+        // incoming track. The identity check makes that ordering fail-safe rather than
+        // load-bearing — if it ever stops holding, the row loses its thumbnail instead of
+        // showing the wrong one.
+        let artworkKey = PlayHistoryArtwork.cacheKey(for: play.track)
+        var thumbnail: NSImage?
+        if let current = lastSnapshot,
+           current.title == play.track.title,
+           current.artist == play.track.artist,
+           current.album == play.track.album,
+           let artwork = current.artwork {
+            thumbnail = PlayHistoryArtwork.thumbnail(from: artwork)
+        }
+
+        let storedKey = thumbnail == nil ? "" : artworkKey
+        let capturedThumbnail = thumbnail
+        enqueueHistoryWork { [weak self] in
+            if let capturedThumbnail {
+                await PersistentMediaCache.shared.storeArtworkImage(capturedThumbnail, forKey: artworkKey)
+            }
+            let entries = await PlayHistoryStore.shared.record(play, artworkKey: storedKey)
+            self?.publishHistory(entries)
+        }
+    }
+
+    /// Pushes a new list to the panes without the caller awaiting the main actor.
+    ///
+    /// Deliberately fire-and-forget: `flushPlaybackSession` blocks the main thread while
+    /// draining the write chain, so chained work that awaited a main-actor hop would deadlock
+    /// against it.
+    private nonisolated func publishHistory(_ entries: [PlayHistoryEntry]) {
+        // Collapsed once here rather than in the view: `body` runs on every hover and layout
+        // pass, and the store holds up to 5,000 entries.
+        var counts: [String: Int] = [:]
+        var collapsed: [PlayHistoryEntry] = []
+        for entry in entries {
+            let identity = entry.collapseIdentity
+            counts[identity, default: 0] += 1
+            if counts[identity] == 1 {
+                collapsed.append(entry)
+            }
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.playHistory = collapsed
+            self.playHistoryPlayCounts = counts
+            self.playHistoryTotalPlays = entries.count
+        }
+    }
+
+    /// Provenance line for the History tab, in the same slot the other tabs use to credit a
+    /// source. Here the useful fact is how much there is.
+    var playHistoryBadgeText: String {
+        playHistory.count == 1 ? "1 track" : "\(playHistory.count) tracks"
+    }
+
+    static let playHistoryRetentionChoices = [200, 500, 1000, 2500, PlayHistoryStore.maximumRetainedEntries]
+
+    var playHistoryUsageText: String {
+        let plays = playHistoryTotalPlays
+        if plays == 0 { return "No plays recorded" }
+        let tracks = playHistory.count
+        let playsText = plays == 1 ? "1 play" : "\(plays) plays"
+        let tracksText = tracks == 1 ? "1 track" : "\(tracks) tracks"
+        return "\(playsText) across \(tracksText)"
+    }
+
+    private func reloadPlayHistory() {
+        enqueueHistoryWork { [weak self] in
+            let entries = await PlayHistoryStore.shared.allEntries()
+            self?.publishHistory(entries)
+        }
+    }
+
+    func removeHistoryEntry(_ entry: PlayHistoryEntry) {
+        enqueueHistoryWork { [weak self] in
+            let entries = await PlayHistoryStore.shared.remove(id: entry.id)
+            self?.publishHistory(entries)
+        }
+    }
+
+    func clearPlayHistory() {
+        // Thumbnails outlive the records in the media cache, and the keys are derived from
+        // track metadata rather than entry IDs. Without this, replaying a cleared track would
+        // surface a thumbnail the user thought they had deleted.
+        HistoryArtworkProvider.shared.reset()
+        enqueueHistoryWork { [weak self] in
+            let entries = await PlayHistoryStore.shared.clear()
+            self?.publishHistory(entries)
+        }
+    }
+
+    /// True while a staged history queue may still be playing.
+    ///
+    /// Only needed for the case where the queue runs out on its own — Music simply stops, and
+    /// by then there is no current playlist left to interrogate. The Next button does not rely
+    /// on this: it reads the queue's position from Music directly.
+    private var historyQueueHandoffArmed = false
+
+    /// The clicked entry, then everything above it in the list, oldest of those first.
+    ///
+    /// "Above" is more recent, so the queue replays the listening session forward in time
+    /// towards now. Repeats are collapsed — the same track logged three times in a row should
+    /// not be queued three times — and only tracks from the same provider are included, since
+    /// a Music playlist cannot hold a Spotify track.
+    private func historyQueueTracks(startingAt entry: PlayHistoryEntry) -> [MusicProvider.HistoryQueueTrack] {
+        // ~40ms per track to stage, so this is a responsiveness cap, not a semantic one. Past
+        // it the queue simply runs out sooner and hands off to the shuffled library.
+        let maximumQueuedTracks = 50
+
+        var ordered: [PlayHistoryEntry] = [entry]
+        if let index = playHistory.firstIndex(where: { $0.id == entry.id }) {
+            ordered.append(contentsOf: playHistory[playHistory.startIndex..<index].reversed())
+        }
+
+        var seen: Set<String> = []
+        var result: [MusicProvider.HistoryQueueTrack] = []
+        for candidate in ordered {
+            guard candidate.provider == entry.provider else { continue }
+            let identity = candidate.track.trackIdentity.isEmpty
+                ? "\(candidate.track.title)|\(candidate.track.artist)"
+                : candidate.track.trackIdentity
+            guard seen.insert(identity).inserted else { continue }
+            result.append(
+                MusicProvider.HistoryQueueTrack(
+                    persistentID: candidate.track.trackIdentity,
+                    title: candidate.track.title
+                )
+            )
+            if result.count >= maximumQueuedTracks { break }
+        }
+        return result
+    }
+
+    /// Plays a history entry again, through whichever door its provider offers.
+    ///
+    /// Spotify's own track URI is exact when the provider reported one; Music has no
+    /// equivalent addressable handle from outside, so it goes through the same library search
+    /// the player's search field already uses.
+    func replayHistoryEntry(_ entry: PlayHistoryEntry) {
+        let query = [entry.track.title, entry.track.artist]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        switch entry.provider {
+        case .music:
+            // Not `searchAndPlayInMusicLibrary`: that plays a bare track, which leaves Music
+            // with a one-entry queue and a dead Next button.
+            MusicProvider.playHistoryQueue(historyQueueTracks(startingAt: entry))
+            historyQueueHandoffArmed = true
+            refresh()
+        case .spotify:
+            if entry.track.trackIdentity.hasPrefix("spotify:track:"),
+               let url = URL(string: entry.track.trackIdentity) {
+                NSWorkspace.shared.open(url)
+            } else {
+                openSpotifySearch(query: query)
+            }
+        case .none:
+            break
+        }
     }
 
     private func chooseSnapshot(music: NowPlayingSnapshot?, spotify: NowPlayingSnapshot?) -> NowPlayingSnapshot? {
@@ -1090,12 +1678,28 @@ final class NowPlayingModel: ObservableObject {
         //
         // Keeping the previous image for a track we are already showing collapses that back
         // into one refresh, and stops a pointless fallback lookup for art we already have.
+        var carriedAcrossTrackChange = false
         if resolvedSnapshot.artwork == nil,
            let previousSnapshot,
-           trackIdentityMatches(previousSnapshot, resolvedSnapshot),
            let carriedArtwork = previousSnapshot.artwork {
-            resolvedSnapshot.artwork = carriedArtwork
-            resolvedSnapshot.nativeArtworkState = previousSnapshot.nativeArtworkState
+            if trackIdentityMatches(previousSnapshot, resolvedSnapshot) {
+                resolvedSnapshot.artwork = carriedArtwork
+                resolvedSnapshot.nativeArtworkState = previousSnapshot.nativeArtworkState
+            } else if resolvedSnapshot.nativeArtworkState == .none {
+                // A new track that Music has no embedded artwork for — a streaming track,
+                // typically. `fetchFallbackArtwork` below will go and find one, but it takes a
+                // network round trip: measured at ~620ms.
+                //
+                // Publishing nil in the meantime is what made skipping flicker. The card went
+                // old cover → blank → new cover, two visible transitions where the user is
+                // expecting one. Holding the outgoing image until the replacement is ready
+                // collapses that back to a single crossfade.
+                //
+                // The state stays `.none` so the lookup still runs; this only affects what is
+                // on screen while it does.
+                resolvedSnapshot.artwork = carriedArtwork
+                carriedAcrossTrackChange = true
+            }
         }
 
         lastSnapshot = resolvedSnapshot
@@ -1114,7 +1718,8 @@ final class NowPlayingModel: ObservableObject {
             PlaybackClock.shared.sync(
                 elapsed: resolvedSnapshot.elapsed,
                 duration: resolvedSnapshot.duration,
-                isPlaying: resolvedSnapshot.isPlaying
+                isPlaying: resolvedSnapshot.isPlaying,
+                sampledAtUptime: resolvedSnapshot.elapsedSampledAtUptime
             )
             // Only touch the artwork when the image actually differs. Assigning an equivalent
             // image re-triggers the crossfade and re-derives the tint, which is the second
@@ -1124,6 +1729,9 @@ final class NowPlayingModel: ObservableObject {
             let incomingArtworkIdentity = resolvedSnapshot.artwork?.artworkTransitionIdentity
             if displayedArtworkIdentity != incomingArtworkIdentity {
                 self.artwork = resolvedSnapshot.artwork
+                #if DEBUG
+                NSLog("PlayStatus artwork: set from=%@ id=%@", "apply", self.artwork?.artworkTransitionIdentity ?? "nil")
+                #endif
                 self.updateTint(from: resolvedSnapshot.artwork)
             }
             self.updateMetadataPollingTimerIfNeeded(using: resolvedSnapshot)
@@ -1144,6 +1752,7 @@ final class NowPlayingModel: ObservableObject {
                 self.lyricsPayload = nil
                 self.lyricsState = .idle
                 self.lyricsLoadingProgress = nil
+                self.lyricsRetryFoundNothing = false
             }
         }
 
@@ -1165,6 +1774,9 @@ final class NowPlayingModel: ObservableObject {
             updateAnimatedArtwork(for: resolvedSnapshot)
             return
         case .none:
+            if carriedAcrossTrackChange {
+                scheduleCarriedArtworkExpiry(for: resolvedSnapshot)
+            }
             fetchFallbackArtwork(for: resolvedSnapshot)
         case .pending:
             let work = DispatchWorkItem { [weak self] in
@@ -1195,10 +1807,23 @@ final class NowPlayingModel: ObservableObject {
     /// stick for the rest of the day. This gives the dead-end states something to do.
     func retryLyricsFetch() {
         guard let snapshot = lastSnapshot, !snapshot.title.isEmpty else { return }
-        startLyricsFetch(for: snapshot, forceRefresh: true, resetState: true)
+        startLyricsFetch(for: snapshot, forceRefresh: true, resetState: true, userInitiated: true)
     }
 
-    private func startLyricsFetch(for snapshot: NowPlayingSnapshot, forceRefresh: Bool, resetState: Bool) {
+    /// How long a user-initiated retry keeps the pane in `.loading`, even if the fetch beats it.
+    ///
+    /// A miss round-trips in about 0.4s, which is faster than the progress view's own grace
+    /// period — the retry finished before anything was drawn, so tapping "Look again" changed
+    /// nothing on screen and read as a dead button. An automatic fetch wants to stay silent when
+    /// it is that quick; an explicit tap has to be acknowledged.
+    private let userInitiatedLyricsFetchFloor: TimeInterval = 0.75
+
+    private func startLyricsFetch(
+        for snapshot: NowPlayingSnapshot,
+        forceRefresh: Bool,
+        resetState: Bool,
+        userInitiated: Bool = false
+    ) {
         let descriptor = LyricsTrackDescriptor(
             provider: snapshot.provider,
             title: snapshot.title,
@@ -1218,13 +1843,25 @@ final class NowPlayingModel: ObservableObject {
                 self.lyricsPayload = nil
                 self.lyricsState = .loading
                 self.lyricsLoadingProgress = nil
+                self.lyricsFetchIsUserInitiated = userInitiated
+                self.lyricsRetryFoundNothing = false
             }
         }
 
         lyricsFetchTask = Task { [weak self] in
             guard let self else { return }
+            let fetchStart = CFAbsoluteTimeGetCurrent()
             let outcome = await self.fetchLyricsWithRetry(for: descriptor, forceRefresh: forceRefresh)
             guard !Task.isCancelled else { return }
+
+            if userInitiated {
+                let elapsed = CFAbsoluteTimeGetCurrent() - fetchStart
+                let remaining = self.userInitiatedLyricsFetchFloor - elapsed
+                if remaining > 0 {
+                    try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+                    guard !Task.isCancelled else { return }
+                }
+            }
 
             await MainActor.run {
                 guard self.currentLyricsTrackKey == trackKey else { return }
@@ -1256,6 +1893,7 @@ final class NowPlayingModel: ObservableObject {
                     self.lyricsPayload = nil
                     self.lyricsState = .unavailable
                     self.lyricsLoadingProgress = nil
+                    self.lyricsRetryFoundNothing = userInitiated
                     #if DEBUG
                     self.lyricsMetricUnavailable += 1
                     NSLog(
@@ -1266,6 +1904,7 @@ final class NowPlayingModel: ObservableObject {
                     self.lyricsPayload = nil
                     self.lyricsState = .failed
                     self.lyricsLoadingProgress = nil
+                    self.lyricsRetryFoundNothing = userInitiated
                     #if DEBUG
                     self.lyricsMetricFailures += 1
                     NSLog(
@@ -1392,11 +2031,24 @@ final class NowPlayingModel: ObservableObject {
         let fallbackStartTime = CFAbsoluteTimeGetCurrent()
         #endif
 
+        // A cached "no lyrics" is a 24-hour answer, so only record one when both legs actually
+        // answered. If LRCLIB's leg failed — offline, timeout, a 5xx — then a Music app miss says
+        // nothing about whether the track has lyrics, and caching it would hide the real lyrics
+        // behind "No lyrics found" for the rest of the day. The outcome returned below is already
+        // corrected to `.failed` for this case, but that correction happens *after* the service
+        // has written its cache entry, which is what made the stale miss stick.
+        let lrclibLegAnswered: Bool
+        if case .failed = lastLRCLIBOutcome {
+            lrclibLegAnswered = false
+        } else {
+            lrclibLegAnswered = true
+        }
+
         let musicFallbackOutcome = await LyricsService.shared.fetchLyrics(
             for: descriptor,
             forceRefresh: true,
             mode: .musicOnly,
-            cacheUnavailableResult: true
+            cacheUnavailableResult: lrclibLegAnswered
         ) { [weak self] stage in
             guard let self else { return }
             Task { @MainActor [weak self] in
@@ -1465,6 +2117,7 @@ final class NowPlayingModel: ObservableObject {
         glassTint = Color(resolvedSpec.tint)
         regularControlsContrastBoost = resolvedSpec.contrastBoost
         cardBackgroundPalette = resolvedSpec.palette.map { Color($0) } + [Color.clear]
+        cardPaletteStrength = resolvedSpec.paletteStrength
     }
 
     private func bumpStatusBarConfigRevision() {
@@ -1496,6 +2149,11 @@ final class NowPlayingModel: ObservableObject {
 
     func requestToggleDetachedMode() {
         detachedModeToggleRequestToken &+= 1
+    }
+
+    /// Shows or hides the player, whichever surface is current.
+    func requestTogglePlayerSurface() {
+        popoverToggleRequestToken &+= 1
     }
 
     func requestCloseDetachedWindow() {
@@ -1585,8 +2243,16 @@ final class NowPlayingModel: ObservableObject {
 
     func nextTrack() {
         switch provider {
-        case .spotify: SpotifyProvider.next()
-        case .music, .none: MusicProvider.next()
+        case .spotify:
+            SpotifyProvider.next()
+        case .music, .none:
+            // Music makes `next track` a no-op on the last track of a playlist, so at the end
+            // of a staged history queue this hands off to the shuffled library instead of
+            // sitting on the final track. Reading the queue position from Music means a queue
+            // the user has since navigated away from cannot trigger a spurious handoff.
+            if MusicProvider.advanceOrShuffleLibrary() {
+                historyQueueHandoffArmed = false
+            }
         }
     }
 
@@ -1650,6 +2316,16 @@ final class NowPlayingModel: ObservableObject {
         case .spotify: SpotifyProvider.seek(to: target)
         case .music, .none: MusicProvider.seek(to: target)
         }
+        // The player is authoritative, but its next read is up to a poll away. Moving the clock
+        // now means the rail and the active lyric line land on the new position immediately
+        // instead of sitting on the old one until the poll catches up.
+        PlaybackClock.shared.sync(elapsed: target, duration: duration, isPlaying: isPlaying)
+    }
+
+    /// Seeking in the units lyrics are expressed in, so callers do not each re-derive a fraction.
+    func seek(toSeconds seconds: Double) {
+        guard duration > 0 else { return }
+        seek(to: seconds / duration)
     }
 
     private func refreshPlaybackModeStateAfterCommand() {
@@ -1822,6 +2498,9 @@ final class NowPlayingModel: ObservableObject {
     func searchAndPlayInMusicLibrary(query: String) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        // Starting something else retires any staged history queue, so its ending cannot
+        // later hand off to a shuffled library the user never asked for.
+        historyQueueHandoffArmed = false
         MusicProvider.searchAndPlay(query: trimmed)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
             self.refresh()
@@ -2245,6 +2924,35 @@ final class NowPlayingModel: ObservableObject {
         }
     }
 
+    /// Stops a held-over cover from outliving the lookup it was covering for.
+    ///
+    /// Carrying the previous image across a track change is a bet that a replacement is coming.
+    /// When the lookup finds nothing — an obscure track, no network — that bet has to be
+    /// settled, or the card would show the wrong album for as long as the song plays. Blank is
+    /// the honest answer at that point; it is only the *flicker* on the way to a real cover
+    /// that was worth avoiding.
+    private func scheduleCarriedArtworkExpiry(for snapshot: NowPlayingSnapshot) {
+        let carriedIdentity = snapshot.artwork?.artworkTransitionIdentity
+        pendingCarriedArtworkExpiry?.cancel()
+
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            guard let current = self.lastSnapshot,
+                  self.trackIdentityMatches(current, snapshot) else { return }
+            // Something replaced it in the meantime, which is the good outcome.
+            guard self.artwork?.artworkTransitionIdentity == carriedIdentity else { return }
+
+            self.artwork = nil
+            self.updateTint(from: nil)
+            self.lastSnapshot?.artwork = nil
+            #if DEBUG
+            NSLog("PlayStatus artwork: carried cover expired, no replacement found")
+            #endif
+        }
+        pendingCarriedArtworkExpiry = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + carriedArtworkGrace, execute: work)
+    }
+
     private func fetchFallbackArtwork(for snapshot: NowPlayingSnapshot) {
         let lookupArtist = fallbackArtworkLookupArtist(for: snapshot)
         let durationKeyComponent = snapshot.duration > 0 ? "d:\(Int(snapshot.duration.rounded()))" : "d:none"
@@ -2264,6 +2972,9 @@ final class NowPlayingModel: ObservableObject {
                 guard let current = self.lastSnapshot,
                       self.trackIdentityMatches(current, snapshot) else { return }
                 self.artwork = resolvedImage
+                #if DEBUG
+                NSLog("PlayStatus artwork: set from=%@ id=%@", "fallbackLookup", self.artwork?.artworkTransitionIdentity ?? "nil")
+                #endif
                 self.updateTint(from: resolvedImage)
                 // Record it on the snapshot too, not just on screen. `apply` carries artwork
                 // forward across a re-apply of the same track by reading the last snapshot —
