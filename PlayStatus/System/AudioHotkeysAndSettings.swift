@@ -160,6 +160,14 @@ struct PlayStatusSettingsView: View {
                     caption: "“Get Lucky (Radio Edit)” → “Get Lucky”",
                     isOn: $model.ignoreParentheses
                 )
+
+                SettingsRowDivider()
+
+                SettingsSwitchRow(
+                    title: "Show playback controls",
+                    caption: "Previous, play/pause and next buttons beside the title",
+                    isOn: $model.menuBarControlsEnabled
+                )
             }
 
             SettingsCard {
@@ -485,7 +493,7 @@ struct PlayStatusSettingsView: View {
 
     private var shortcutsContent: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SettingsCard {
+            SettingsCard(header: "Global hotkeys") {
                 ForEach(Array(AppHotkeyAction.allCases.enumerated()), id: \.element) { index, action in
                     if index > 0 {
                         SettingsRowDivider()
@@ -494,11 +502,46 @@ struct PlayStatusSettingsView: View {
                 }
             }
 
-            Text("Shortcuts work anywhere in macOS. Recording a combination that another app already owns will simply fail to register.")
+            Text("Global hotkeys work anywhere in macOS. Recording a combination that another app already owns will simply fail to register.")
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            SettingsCard(header: "While the player is open") {
+                ForEach(Array(playerKeyGuide.enumerated()), id: \.offset) { index, entry in
+                    if index > 0 {
+                        SettingsRowDivider()
+                    }
+                    SettingsShortcutGuideRow(
+                        keys: entry.keys,
+                        title: entry.title,
+                        caption: entry.caption
+                    )
+                }
+            }
+
+            Text("These keys are fixed and only apply while the player popover or detached window is in front. Typing in the search field takes priority \u{2014} every key goes to the field until you leave it.")
                 .font(.system(size: 11, weight: .regular))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    /// Mirrors `PlayerKeyboardCommands`. Keep the two in step: a key that silently stops
+    /// matching its row here is worse than no guide at all.
+    private var playerKeyGuide: [(keys: [String], title: String, caption: String?)] {
+        [
+            (["Space"], "Play or pause", nil),
+            (["\u{2190}", "\u{2192}"], "Seek", "Back or forward 10 seconds."),
+            (["\u{2325}\u{2190}", "\u{2325}\u{2192}"], "Previous or next track", nil),
+            (["\u{2191}", "\u{2193}"], "Volume", "Up or down in 5% steps."),
+            (["L"], "Lyrics", "Toggles the lyrics pane."),
+            (["C"], "Credits", "Toggles the credits pane."),
+            (["H"], "History", "Toggles the play history pane."),
+            (["M"], "Mini player", "Switches between the full and mini layouts."),
+            (["\u{2318}F"], "Search", "Opens the search field. Needs a search source in Sources."),
+            (["esc"], "Close", "Dismisses search first, then the player.")
+        ]
     }
 
     private var scrobblingContent: some View {

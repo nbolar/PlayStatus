@@ -164,6 +164,18 @@ struct ScrobblingSettingsContent: View {
 
     private var queueCard: some View {
         SettingsCard {
+            SettingsRow(
+                title: "Scrobbled",
+                caption: acceptedCaption
+            ) {
+                Text(acceptedCountText)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+
+            SettingsRowDivider()
+
             SettingsStackedRow(
                 title: "Pending scrobbles",
                 caption: "Plays are kept on this Mac while Last.fm is unreachable and sent when it comes back"
@@ -188,6 +200,27 @@ struct ScrobblingSettingsContent: View {
         }
     }
 
+    private var acceptedCountText: String {
+        scrobbler.acceptedCount == 1 ? "1 track" : "\(scrobbler.acceptedCount) tracks"
+    }
+
+    /// Names the window the number actually covers. Never "since you connected" — an account
+    /// linked before this counter existed has scrobbles it never saw — and never a lifetime
+    /// Last.fm total, which lives on the profile and is larger.
+    private var acceptedCaption: String {
+        var parts: [String] = []
+        if let since = scrobbler.countingSince {
+            parts.append("Accepted by Last.fm since \(since.formatted(date: .abbreviated, time: .omitted))")
+        } else {
+            parts.append("Accepted by Last.fm, counted from now on")
+        }
+        if let last = scrobbler.lastAcceptedAt {
+            let relative = RelativeDateTimeFormatter.scrobbleShared.localizedString(for: last, relativeTo: Date())
+            parts.append("most recent \(relative)")
+        }
+        return parts.joined(separator: " · ")
+    }
+
     private var pendingText: String {
         switch scrobbler.pendingCount {
         case 0: return "Nothing waiting"
@@ -195,4 +228,12 @@ struct ScrobblingSettingsContent: View {
         default: return "\(scrobbler.pendingCount) waiting"
         }
     }
+}
+
+private extension RelativeDateTimeFormatter {
+    static let scrobbleShared: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter
+    }()
 }

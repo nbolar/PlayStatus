@@ -13,11 +13,22 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private let model = NowPlayingModel.shared
     private let iconView = PassthroughImageView()
     private let marqueeView = StatusBarMarqueeView()
+    private let transportControlsView = StatusBarTransportControlsView()
     private let iconSize: CGFloat = 13
     private let statusIconLeadingInset: CGFloat = 4
     private let statusIconTextSpacing: CGFloat = 5
     private let statusTextTrailingInset: CGFloat = 4
     private var lastStatusLength: CGFloat = -1
+    private let anchorFollowDriver = PopoverAnchorFollowDriver()
+    private var pendingAnchorFollow: DispatchWorkItem?
+    /// Where the popover was last deliberately placed. AppKit re-centres the popover on its
+    /// positioning view the instant that view's bounds change; this is what that jump gets
+    /// undone back to.
+    private var placedPopoverOrigin: CGPoint?
+    /// A collapse lands as two anchor changes roughly 200ms apart. This has to outlast that
+    /// gap, or the popover chases the intermediate geometry and swings back — measured at
+    /// 0.16s, it moved twice.
+    private let anchorFollowSettleDelay: TimeInterval = 0.3
     private var lastStatusIcon: ProviderIconKind?
     private var lastAppliedPopoverSize: NSSize = .zero
     private let morphDriver = ModeMorphDriver()
@@ -59,6 +70,12 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             button.addSubview(iconView)
             button.addSubview(marqueeView)
             marqueeView.isHidden = true
+
+            transportControlsView.onPrevious = { [weak self] in self?.model.previousTrack() }
+            transportControlsView.onPlayPause = { [weak self] in self?.model.playPause() }
+            transportControlsView.onNext = { [weak self] in self?.model.nextTrack() }
+            button.addSubview(transportControlsView)
+            transportControlsView.isHidden = true
         }
 
         popover.behavior = .transient
@@ -199,7 +216,24 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             button.postsFrameChangedNotifications = true
             NotificationCenter.default.publisher(for: NSView.frameDidChangeNotification, object: button)
                 .receive(on: RunLoop.main)
-                .sink { [weak self] _ in self?.updateStatusButton() }
+                .sink { [weak self] _ in
+                    self?.updateStatusButton()
+                    self?.repositionPopoverIfAnchorMoved()
+                }
+                .store(in: &cancellables)
+        }
+
+        // The status item's own window is what slides when the menu bar re-flows: the
+        // button's frame inside it never changes, so frameDidChange alone misses the move.
+        for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification] {
+            NotificationCenter.default.publisher(for: name)
+                .receive(on: RunLoop.main)
+                .sink { [weak self] notification in
+                    guard let self,
+                          let window = notification.object as? NSWindow,
+                          window === self.statusItem?.button?.window else { return }
+                    self.repositionPopoverIfAnchorMoved()
+                }
                 .store(in: &cancellables)
         }
 
@@ -305,6 +339,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         updatePopoverLayout()
         model.isPopoverVisible = true
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        placedPopoverOrigin = popover.contentViewController?.view.window?.frame.origin
         applyAppearanceOverride()
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
@@ -421,6 +456,10 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
 
     func popoverDidClose(_ notification: Notification) {
         syncKeyboardCommands()
+        pendingAnchorFollow?.cancel()
+        pendingAnchorFollow = nil
+        anchorFollowDriver.cancel()
+        placedPopoverOrigin = nil
         if model.surfaceMode == .popover {
             model.isPopoverVisible = false
             return
@@ -456,15 +495,24 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         }
 
         let showMenuBarText = model.isPlaying && model.menuBarTextMode != .iconOnly
+        let showControls = model.menuBarControlsEnabled
+        let controlsWidth = showControls ? StatusBarTransportControlsView.totalWidth : 0
+        transportControlsView.isHidden = !showControls
+        if showControls {
+            transportControlsView.apply(isPlaying: model.isPlaying, enabled: model.canControlPlayback)
+        }
 
         if !showMenuBarText {
-            if abs(lastStatusLength - 22) > 0.1 {
-                statusItem.length = 22
-                lastStatusLength = 22
+            let iconLength: CGFloat = 22
+            let desiredLength = iconLength + controlsWidth
+            if abs(lastStatusLength - desiredLength) > 0.1 {
+                statusItem.length = desiredLength
+                lastStatusLength = desiredLength
             }
             let iconY = floor((button.bounds.height - iconSize) / 2)
-            let iconX = floor((button.bounds.width - iconSize) / 2)
+            let iconX = floor((iconLength - iconSize) / 2)
             iconView.frame = CGRect(x: iconX, y: iconY, width: iconSize, height: iconSize)
+            layoutTransportControls(in: button, leadingEdge: iconLength, width: controlsWidth)
             marqueeView.suspendScrolling()
             marqueeView.isHidden = true
             button.image = nil
@@ -480,15 +528,16 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             font: .systemFont(ofSize: 13, weight: .regular)
         )
         let effectiveLaneWidth = floor(min(configuredLaneWidth, max(24, actualTextWidth + 2)))
+        let laneChrome = statusIconLeadingInset
+            + iconSize
+            + statusIconTextSpacing
+            + statusTextTrailingInset
+            + controlsWidth
 
         // The icon and marquee are custom button subviews, so their complete
         // horizontal layout must fit inside the status item. Reserving only the
         // text lane clips long titles as soon as they reach the configured width.
-        let desiredLength = statusIconLeadingInset
-            + iconSize
-            + statusIconTextSpacing
-            + effectiveLaneWidth
-            + statusTextTrailingInset
+        let desiredLength = laneChrome + effectiveLaneWidth
         if abs(lastStatusLength - desiredLength) > 0.1 {
             statusItem.length = desiredLength
             lastStatusLength = desiredLength
@@ -507,6 +556,11 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         if !marqueeView.frame.equalTo(targetFrame) {
             marqueeView.frame = targetFrame
         }
+        layoutTransportControls(
+            in: button,
+            leadingEdge: targetFrame.maxX + statusTextTrailingInset,
+            width: controlsWidth
+        )
         let titleParts = model.menuBarTitleParts
         marqueeView.update(
             text: model.menuBarTitle,
@@ -516,6 +570,69 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             slideOnChange: model.slideTitleOnChange
         )
         button.toolTip = model.menuBarTitle
+    }
+
+    /// Keeps an open popover under its anchor.
+    ///
+    /// The status item is the popover's positioning view, and its width changes with the
+    /// player state (the title lane collapses on pause). macOS re-flows the menu bar but
+    /// leaves the popover at its original screen position, so it ends up pointing at
+    /// whatever item slid into that spot.
+    ///
+    /// A collapse arrives as two separate steps roughly 200ms apart — the item first
+    /// narrows in place, then the whole bar slides — and those steps pull the anchor in
+    /// opposite directions. Chasing each one produces a visible swing left and back, so the
+    /// move is debounced and run once against the settled anchor.
+    private func repositionPopoverIfAnchorMoved() {
+        guard popover.isShown else { return }
+        // The button's bounds shrink before the menu bar slides, and AppKit answers the
+        // bounds change alone by re-centring the popover — half the width change to the
+        // left, landing nowhere the anchor actually is. Undo it and let the settled move
+        // below do the travelling.
+        if !anchorFollowDriver.isRunning,
+           let placed = placedPopoverOrigin,
+           let window = popover.contentViewController?.view.window,
+           window.frame.origin != placed {
+            window.setFrameOrigin(placed)
+        }
+        pendingAnchorFollow?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.pendingAnchorFollow = nil
+            self?.followAnchor()
+        }
+        pendingAnchorFollow = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + anchorFollowSettleDelay, execute: work)
+    }
+
+    /// Slides the popover to wherever AppKit would place it against the current anchor.
+    ///
+    /// `show` is what derives that position, but it teleports. So it runs first to get the
+    /// authoritative destination, the window is put straight back, and the gap is animated —
+    /// deriving the destination by hand instead would mean re-implementing NSPopover's
+    /// placement (arrow centring, screen clamping) and drifting from it.
+    private func followAnchor() {
+        guard popover.isShown,
+              let button = statusItem?.button,
+              let before = placedPopoverOrigin ?? popover.contentViewController?.view.window?.frame.origin else { return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        guard let window = popover.contentViewController?.view.window else { return }
+        let after = window.frame.origin
+        placedPopoverOrigin = after
+        guard abs(after.x - before.x) > 0.5 || abs(after.y - before.y) > 0.5 else { return }
+        // A mode morph is already stepping this window's frame; leave it at the placed
+        // position rather than running a second driver against it.
+        guard !morphDriver.isRunning else { return }
+        window.setFrameOrigin(before)
+        anchorFollowDriver.animate(window, to: after)
+    }
+
+    private func layoutTransportControls(in button: NSView, leadingEdge: CGFloat, width: CGFloat) {
+        guard width > 0 else { return }
+        let targetFrame = CGRect(x: leadingEdge, y: 0, width: width, height: button.bounds.height)
+        if !transportControlsView.frame.equalTo(targetFrame) {
+            transportControlsView.frame = targetFrame
+            transportControlsView.needsLayout = true
+        }
     }
 
     private func statusImage(for icon: ProviderIconKind) -> NSImage? {
@@ -1105,4 +1222,64 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         surfaceContentLoaded = false
     }
 
+}
+
+/// Slides the popover's backing window to follow its anchor, one display frame at a time.
+///
+/// Same constraint as `ModeMorphDriver`: `NSAnimationContext` + `window.animator()` does not
+/// animate a popover's window — it snaps in a single frame — so the frame is stepped here.
+/// Re-targeting mid-flight is expected (the menu bar can re-flow twice in quick succession),
+/// and restarts from wherever the window currently sits rather than queueing a second slide.
+@MainActor
+final class PopoverAnchorFollowDriver: NSObject {
+    private var displayLink: CADisplayLink?
+    private var startTime: CFTimeInterval = 0
+    private var from: CGPoint = .zero
+    private var target: CGPoint = .zero
+    private weak var window: NSWindow?
+    /// Short enough to stay tied to the menu bar re-flow that caused it, long enough to read
+    /// as a slide rather than a jump.
+    private let duration: CFTimeInterval = 0.22
+
+    var isRunning: Bool { displayLink != nil }
+
+    func animate(_ window: NSWindow, to target: CGPoint) {
+        self.window = window
+        self.from = window.frame.origin
+        self.target = target
+        startTime = CACurrentMediaTime()
+        guard displayLink == nil else { return }
+        guard let link = NSScreen.main?.displayLink(target: self, selector: #selector(tick)) else {
+            window.setFrameOrigin(target)
+            return
+        }
+        displayLink = link
+        link.add(to: .main, forMode: .common)
+    }
+
+    func cancel() {
+        displayLink?.invalidate()
+        displayLink = nil
+        window = nil
+    }
+
+    @objc private func tick() {
+        guard let window else {
+            cancel()
+            return
+        }
+        let elapsed = (CACurrentMediaTime() - startTime) / duration
+        guard elapsed < 1 else {
+            window.setFrameOrigin(target)
+            cancel()
+            return
+        }
+        let progress = ModeMorphDriver.ease(elapsed)
+        window.setFrameOrigin(
+            CGPoint(
+                x: from.x + (target.x - from.x) * progress,
+                y: from.y + (target.y - from.y) * progress
+            )
+        )
+    }
 }

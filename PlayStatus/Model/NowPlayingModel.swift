@@ -53,19 +53,6 @@ final class NowPlayingModel: ObservableObject {
         }
     }
 
-    private struct ResumeVolumeRampState {
-        let deviceID: AudioDeviceID
-        let targetVolume: Double
-    }
-
-    private enum ResumeVolumeRamp {
-        static let duration: TimeInterval = 2
-        static let steps: Int = 9
-        static let minimumTargetVolume: Double = 0.14
-        static let startFraction: Double = 0.18
-        static let floorVolume: Double = 0.025
-    }
-
     // User toggles (didSet is the AppStore-safe way to auto-refresh; avoids CombineLatest Binding errors)
     @AppStorage("enableMusic") var enableMusic: Bool = true { didSet { refresh() } }
     @AppStorage("enableSpotify") var enableSpotify: Bool = true { didSet { refresh() } }
@@ -100,6 +87,7 @@ final class NowPlayingModel: ObservableObject {
         }
     }
     @AppStorage("scrollableTitle") var scrollableTitle: Bool = true { didSet { bumpStatusBarConfigRevision() } }
+    @AppStorage("menuBarControlsEnabled") var menuBarControlsEnabled: Bool = false { didSet { bumpStatusBarConfigRevision() } }
     @AppStorage("slideTitleOnChange") var slideTitleOnChange: Bool = false
     @AppStorage("statusTextWidth") private var statusTextWidthStorage: Double = 140
     @AppStorage("artworkColorIntensity") private var artworkColorIntensityStorage: Double = 1.0
@@ -242,10 +230,6 @@ final class NowPlayingModel: ObservableObject {
     @Published var regularControlsContrastBoost: Double = 0
     @Published var statusBarConfigRevision: Int = 0
     @Published var appearanceRevision: Int = 0
-    @Published var availableOutputDevices: [AudioOutputDevice] = []
-    @Published var selectedOutputDeviceID: AudioDeviceID = 0
-    @Published var outputVolume: Double = 1.0
-    @Published var outputMuted: Bool = false
     @Published var persistentCacheUsageText: String = "0 MB"
     @Published var isClearingPersistentCache: Bool = false
     @Published var isCurrentTrackFavorited: Bool = false
@@ -279,36 +263,13 @@ final class NowPlayingModel: ObservableObject {
     @Published private(set) var playHistoryPlayCounts: [String: Int] = [:]
     /// Total plays recorded, across all repeats.
     @Published private(set) var playHistoryTotalPlays: Int = 0
-    @Published var lyricsPayload: LyricsPayload? {
-        didSet {
-            guard lyricsPayload != oldValue else { return }
-            requestPopoverLayoutRefresh()
-        }
-    }
     @Published var creditsPayload: CreditsPayload? {
         didSet {
             guard creditsPayload != oldValue else { return }
             requestPopoverLayoutRefresh()
         }
     }
-    @Published var lyricsState: LyricsState = .idle {
-        didSet {
-            guard lyricsState != oldValue else { return }
-            requestPopoverLayoutRefresh()
-        }
-    }
-    @Published var lyricsLoadingProgress: LyricsLoadingProgress?
-    /// True while the in-flight fetch came from the user tapping retry, which the progress view
-    /// uses to skip the grace period it applies to automatic fetches.
-    @Published var lyricsFetchIsUserInitiated = false
-    /// True when a retry the user asked for came back with the same dead end it started from.
-    /// The pane says so, rather than redrawing the original sentence as though nothing ran.
-    @Published var lyricsRetryFoundNothing = false
     @Published var lyricsPanelExpanded: Bool = false
-    @Published var animatedArtworkHLSURL: URL? = nil
-    @Published var animatedArtworkState: AnimatedArtworkState = .none
-    @Published var animatedArtworkStatusMessage: String = "Idle"
-    @Published var animatedArtworkLastError: String = ""
     // Internals
     private var cancellables = Set<AnyCancellable>()
     private var metadataRefreshTimer: DispatchSourceTimer?
@@ -334,6 +295,18 @@ final class NowPlayingModel: ObservableObject {
     private let announcedChangeGrace: TimeInterval = 3
     private var unannouncedChangeCount = 0
     private let audioEvents = AudioOutputObserver()
+
+    /// System audio output state and the resume volume ramp.
+    ///
+    /// Its changes are relayed through this model's `objectWillChange` so views observing the
+    /// model still update when the volume rail changes.
+    let audio = AudioOutputCoordinator()
+
+    /// Lyrics fetch state and retry policy. Changes are relayed like `audio`'s.
+    let lyrics = LyricsCoordinator()
+
+    /// Animated-artwork stream lookup and the rules for preserving a stream. Relayed like `audio`'s.
+    let animated = AnimatedArtworkCoordinator()
     private var lastPlayerEventAt: Date?
     /// How long a broadcast counts as evidence that the players are still announcing changes.
     /// Comfortably longer than a track, so a single long song cannot make the app think the
@@ -345,7 +318,7 @@ final class NowPlayingModel: ObservableObject {
     private let missedFetchesBeforeIdle = 3
     private var cachedIdlePresentation: (value: PlayerIdlePresentation, provider: NowPlayingProvider, timestamp: CFAbsoluteTime)?
     private var launchAtLoginSupported: Bool = true
-    private var fallbackArtworkTaskKey: String?
+    private let artworkFallback = ArtworkFallbackLookup()
     private var pendingCarriedArtworkExpiry: DispatchWorkItem?
     /// How long the outgoing cover may stand in for one that is still being looked up.
     ///
@@ -355,21 +328,7 @@ final class NowPlayingModel: ObservableObject {
     /// title, and that is worse than the blank it is standing in for.
     private let carriedArtworkGrace: TimeInterval = 1.5
     private var pendingFallbackWork: DispatchWorkItem?
-    private var lyricsFetchTask: Task<Void, Never>?
-    private var animatedArtworkResolveTask: Task<Void, Never>?
-    private var animatedArtworkResolveRequestID: UUID?
-    private var animatedArtworkLookupKey: String = ""
-    private var animatedArtworkStreamIdentity: String = ""
-    private var lastAnimatedArtworkValidMusicSnapshotAt: Date = .distantPast
-    private let animatedArtworkTransientClearGrace: TimeInterval = 2.0
-    private var currentLyricsTrackKey: String = ""
-    private var resumeVolumeRampTask: Task<Void, Never>?
-    private var activeResumeVolumeRamp: ResumeVolumeRampState?
     #if DEBUG
-    private var lyricsMetricMusicAppHits: Int = 0
-    private var lyricsMetricLRCLIBHits: Int = 0
-    private var lyricsMetricUnavailable: Int = 0
-    private var lyricsMetricFailures: Int = 0
     #endif
     private let refreshQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.refresh", qos: .utility)
     /// Separate from `refreshQueue` on purpose. The provisional read exists to beat the full
@@ -654,7 +613,6 @@ final class NowPlayingModel: ObservableObject {
     init() {
         surfaceMode = .popover
         lyricsPanelExpanded = expandLyricsByDefault
-        animatedArtworkStatusMessage = "Ready"
         $isPopoverVisible
             .removeDuplicates()
             .sink { [weak self] isVisible in
@@ -671,6 +629,43 @@ final class NowPlayingModel: ObservableObject {
         // ten-second poll.
         audioEvents.start { [weak self] in
             self?.refreshAudioState()
+        }
+
+        audio.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+
+        lyrics.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+
+        lyrics.onLayoutAffectingChange = { [weak self] in
+            self?.requestPopoverLayoutRefresh()
+        }
+
+        // A fetch outlives a track change, so the coordinator re-checks the live track before
+        // publishing anything. Only this model knows what that is.
+        animated.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+
+        // A resolve outlives the snapshot it was started for, so the coordinator re-checks the
+        // live track before publishing. Only this model holds it.
+        animated.isSnapshotCurrent = { [weak self] snapshot in
+            guard let self, let current = self.lastSnapshot else { return false }
+            return self.trackIdentityMatches(current, snapshot)
+        }
+        animated.liveTrackIsAbsent = { [weak self] in
+            guard let self else { return false }
+            return self.provider == .none && self.title.isEmpty
+        }
+
+        lyrics.isDescriptorCurrent = { [weak self] descriptor in
+            guard let self else { return false }
+            return self.provider == descriptor.provider &&
+                self.title == descriptor.title &&
+                self.artist == descriptor.artist &&
+                self.album == descriptor.album
         }
 
         MainActor.assumeIsolated {
@@ -1167,11 +1162,7 @@ final class NowPlayingModel: ObservableObject {
         // personnel under the new song's title; the real values follow with the snapshot.
         self.creditsPayload = nil
 
-        self.artwork = artwork
-        self.updateTint(from: artwork)
-        #if DEBUG
-        NSLog("PlayStatus artwork: set from=%@ id=%@", "provisional", artwork.artworkTransitionIdentity)
-        #endif
+        setDisplayedArtwork(artwork, source: "provisional")
 
         // A newly started track is at the beginning. Worst case this is wrong by the couple of
         // hundred milliseconds it takes the real read to land and correct it — against a
@@ -1258,7 +1249,6 @@ final class NowPlayingModel: ObservableObject {
     deinit {
         cancelPollingTimer(&metadataRefreshTimer)
         cancelPollingTimer(&audioRefreshTimer)
-        resumeVolumeRampTask?.cancel()
         #if DEBUG
         flushDebugPollMetricsIfNeeded(force: true)
         #endif
@@ -1372,13 +1362,11 @@ final class NowPlayingModel: ObservableObject {
                 (last.nativeArtworkState != .available || lastArtworkIdentity != currentArtworkIdentity)
 
             if shouldPromoteNativeArtwork, let artwork = snap.artwork?.normalizedArtworkForDisplay() {
+                // Written before the hop, as it always has been — the snapshot is read off the
+                // main actor by the next poll, which must not race the display update.
                 lastSnapshot?.artwork = artwork
                 DispatchQueue.main.async {
-                    self.artwork = artwork
-                #if DEBUG
-                NSLog("PlayStatus artwork: set from=%@ id=%@", "promoteNative", self.artwork?.artworkTransitionIdentity ?? "nil")
-                #endif
-                    self.updateTint(from: artwork)
+                    self.setDisplayedArtwork(artwork, source: "promoteNative")
                 }
             }
             return
@@ -1728,11 +1716,7 @@ final class NowPlayingModel: ObservableObject {
             let displayedArtworkIdentity = self.artwork?.artworkTransitionIdentity
             let incomingArtworkIdentity = resolvedSnapshot.artwork?.artworkTransitionIdentity
             if displayedArtworkIdentity != incomingArtworkIdentity {
-                self.artwork = resolvedSnapshot.artwork
-                #if DEBUG
-                NSLog("PlayStatus artwork: set from=%@ id=%@", "apply", self.artwork?.artworkTransitionIdentity ?? "nil")
-                #endif
-                self.updateTint(from: resolvedSnapshot.artwork)
+                self.setDisplayedArtwork(resolvedSnapshot.artwork, source: "apply")
             }
             self.updateMetadataPollingTimerIfNeeded(using: resolvedSnapshot)
         }
@@ -1742,17 +1726,9 @@ final class NowPlayingModel: ObservableObject {
                 startLyricsFetch(for: resolvedSnapshot, forceRefresh: false, resetState: true)
             }
         } else {
-            lyricsFetchTask?.cancel()
-            Task {
-                await LyricsService.shared.cancelAllInflightLyricsFetches()
-            }
-            currentLyricsTrackKey = ""
+            lyrics.clear()
             DispatchQueue.main.async {
                 self.creditsPayload = nil
-                self.lyricsPayload = nil
-                self.lyricsState = .idle
-                self.lyricsLoadingProgress = nil
-                self.lyricsRetryFoundNothing = false
             }
         }
 
@@ -1810,14 +1786,6 @@ final class NowPlayingModel: ObservableObject {
         startLyricsFetch(for: snapshot, forceRefresh: true, resetState: true, userInitiated: true)
     }
 
-    /// How long a user-initiated retry keeps the pane in `.loading`, even if the fetch beats it.
-    ///
-    /// A miss round-trips in about 0.4s, which is faster than the progress view's own grace
-    /// period — the retry finished before anything was drawn, so tapping "Look again" changed
-    /// nothing on screen and read as a dead button. An automatic fetch wants to stay silent when
-    /// it is that quick; an explicit tap has to be acknowledged.
-    private let userInitiatedLyricsFetchFloor: TimeInterval = 0.75
-
     private func startLyricsFetch(
         for snapshot: NowPlayingSnapshot,
         forceRefresh: Bool,
@@ -1831,279 +1799,12 @@ final class NowPlayingModel: ObservableObject {
             album: snapshot.album,
             duration: snapshot.duration
         )
-        let trackKey = descriptor.cacheKey
-        currentLyricsTrackKey = trackKey
-        lyricsFetchTask?.cancel()
-        Task {
-            await LyricsService.shared.cancelAllInflightLyricsFetches()
-        }
-
-        if resetState {
-            DispatchQueue.main.async {
-                self.lyricsPayload = nil
-                self.lyricsState = .loading
-                self.lyricsLoadingProgress = nil
-                self.lyricsFetchIsUserInitiated = userInitiated
-                self.lyricsRetryFoundNothing = false
-            }
-        }
-
-        lyricsFetchTask = Task { [weak self] in
-            guard let self else { return }
-            let fetchStart = CFAbsoluteTimeGetCurrent()
-            let outcome = await self.fetchLyricsWithRetry(for: descriptor, forceRefresh: forceRefresh)
-            guard !Task.isCancelled else { return }
-
-            if userInitiated {
-                let elapsed = CFAbsoluteTimeGetCurrent() - fetchStart
-                let remaining = self.userInitiatedLyricsFetchFloor - elapsed
-                if remaining > 0 {
-                    try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
-                    guard !Task.isCancelled else { return }
-                }
-            }
-
-            await MainActor.run {
-                guard self.currentLyricsTrackKey == trackKey else { return }
-                guard self.provider == descriptor.provider,
-                      self.title == descriptor.title,
-                      self.artist == descriptor.artist,
-                      self.album == descriptor.album else { return }
-
-                switch outcome {
-                case .available(let payload):
-                    self.lyricsPayload = payload
-                    self.lyricsState = .available
-                    self.lyricsLoadingProgress = nil
-                    #if DEBUG
-                    if payload.source == .musicApp {
-                        self.lyricsMetricMusicAppHits += 1
-                    } else if payload.source == .lrclib {
-                        self.lyricsMetricLRCLIBHits += 1
-                    }
-                    NSLog(
-                        "PlayStatus lyrics metrics: musicApp=\(self.lyricsMetricMusicAppHits) lrclib=\(self.lyricsMetricLRCLIBHits) unavailable=\(self.lyricsMetricUnavailable) failed=\(self.lyricsMetricFailures)"
-                    )
-                    #endif
-                case .instrumental:
-                    self.lyricsPayload = nil
-                    self.lyricsState = .instrumental
-                    self.lyricsLoadingProgress = nil
-                case .unavailable:
-                    self.lyricsPayload = nil
-                    self.lyricsState = .unavailable
-                    self.lyricsLoadingProgress = nil
-                    self.lyricsRetryFoundNothing = userInitiated
-                    #if DEBUG
-                    self.lyricsMetricUnavailable += 1
-                    NSLog(
-                        "PlayStatus lyrics metrics: musicApp=\(self.lyricsMetricMusicAppHits) lrclib=\(self.lyricsMetricLRCLIBHits) unavailable=\(self.lyricsMetricUnavailable) failed=\(self.lyricsMetricFailures)"
-                    )
-                    #endif
-                case .failed:
-                    self.lyricsPayload = nil
-                    self.lyricsState = .failed
-                    self.lyricsLoadingProgress = nil
-                    self.lyricsRetryFoundNothing = userInitiated
-                    #if DEBUG
-                    self.lyricsMetricFailures += 1
-                    NSLog(
-                        "PlayStatus lyrics metrics: musicApp=\(self.lyricsMetricMusicAppHits) lrclib=\(self.lyricsMetricLRCLIBHits) unavailable=\(self.lyricsMetricUnavailable) failed=\(self.lyricsMetricFailures)"
-                    )
-                    #endif
-                }
-            }
-        }
-    }
-
-    private func fetchLyricsWithRetry(for descriptor: LyricsTrackDescriptor, forceRefresh: Bool) async -> LyricsFetchOutcome {
-        let maxAttempts = 2
-        var attempt = 0
-        var lastLRCLIBOutcome: LyricsFetchOutcome = .unavailable
-        let trackKey = descriptor.cacheKey
-        let retryDelayNanos: UInt64 = 350_000_000
-
-        #if DEBUG
-        let totalStartTime = CFAbsoluteTimeGetCurrent()
-        let outcomeDescription: (LyricsFetchOutcome) -> String = { outcome in
-            switch outcome {
-            case .available:
-                return "available"
-            case .instrumental:
-                return "instrumental"
-            case .unavailable:
-                return "unavailable"
-            case .failed:
-                return "failed"
-            }
-        }
-        let logTotal: (LyricsFetchOutcome, String) -> Void = { outcome, note in
-            let totalDuration = CFAbsoluteTimeGetCurrent() - totalStartTime
-            NSLog(
-                "PlayStatus lyrics timing: provider=%@ total=%.3fs outcome=%@ note=%@",
-                descriptor.provider.rawValue,
-                totalDuration,
-                outcomeDescription(outcome),
-                note
-            )
-        }
-        #endif
-
-        attemptLoop: while attempt < maxAttempts {
-            if Task.isCancelled { return .failed }
-
-            let shouldForceRefresh = forceRefresh || attempt > 0
-            let attemptNumber = attempt + 1
-
-            #if DEBUG
-            let attemptStartTime = CFAbsoluteTimeGetCurrent()
-            #endif
-
-            let outcome = await LyricsService.shared.fetchLyrics(
-                for: descriptor,
-                forceRefresh: shouldForceRefresh,
-                mode: .lrclibOnly,
-                cacheUnavailableResult: false
-            ) { [weak self] stage in
-                guard let self else { return }
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    guard self.currentLyricsTrackKey == trackKey else { return }
-                    guard self.provider == descriptor.provider,
-                          self.title == descriptor.title,
-                          self.artist == descriptor.artist,
-                          self.album == descriptor.album else { return }
-
-                    self.lyricsLoadingProgress = LyricsLoadingProgress(
-                        attempt: attemptNumber,
-                        maxAttempts: maxAttempts,
-                        stage: stage,
-                        stageIndex: stage.rawValue,
-                        stageCount: LyricsLoadingStage.allCases.count
-                    )
-                }
-            }
-
-            #if DEBUG
-            let attemptDuration = CFAbsoluteTimeGetCurrent() - attemptStartTime
-            NSLog(
-                "PlayStatus lyrics timing: provider=%@ phase=lrclib attempt=%d/%d duration=%.3fs outcome=%@",
-                descriptor.provider.rawValue,
-                attemptNumber,
-                maxAttempts,
-                attemptDuration,
-                outcomeDescription(outcome)
-            )
-            #endif
-
-            lastLRCLIBOutcome = outcome
-
-            switch outcome {
-            case .available:
-                #if DEBUG
-                logTotal(outcome, "lrclib_success")
-                #endif
-                return outcome
-            case .instrumental:
-                #if DEBUG
-                logTotal(outcome, "lrclib_instrumental")
-                #endif
-                return outcome
-            case .failed:
-                attempt += 1
-                guard attempt < maxAttempts else { break }
-                try? await Task.sleep(nanoseconds: retryDelayNanos)
-            case .unavailable:
-                break attemptLoop
-            }
-        }
-
-        if Task.isCancelled { return .failed }
-
-        guard descriptor.provider == .music else {
-            #if DEBUG
-            logTotal(lastLRCLIBOutcome, "skip_music_fallback_non_music_provider")
-            #endif
-            return lastLRCLIBOutcome
-        }
-
-        #if DEBUG
-        let fallbackStartTime = CFAbsoluteTimeGetCurrent()
-        #endif
-
-        // A cached "no lyrics" is a 24-hour answer, so only record one when both legs actually
-        // answered. If LRCLIB's leg failed — offline, timeout, a 5xx — then a Music app miss says
-        // nothing about whether the track has lyrics, and caching it would hide the real lyrics
-        // behind "No lyrics found" for the rest of the day. The outcome returned below is already
-        // corrected to `.failed` for this case, but that correction happens *after* the service
-        // has written its cache entry, which is what made the stale miss stick.
-        let lrclibLegAnswered: Bool
-        if case .failed = lastLRCLIBOutcome {
-            lrclibLegAnswered = false
-        } else {
-            lrclibLegAnswered = true
-        }
-
-        let musicFallbackOutcome = await LyricsService.shared.fetchLyrics(
+        lyrics.start(
             for: descriptor,
-            forceRefresh: true,
-            mode: .musicOnly,
-            cacheUnavailableResult: lrclibLegAnswered
-        ) { [weak self] stage in
-            guard let self else { return }
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                guard self.currentLyricsTrackKey == trackKey else { return }
-                guard self.provider == descriptor.provider,
-                      self.title == descriptor.title,
-                      self.artist == descriptor.artist,
-                      self.album == descriptor.album else { return }
-
-                self.lyricsLoadingProgress = LyricsLoadingProgress(
-                    attempt: maxAttempts,
-                    maxAttempts: maxAttempts,
-                    stage: stage,
-                    stageIndex: stage.rawValue,
-                    stageCount: LyricsLoadingStage.allCases.count
-                )
-            }
-        }
-
-        #if DEBUG
-        let fallbackDuration = CFAbsoluteTimeGetCurrent() - fallbackStartTime
-        NSLog(
-            "PlayStatus lyrics timing: provider=%@ phase=music_fallback duration=%.3fs outcome=%@",
-            descriptor.provider.rawValue,
-            fallbackDuration,
-            outcomeDescription(musicFallbackOutcome)
+            forceRefresh: forceRefresh,
+            resetState: resetState,
+            userInitiated: userInitiated
         )
-        #endif
-
-        switch musicFallbackOutcome {
-        case .instrumental:
-            return musicFallbackOutcome
-        case .available:
-            #if DEBUG
-            logTotal(musicFallbackOutcome, "music_fallback_success")
-            #endif
-            return musicFallbackOutcome
-        case .failed:
-            #if DEBUG
-            logTotal(.failed, "music_fallback_failed")
-            #endif
-            return .failed
-        case .unavailable:
-            if case .failed = lastLRCLIBOutcome {
-                #if DEBUG
-                logTotal(.failed, "lrclib_failed_and_music_unavailable")
-                #endif
-                return .failed
-            }
-            #if DEBUG
-            logTotal(.unavailable, "music_fallback_unavailable")
-            #endif
-            return .unavailable
-        }
     }
 
     private func updateTint(from image: NSImage?) {
@@ -2200,41 +1901,24 @@ final class NowPlayingModel: ObservableObject {
         }
     }
 
-    private func applyAudioState(_ state: AudioOutputState) {
-        availableOutputDevices = state.devices
-        selectedOutputDeviceID = state.selectedDeviceID
-        outputMuted = state.isMuted
-
-        if let ramp = activeResumeVolumeRamp {
-            guard ramp.deviceID == state.selectedDeviceID else {
-                cancelResumeVolumeRamp(restoreTargetVolume: false)
-                outputVolume = state.volume
-                return
-            }
-            outputVolume = ramp.targetVolume
-            if state.isMuted {
-                cancelResumeVolumeRamp(restoreTargetVolume: false)
-            }
-            return
-        }
-
-        outputVolume = state.volume
-    }
-
     // MARK: - Controls
 
     func playPause() {
-        if activeResumeVolumeRamp != nil {
-            cancelResumeVolumeRamp(restoreTargetVolume: true)
+        // A ramp in flight means the last press started playback, so this press is the pause:
+        // hand the user's volume back before the player stops.
+        if audio.isRamping {
+            audio.cancelResumeRamp(restoreTargetVolume: true)
             sendPlayPauseCommand()
             return
         }
 
         let audioState = AudioOutputController.currentState()
-        applyAudioState(audioState)
+        audio.apply(audioState)
 
         if shouldApplyResumeVolumeRamp(using: audioState) {
-            startResumeVolumeRamp(using: audioState)
+            audio.startResumeRamp(using: audioState) { [weak self] in
+                self?.sendPlayPauseCommand()
+            }
             return
         }
 
@@ -2334,35 +2018,32 @@ final class NowPlayingModel: ObservableObject {
         }
     }
 
-    func refreshAudioState() {
-        refreshQueue.async { [weak self] in
-            guard let self else { return }
-            let state = AudioOutputController.currentState()
-            DispatchQueue.main.async {
-                self.applyAudioState(state)
-            }
-        }
-    }
+    // MARK: - Animated artwork (forwarded to `animated`)
 
-    func setOutputDevice(_ id: AudioDeviceID) {
-        cancelResumeVolumeRamp(restoreTargetVolume: false)
-        AudioOutputController.setDefaultOutputDevice(id)
-        refreshAudioState()
-    }
+    var animatedArtworkHLSURL: URL? { animated.hlsURL }
+    var animatedArtworkState: AnimatedArtworkState { animated.state }
+    var animatedArtworkStatusMessage: String { animated.statusMessage }
+    var animatedArtworkLastError: String { animated.lastError }
 
-    func setOutputVolume(_ value: Double) {
-        cancelResumeVolumeRamp(restoreTargetVolume: false)
-        let clamped = min(max(value, 0), 1)
-        outputVolume = clamped
-        AudioOutputController.setVolume(Float32(clamped), for: selectedOutputDeviceID == 0 ? nil : selectedOutputDeviceID)
-    }
+    // MARK: - Lyrics (forwarded to `lyrics`)
 
-    func toggleOutputMute() {
-        cancelResumeVolumeRamp(restoreTargetVolume: false)
-        let newMuted = !outputMuted
-        outputMuted = newMuted
-        AudioOutputController.setMuted(newMuted, for: selectedOutputDeviceID == 0 ? nil : selectedOutputDeviceID)
-    }
+    var lyricsPayload: LyricsPayload? { lyrics.payload }
+    var lyricsState: LyricsState { lyrics.state }
+    var lyricsLoadingProgress: LyricsLoadingProgress? { lyrics.loadingProgress }
+    var lyricsFetchIsUserInitiated: Bool { lyrics.fetchIsUserInitiated }
+    var lyricsRetryFoundNothing: Bool { lyrics.retryFoundNothing }
+
+    // MARK: - Audio output (forwarded to `audio`)
+
+    var availableOutputDevices: [AudioOutputDevice] { audio.availableOutputDevices }
+    var selectedOutputDeviceID: AudioDeviceID { audio.selectedOutputDeviceID }
+    var outputVolume: Double { audio.outputVolume }
+    var outputMuted: Bool { audio.outputMuted }
+
+    func refreshAudioState() { audio.refreshState() }
+    func setOutputDevice(_ id: AudioDeviceID) { audio.setOutputDevice(id) }
+    func setOutputVolume(_ value: Double) { audio.setOutputVolume(value) }
+    func toggleOutputMute() { audio.toggleOutputMute() }
 
     private func sendPlayPauseCommand() {
         switch provider {
@@ -2373,68 +2054,13 @@ final class NowPlayingModel: ObservableObject {
         }
     }
 
+    /// Playback-side gating for the resume ramp: only ramp when this press is actually resuming
+    /// a real track. The audio-side conditions live on the coordinator.
     private func shouldApplyResumeVolumeRamp(using audioState: AudioOutputState) -> Bool {
         provider != .none &&
         !isPlaying &&
         !title.isEmpty &&
-        !audioState.isMuted &&
-        audioState.selectedDeviceID != 0 &&
-        audioState.volume >= ResumeVolumeRamp.minimumTargetVolume
-    }
-
-    private func startResumeVolumeRamp(using audioState: AudioOutputState) {
-        cancelResumeVolumeRamp(restoreTargetVolume: true)
-
-        let targetVolume = min(max(audioState.volume, 0), 1)
-        let deviceID = audioState.selectedDeviceID
-        let startingVolume = min(
-            targetVolume,
-            max(ResumeVolumeRamp.floorVolume, targetVolume * ResumeVolumeRamp.startFraction)
-        )
-
-        activeResumeVolumeRamp = ResumeVolumeRampState(deviceID: deviceID, targetVolume: targetVolume)
-
-        // Drop to a gentler level before resuming, then ease back to the user's chosen output volume.
-        AudioOutputController.setVolume(Float32(startingVolume), for: deviceID)
-        sendPlayPauseCommand()
-
-        let stepDelay = UInt64((ResumeVolumeRamp.duration / Double(ResumeVolumeRamp.steps)) * 1_000_000_000)
-        resumeVolumeRampTask = Task { [weak self] in
-            for step in 1...ResumeVolumeRamp.steps {
-                try? await Task.sleep(nanoseconds: stepDelay)
-                guard !Task.isCancelled else { return }
-
-                let progress = Double(step) / Double(ResumeVolumeRamp.steps)
-                let easedProgress = 1 - pow(1 - progress, 3)
-                let steppedVolume = startingVolume + ((targetVolume - startingVolume) * easedProgress)
-                AudioOutputController.setVolume(Float32(steppedVolume), for: deviceID)
-            }
-
-            guard !Task.isCancelled else { return }
-            self?.finishResumeVolumeRamp(deviceID: deviceID, targetVolume: targetVolume)
-        }
-    }
-
-    private func finishResumeVolumeRamp(deviceID: AudioDeviceID, targetVolume: Double) {
-        guard let ramp = activeResumeVolumeRamp,
-              ramp.deviceID == deviceID else {
-            return
-        }
-
-        activeResumeVolumeRamp = nil
-        resumeVolumeRampTask = nil
-        outputVolume = targetVolume
-    }
-
-    private func cancelResumeVolumeRamp(restoreTargetVolume: Bool) {
-        let ramp = activeResumeVolumeRamp
-        resumeVolumeRampTask?.cancel()
-        resumeVolumeRampTask = nil
-        activeResumeVolumeRamp = nil
-
-        guard restoreTargetVolume, let ramp else { return }
-        AudioOutputController.setVolume(Float32(ramp.targetVolume), for: ramp.deviceID)
-        outputVolume = ramp.targetVolume
+        audio.canRamp(using: audioState)
     }
 
     func refreshPersistentCacheStats() {
@@ -2596,17 +2222,16 @@ final class NowPlayingModel: ObservableObject {
     private func releaseTransientMediaForHiddenSurface() {
         pendingFallbackWork?.cancel()
         pendingFallbackWork = nil
-        fallbackArtworkTaskKey = nil
+        artworkFallback.reset()
 
-        resetAnimatedArtworkState(
+        animated.reset(
             statusMessage: "Released while hidden to reduce memory",
             clearLookupKey: true,
             resetLastValidMusicSnapshotAt: true
         )
 
         if artwork != nil {
-            artwork = nil
-            updateTint(from: nil)
+            setDisplayedArtwork(nil, source: "releasedWhileHidden")
         }
 
         if var cachedSnapshot = lastSnapshot {
@@ -2623,37 +2248,9 @@ final class NowPlayingModel: ObservableObject {
         }
     }
 
-    private func resetAnimatedArtworkState(
-        statusMessage: String,
-        clearLookupKey: Bool = false,
-        resetLastValidMusicSnapshotAt: Bool = false
-    ) {
-        animatedArtworkResolveTask?.cancel()
-        animatedArtworkResolveTask = nil
-        animatedArtworkResolveRequestID = nil
-        animatedArtworkHLSURL = nil
-        animatedArtworkStreamIdentity = ""
-        animatedArtworkState = .none
-        animatedArtworkStatusMessage = statusMessage
-        animatedArtworkLastError = ""
-
-        if clearLookupKey {
-            animatedArtworkLookupKey = ""
-        }
-        if resetLastValidMusicSnapshotAt {
-            lastAnimatedArtworkValidMusicSnapshotAt = .distantPast
-        }
-    }
-
-    private func transitionAnimatedArtworkLoadingToIdleIfNeeded() {
-        guard animatedArtworkState == .loading, animatedArtworkHLSURL == nil else { return }
-        animatedArtworkState = .none
-        animatedArtworkStatusMessage = "Idle"
-    }
-
     private func handleAnimatedArtworkSettingChanged() {
         if !animatedArtworkEnabled || !animatedArtworkStreamsEnabled {
-            resetAnimatedArtworkState(statusMessage: "Animated streams disabled")
+            animated.reset(statusMessage: "Animated streams disabled")
             return
         }
         refreshAnimatedArtworkForCurrentTrack(force: true)
@@ -2661,7 +2258,7 @@ final class NowPlayingModel: ObservableObject {
 
     private func refreshAnimatedArtworkForCurrentTrack(force: Bool) {
         guard let snapshot = lastSnapshot else {
-            resetAnimatedArtworkState(statusMessage: "Idle")
+            animated.reset(statusMessage: "Idle")
             return
         }
 
@@ -2669,259 +2266,16 @@ final class NowPlayingModel: ObservableObject {
     }
 
     private func updateAnimatedArtwork(for snapshot: NowPlayingSnapshot, force: Bool = false) {
-        let now = Date()
-        let isMusicProvider = snapshot.provider == .music
-        let isSpotifyProvider = snapshot.provider == .spotify
-        let isSupportedProvider = isMusicProvider || isSpotifyProvider
-
-        if shouldReduceTransientMemoryWhileHidden {
-            resetAnimatedArtworkState(
-                statusMessage: "Released while hidden to reduce memory",
-                clearLookupKey: true,
-                resetLastValidMusicSnapshotAt: true
-            )
-            return
-        }
-
-        if isMusicProvider, !snapshot.title.isEmpty {
-            lastAnimatedArtworkValidMusicSnapshotAt = now
-        }
-
-        guard isSupportedProvider,
-              !snapshot.title.isEmpty else {
-            // Music AppleScript metadata can occasionally transiently drop to empty;
-            // keep current animated artwork briefly to avoid visible teardown/relookup jitter.
-            if snapshot.provider == .none,
-               now.timeIntervalSince(lastAnimatedArtworkValidMusicSnapshotAt) < animatedArtworkTransientClearGrace {
-                return
-            }
-            resetAnimatedArtworkState(
-                statusMessage: "Idle",
-                clearLookupKey: true,
-                resetLastValidMusicSnapshotAt: true
-            )
-            return
-        }
-
-        guard animatedArtworkEnabled, animatedArtworkStreamsEnabled else {
-            resetAnimatedArtworkState(
-                statusMessage: "Animated streams disabled",
-                resetLastValidMusicSnapshotAt: true
-            )
-            return
-        }
-
-        let lookupKey = animatedArtworkLookupKey(for: snapshot)
-        let sameLookupKey = lookupKey == animatedArtworkLookupKey
-
-        if isSpotifyProvider, !snapshot.isPlaying {
-            animatedArtworkResolveTask?.cancel()
-            animatedArtworkResolveTask = nil
-            animatedArtworkResolveRequestID = nil
-            animatedArtworkLookupKey = lookupKey
-
-            if animatedArtworkHLSURL != nil, sameLookupKey {
-                animatedArtworkState = .available
-                animatedArtworkStatusMessage = "Animated artwork available (Apple Music stream)"
-            } else {
-                animatedArtworkHLSURL = nil
-                animatedArtworkStreamIdentity = ""
-                animatedArtworkState = .none
-                animatedArtworkStatusMessage = "Spotify paused (static artwork)"
-                animatedArtworkLastError = ""
-            }
-            return
-        }
-
-        if !force,
-           sameLookupKey,
-           (animatedArtworkState != .none &&
-            !(animatedArtworkState == .loading && animatedArtworkResolveTask == nil)) {
-            return
-        }
-        let preserveCurrentStream = isMusicProvider && shouldPreserveAnimatedArtworkStream(for: snapshot)
-        animatedArtworkLookupKey = lookupKey
-        let clearExistingURL: Bool
-        if isSpotifyProvider {
-            // Spotify always starts static-first for new tracks.
-            clearExistingURL = !sameLookupKey
-        } else {
-            clearExistingURL = !(sameLookupKey || preserveCurrentStream)
-        }
-        resolveAnimatedArtwork(
+        animated.update(
             for: snapshot,
-            lookupKey: lookupKey,
-            clearExistingURL: clearExistingURL
+            policy: AnimatedArtworkCoordinator.Policy(
+                enabled: animatedArtworkEnabled,
+                streamsEnabled: animatedArtworkStreamsEnabled,
+                quality: animatedArtworkQualityPolicy,
+                reduceMemoryWhileHidden: shouldReduceTransientMemoryWhileHidden
+            ),
+            force: force
         )
-    }
-
-    private func resolveAnimatedArtwork(
-        for snapshot: NowPlayingSnapshot,
-        lookupKey: String,
-        clearExistingURL: Bool
-    ) {
-        animatedArtworkResolveTask?.cancel()
-        animatedArtworkResolveTask = nil
-        let requestID = UUID()
-        animatedArtworkResolveRequestID = requestID
-
-        animatedArtworkState = .loading
-        animatedArtworkStatusMessage = animatedArtworkLoadingStatusMessage(for: snapshot.provider)
-        if clearExistingURL {
-            animatedArtworkHLSURL = nil
-            animatedArtworkStreamIdentity = ""
-        }
-
-        let descriptor = AnimatedArtworkTrackDescriptor(
-            sourceProvider: snapshot.provider,
-            artist: snapshot.artist,
-            albumArtist: snapshot.albumArtist,
-            album: snapshot.album,
-            title: snapshot.title,
-            appleMusicAlbumURL: snapshot.appleMusicAlbumURL
-        )
-        let quality = animatedArtworkQualityPolicy
-
-        animatedArtworkResolveTask = Task { [weak self] in
-            guard let self else { return }
-            let resolution = await AppleMusicAnimatedArtworkService.shared.resolve(
-                for: descriptor,
-                qualityPolicy: quality
-            )
-            let wasCancelled = Task.isCancelled
-
-            await MainActor.run {
-                guard self.animatedArtworkResolveRequestID == requestID else { return }
-                self.animatedArtworkResolveTask = nil
-                self.animatedArtworkResolveRequestID = nil
-
-                if wasCancelled {
-                    self.transitionAnimatedArtworkLoadingToIdleIfNeeded()
-                    return
-                }
-
-                let isCurrentSnapshotMatch = self.lastSnapshot.map { self.trackIdentityMatches($0, snapshot) } ?? false
-                let isTransientMusicGap =
-                    snapshot.provider == .music &&
-                    self.provider == .none &&
-                    self.title.isEmpty &&
-                    Date().timeIntervalSince(self.lastAnimatedArtworkValidMusicSnapshotAt) < self.animatedArtworkTransientClearGrace
-
-                guard isCurrentSnapshotMatch || isTransientMusicGap else {
-                    self.transitionAnimatedArtworkLoadingToIdleIfNeeded()
-                    return
-                }
-                guard self.animatedArtworkLookupKey == lookupKey else {
-                    self.transitionAnimatedArtworkLoadingToIdleIfNeeded()
-                    return
-                }
-
-                let shouldRetainExistingStream =
-                    resolution.state != .available &&
-                    self.animatedArtworkHLSURL != nil &&
-                    self.shouldPreserveAnimatedArtworkStream(for: snapshot)
-                if shouldRetainExistingStream {
-                    self.animatedArtworkState = .available
-                    self.animatedArtworkStatusMessage = self.animatedArtworkResolvedStatusMessage(
-                        for: .available,
-                        provider: snapshot.provider,
-                        fallback: "Animated artwork available"
-                    )
-                    self.animatedArtworkLastError = resolution.diagnosticMessage
-                    return
-                }
-
-                self.animatedArtworkState = resolution.state
-                self.animatedArtworkHLSURL = resolution.hlsURL
-                self.animatedArtworkStatusMessage = self.animatedArtworkResolvedStatusMessage(
-                    for: resolution.state,
-                    provider: snapshot.provider,
-                    fallback: resolution.statusMessage
-                )
-                if resolution.state == .available, resolution.hlsURL != nil {
-                    self.animatedArtworkStreamIdentity = self.animatedArtworkIdentityKey(for: snapshot)
-                } else if resolution.hlsURL == nil {
-                    self.animatedArtworkStreamIdentity = ""
-                }
-                self.animatedArtworkLastError = resolution.diagnosticMessage
-            }
-        }
-    }
-
-    private func animatedArtworkLookupKey(for snapshot: NowPlayingSnapshot) -> String {
-        if let albumURL = snapshot.appleMusicAlbumURL?.absoluteString, !albumURL.isEmpty {
-            return "\(snapshot.provider.rawValue)|albumURL|\(albumURL.lowercased())"
-        }
-        return [
-            snapshot.provider.rawValue,
-            animatedArtworkLookupComponent(animatedArtworkLookupArtist(for: snapshot)),
-            animatedArtworkLookupComponent(snapshot.album),
-            animatedArtworkLookupComponent(snapshot.title)
-        ].joined(separator: "|")
-    }
-
-    private func animatedArtworkLookupArtist(for snapshot: NowPlayingSnapshot) -> String {
-        let trimmedAlbumArtist = snapshot.albumArtist.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedAlbumArtist.isEmpty {
-            return trimmedAlbumArtist
-        }
-        return snapshot.artist
-    }
-
-    private func animatedArtworkLookupComponent(_ value: String) -> String {
-        value
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .folding(options: [.diacriticInsensitive, .widthInsensitive], locale: .current)
-            .lowercased()
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func animatedArtworkIdentityKey(for snapshot: NowPlayingSnapshot) -> String {
-        [
-            animatedArtworkLookupComponent(animatedArtworkLookupArtist(for: snapshot)),
-            animatedArtworkLookupComponent(snapshot.album),
-            animatedArtworkLookupComponent(snapshot.title)
-        ].joined(separator: "|")
-    }
-
-    private func shouldPreserveAnimatedArtworkStream(for snapshot: NowPlayingSnapshot) -> Bool {
-        guard snapshot.provider == .music, animatedArtworkHLSURL != nil else { return false }
-        let snapshotIdentity = animatedArtworkIdentityKey(for: snapshot)
-        guard !snapshotIdentity.isEmpty else { return false }
-
-        // `lastSnapshot` has already advanced to the new track by the time we re-resolve
-        // animated artwork, so only preserve a stream when it is already owned by this track.
-        return animatedArtworkStreamIdentity == snapshotIdentity
-    }
-
-    private func animatedArtworkLoadingStatusMessage(for provider: NowPlayingProvider) -> String {
-        switch provider {
-        case .spotify:
-            return "Looking up animated artwork (Spotify)"
-        default:
-            return "Looking up animated artwork..."
-        }
-    }
-
-    private func animatedArtworkResolvedStatusMessage(
-        for state: AnimatedArtworkState,
-        provider: NowPlayingProvider,
-        fallback: String
-    ) -> String {
-        guard provider == .spotify else { return fallback }
-        switch state {
-        case .available:
-            return "Animated artwork available (Apple Music stream)"
-        case .unavailable:
-            return "No animated stream found for this Spotify track"
-        case .failed:
-            return "Animated stream lookup failed for this Spotify track"
-        case .loading:
-            return "Looking up animated artwork (Spotify)"
-        case .none:
-            return fallback
-        }
     }
 
     /// Stops a held-over cover from outliving the lookup it was covering for.
@@ -2942,54 +2296,43 @@ final class NowPlayingModel: ObservableObject {
             // Something replaced it in the meantime, which is the good outcome.
             guard self.artwork?.artworkTransitionIdentity == carriedIdentity else { return }
 
-            self.artwork = nil
-            self.updateTint(from: nil)
-            self.lastSnapshot?.artwork = nil
-            #if DEBUG
-            NSLog("PlayStatus artwork: carried cover expired, no replacement found")
-            #endif
+            self.setDisplayedArtwork(nil, source: "carriedCoverExpired", syncSnapshot: true)
         }
         pendingCarriedArtworkExpiry = work
         DispatchQueue.main.asyncAfter(deadline: .now() + carriedArtworkGrace, execute: work)
     }
 
     private func fetchFallbackArtwork(for snapshot: NowPlayingSnapshot) {
-        let lookupArtist = fallbackArtworkLookupArtist(for: snapshot)
-        let durationKeyComponent = snapshot.duration > 0 ? "d:\(Int(snapshot.duration.rounded()))" : "d:none"
-        let key = "\(snapshot.provider.rawValue)|\(lookupArtist)|\(snapshot.album)|\(snapshot.title)|\(durationKeyComponent)"
-        if fallbackArtworkTaskKey == key { return }
-        fallbackArtworkTaskKey = key
-
-        ITunesArtworkLookup.shared.lookup(
-            artist: lookupArtist,
-            album: snapshot.album,
-            title: snapshot.title,
-            trackDurationSeconds: snapshot.duration > 0 ? snapshot.duration : nil
-        ) { [weak self] image in
-            guard let self, let image else { return }
-            let resolvedImage = image.normalizedArtworkForDisplay()
-            DispatchQueue.main.async {
-                guard let current = self.lastSnapshot,
-                      self.trackIdentityMatches(current, snapshot) else { return }
-                self.artwork = resolvedImage
-                #if DEBUG
-                NSLog("PlayStatus artwork: set from=%@ id=%@", "fallbackLookup", self.artwork?.artworkTransitionIdentity ?? "nil")
-                #endif
-                self.updateTint(from: resolvedImage)
-                // Record it on the snapshot too, not just on screen. `apply` carries artwork
-                // forward across a re-apply of the same track by reading the last snapshot —
-                // without this write-back that carry finds nil and the art we just faded in
-                // gets cleared by the next poll.
-                self.lastSnapshot?.artwork = resolvedImage
-            }
+        artworkFallback.lookup(for: snapshot) { [weak self] image in
+            guard let self else { return }
+            guard let current = self.lastSnapshot,
+                  self.trackIdentityMatches(current, snapshot) else { return }
+            // Recorded on the snapshot too, not just on screen. `apply` carries artwork forward
+            // across a re-apply of the same track by reading the last snapshot — without that
+            // write-back the carry finds nil and the art we just faded in gets cleared by the
+            // next poll.
+            self.setDisplayedArtwork(image, source: "fallbackLookup", syncSnapshot: true)
         }
     }
 
-    private func fallbackArtworkLookupArtist(for snapshot: NowPlayingSnapshot) -> String {
-        let trimmedAlbumArtist = snapshot.albumArtist.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedAlbumArtist.isEmpty {
-            return trimmedAlbumArtist
+    /// The single place `artwork` changes.
+    ///
+    /// Every write has to re-derive the tint, and most have to mirror the image onto
+    /// `lastSnapshot` so the next poll's carry-forward finds it. Those pairings were repeated at
+    /// four call sites and drifted; `source` is the label the DEBUG log uses to say which path
+    /// produced the change.
+    private func setDisplayedArtwork(
+        _ image: NSImage?,
+        source: String,
+        syncSnapshot: Bool = false
+    ) {
+        artwork = image
+        #if DEBUG
+        NSLog("PlayStatus artwork: set from=%@ id=%@", source, artwork?.artworkTransitionIdentity ?? "nil")
+        #endif
+        updateTint(from: image)
+        if syncSnapshot {
+            lastSnapshot?.artwork = image
         }
-        return snapshot.artist
     }
 }

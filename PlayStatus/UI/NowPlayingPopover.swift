@@ -4,7 +4,6 @@ import AppKit
 struct NowPlayingPopover: View {
     @ObservedObject var model: NowPlayingModel
     @ObservedObject private var onboarding = OnboardingCoordinator.shared
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var searchText = ""
     @State private var isSearchExpanded = false
     @FocusState private var isSearchFocused: Bool
@@ -402,10 +401,19 @@ struct NowPlayingPopover: View {
                         laneWidth: regularMarqueeLaneWidth
                     )
                 } else {
-                    regularHeroRow(
-                        regularMarqueeLaneWidth: regularMarqueeLaneWidth,
-                        regularControlContrastBoost: regularControlContrastBoost,
-                        regularControlScale: regularControlScale
+                    RegularHeroRow(
+                        model: model,
+                        marqueeLaneWidth: regularMarqueeLaneWidth,
+                        controlContrastBoost: regularControlContrastBoost,
+                        controlScale: regularControlScale,
+                        artworkSize: regularArtworkSize,
+                        artworkHandedOff: artworkHandedOff,
+                        animateArtworkOnFirstAppear: !modeTransitionActive && !modeHandoffSettling,
+                        primaryContentVisible: modePrimaryContentVisible,
+                        secondaryContentVisible: modeSecondaryContentVisible,
+                        // Pointer hover folded together with the coachmark override — the
+                        // same value the transport used to derive for itself.
+                        transportRevealed: interactiveRegularControlsVisible
                     )
                 }
             }
@@ -556,204 +564,6 @@ struct NowPlayingPopover: View {
         case .settingsNavigation:
             return 128
         }
-    }
-
-    private func regularHeroRow(
-        regularMarqueeLaneWidth: CGFloat,
-        regularControlContrastBoost: Double,
-        regularControlScale: CGFloat
-    ) -> some View {
-        // Both columns are the artwork's height and share its top and bottom edges: the title
-        // starts level with the top of the cover and the volume row sits on its baseline.
-        // They used to be two separately centred blocks, so the title floated 14pt below the
-        // artwork's top and the artwork overhung the last control row by 23pt — nothing in
-        // the window lined up with anything else.
-        HStack(alignment: .top, spacing: 16) {
-            regularArtworkTile
-
-            VStack(alignment: .leading, spacing: 6) {
-                regularMetadataColumn(
-                    regularMarqueeLaneWidth: regularMarqueeLaneWidth,
-                    regularControlContrastBoost: regularControlContrastBoost
-                )
-                .padding(.top, playerClusterReservedHeight)
-
-                Spacer(minLength: 0)
-
-                regularControlsColumn(
-                    regularControlContrastBoost: regularControlContrastBoost,
-                    regularControlScale: regularControlScale
-                )
-            }
-            .frame(maxWidth: .infinity, minHeight: regularArtworkSize, maxHeight: regularArtworkSize, alignment: .leading)
-        }
-    }
-
-    @ViewBuilder
-    private var regularArtworkTile: some View {
-        if artworkHandedOff {
-            // Handed off to the shared morph node. Left out of the tree entirely rather
-            // than hidden: `.opacity(0)` still rasterises, and this subtree carries two
-            // blurs that the morph cannot afford to keep paying for. The placeholder
-            // holds the same frame, so the anchor stays measurable and the surrounding
-            // layout does not reflow.
-            Color.clear
-                .frame(width: regularArtworkSize, height: regularArtworkSize)
-                .modeArtworkAnchor(.regular, in: modeRegularBranchSpace)
-        } else {
-            AnimatedArtworkView(
-                image: model.artwork,
-                tint: model.glassTint,
-                isEnabled: false,
-                seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.albumArtist)|\(model.album)|\(model.title)",
-                style: model.artworkMotionStyle,
-                animatedArtworkURL: model.effectiveAnimatedArtworkURL,
-                animatedArtworkIsVisible: model.isPopoverVisible,
-                cropAnimatedArtworkToSquare: model.cropAnimatedArtworkToSquare,
-                animateOnFirstAppear: !modeTransitionActive && !modeHandoffSettling
-            )
-            .frame(width: regularArtworkSize, height: regularArtworkSize)
-            .animatedArtworkMotion(
-                isEnabled: model.animatedArtworkEnabled,
-                seed: "regular|\(model.provider.rawValue)|\(model.artist)|\(model.albumArtist)|\(model.album)|\(model.title)",
-                style: model.artworkMotionStyle,
-                isPlaying: model.isPlaying,
-                hasAnimatedStream: model.effectiveAnimatedArtworkURL != nil,
-                tint: model.glassTint,
-                artworkImage: model.artwork
-            )
-            .modeArtworkAnchor(.regular, in: modeRegularBranchSpace)
-        }
-    }
-
-    /// Title, artist, album — three lines, three steps down.
-    ///
-    /// These were once 15pt title and 15pt "artist • album" separated by weight alone,
-    /// both carrying drop shadows so they could survive a fully saturated surface. The
-    /// surface is quiet now, so the type carries the hierarchy on its own.
-    private func regularMetadataColumn(
-        regularMarqueeLaneWidth: CGFloat,
-        regularControlContrastBoost: Double
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            // The text block is re-identified per track so a new song crosses rather than
-            // swapping in place — the outgoing lines rise and fade as the incoming ones
-            // arrive from below, on the same signal the artwork crossfade already uses.
-            trackTextBlock(laneWidth: regularMarqueeLaneWidth)
-
-            PlaybackProgressBlock(
-                contrastBoost: regularControlContrastBoost,
-                onSeek: { model.seek(to: $0) }
-            )
-            .padding(.top, 8)
-        }
-        .opacity(modePrimaryContentVisible ? 1 : 0)
-        .offset(y: modePrimaryContentVisible ? 0 : 8)
-        .animation(modePrimaryRevealAnimation, value: modePrimaryContentVisible)
-    }
-
-    private func trackTextBlock(laneWidth: CGFloat) -> some View {
-        trackTextLines(laneWidth: laneWidth)
-            .trackChangeTransition(
-                identity: model.trackIdentity,
-                isEnabled: model.slideTitleOnChange && !reduceMotion
-            )
-    }
-
-    private func trackTextLines(laneWidth: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Button(action: { model.openProviderApp() }) {
-                NowPlayingTitleMarquee(
-                    text: model.displayTitle,
-                    enabled: true,
-                    isVisible: model.isPopoverVisible,
-                    laneWidth: laneWidth
-                )
-                .foregroundStyle(.white)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            NowPlayingSecondaryMarquee(
-                text: model.metadataArtistLine,
-                enabled: true,
-                isVisible: model.isPopoverVisible,
-                laneWidth: laneWidth,
-                textOpacity: 0.68
-            )
-
-            if !model.album.isEmpty {
-                NowPlayingSecondaryMarquee(
-                    text: model.album,
-                    enabled: true,
-                    isVisible: model.isPopoverVisible,
-                    laneWidth: laneWidth,
-                    fontWeight: .regular,
-                    textOpacity: 0.44
-                )
-            }
-        }
-        // One element rather than three marquees read in sequence, and activating it does
-        // what clicking the title does.
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(accessibleTrackDescription))
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint(Text("Opens \(model.idleTargetProvider.displayName)"))
-        .accessibilityAction { model.openProviderApp() }
-    }
-
-    private var accessibleTrackDescription: String {
-        var parts = [model.displayTitle.isEmpty ? "Nothing playing" : model.displayTitle]
-        if !model.artist.isEmpty { parts.append(model.artist) }
-        if !model.album.isEmpty { parts.append(model.album) }
-        return parts.joined(separator: ", ")
-    }
-
-    private func regularControlsColumn(
-        regularControlContrastBoost: Double,
-        regularControlScale: CGFloat
-    ) -> some View {
-        // Same pointer signal the top-row cluster uses, so the whole window brightens on one
-        // hover instead of the transport and the cluster waking up independently. The
-        // coachmark override is honoured here too: a walkthrough pointing at these controls
-        // cannot leave them dimmed.
-        let transportRevealed = regularPointerHovering || onboarding.shouldForceModeCoachmarkControls()
-
-        return VStack(spacing: 0) {
-            HStack {
-                Spacer(minLength: 0)
-                ControlsRow(
-                    isPlaying: model.isPlaying,
-                    isShuffleEnabled: model.isShuffleEnabled,
-                    repeatMode: model.repeatMode,
-                    controlsEnabled: model.canControlPlayback,
-                    onShuffle: { model.toggleShuffle() },
-                    onPrev: { model.previousTrack() },
-                    onPlayPause: { model.playPause() },
-                    onNext: { model.nextTrack() },
-                    onRepeat: { model.cycleRepeatMode() },
-                    contrastBoost: regularControlContrastBoost,
-                    controlScale: regularControlScale,
-                    secondariesRevealed: transportRevealed
-                )
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 2)
-
-            OutputControlsRow(
-                model: model,
-                contrastBoost: regularControlContrastBoost,
-                controlScale: regularControlScale,
-                showFavorite: model.canFavoriteCurrentTrack,
-                favoriteIsActive: model.isCurrentTrackFavorited,
-                favoritePulseToken: model.favoriteActionPulseToken,
-                onFavorite: { _ = model.toggleCurrentTrackFavorite() }
-            )
-            .padding(.top, 4)
-        }
-        .opacity(modeSecondaryContentVisible ? 1 : 0)
-        .offset(y: modeSecondaryContentVisible ? 0 : 10)
-        .animation(modeSecondaryRevealAnimation, value: modeSecondaryContentVisible)
     }
 
     private func regularTrailingControls(

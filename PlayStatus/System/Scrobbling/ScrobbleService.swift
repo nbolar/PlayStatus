@@ -24,7 +24,28 @@ final class ScrobbleService: ObservableObject {
 
     @Published private(set) var connectionState: ConnectionState = .disconnected
     @Published private(set) var pendingCount: Int = 0
+
+    /// Only ever an error or a progress note. Successes are reported by the counters below —
+    /// a success message here would be a claim about one flush dressed up as a running total.
     @Published private(set) var lastStatusMessage: String = ""
+
+    /// Running tally of plays Last.fm has accepted, and when the most recent one landed.
+    ///
+    /// Persisted rather than per-launch: "how many have I scrobbled" is a question about the
+    /// account, and an answer that silently resets every relaunch is worse than none.
+    @Published private(set) var acceptedCount: Int
+    @Published private(set) var lastAcceptedAt: Date?
+
+    /// When the tally started counting, so the UI can name the window it actually measures.
+    ///
+    /// Not the same as when the account was connected: an account linked before this counter
+    /// existed has scrobbles the counter never saw, and captioning those away as "since you
+    /// connected" would understate the account by an unknowable amount.
+    @Published private(set) var countingSince: Date?
+
+    private static let acceptedCountKey = "scrobbleAcceptedCount"
+    private static let lastAcceptedAtKey = "scrobbleLastAcceptedAt"
+    private static let countingSinceKey = "scrobbleCountingSince"
 
     @AppStorage("scrobblingEnabled") var scrobblingEnabled: Bool = true
     @AppStorage("scrobbleFromMusic") var scrobbleFromMusic: Bool = true
@@ -49,6 +70,13 @@ final class ScrobbleService: ObservableObject {
     }
 
     private init() {
+        let defaults = UserDefaults.standard
+        acceptedCount = defaults.integer(forKey: Self.acceptedCountKey)
+        let stamp = defaults.double(forKey: Self.lastAcceptedAtKey)
+        lastAcceptedAt = stamp > 0 ? Date(timeIntervalSince1970: stamp) : nil
+        let since = defaults.double(forKey: Self.countingSinceKey)
+        countingSince = since > 0 ? Date(timeIntervalSince1970: since) : nil
+
         #if DEBUG
         // Cheap way to tell a build that shipped without credentials from one that has them,
         // without ever printing the values.
@@ -60,6 +88,12 @@ final class ScrobbleService: ObservableObject {
             connectionState = .notConfigured
         } else if !storedUsername.isEmpty, sessionKey != nil {
             connectionState = .connected(username: storedUsername)
+        }
+
+        // An account linked before this counter shipped starts counting from this launch, and
+        // the caption will say so rather than implying it covers the whole connection.
+        if case .connected = connectionState, countingSince == nil {
+            beginCounting()
         }
 
         refreshPendingCount()
@@ -135,9 +169,19 @@ final class ScrobbleService: ObservableObject {
             connectionState = .failed("Could not save the Last.fm session to your Keychain.")
             return
         }
+        // Reconnecting the same account (after an expired key, say) keeps its tally; signing in
+        // as someone else must not inherit the previous account's number.
+        if storedUsername != username {
+            acceptedCount = 0
+            lastAcceptedAt = nil
+            UserDefaults.standard.removeObject(forKey: Self.acceptedCountKey)
+            UserDefaults.standard.removeObject(forKey: Self.lastAcceptedAtKey)
+            countingSince = nil
+        }
         storedUsername = username
         connectionState = .connected(username: username)
         lastStatusMessage = ""
+        if countingSince == nil { beginCounting() }
         flushSoon()
     }
 
@@ -150,6 +194,14 @@ final class ScrobbleService: ObservableObject {
         storedUsername = ""
         connectionState = BuildSecrets.isLastFMConfigured ? .disconnected : .notConfigured
         lastStatusMessage = ""
+        // The tally belongs to the account that earned it. Carrying it onto whichever account
+        // connects next would be a wrong number rather than a missing one.
+        acceptedCount = 0
+        lastAcceptedAt = nil
+        countingSince = nil
+        UserDefaults.standard.removeObject(forKey: Self.acceptedCountKey)
+        UserDefaults.standard.removeObject(forKey: Self.lastAcceptedAtKey)
+        UserDefaults.standard.removeObject(forKey: Self.countingSinceKey)
         Task {
             await ScrobbleQueue.shared.clear()
             self.refreshPendingCount()
@@ -227,7 +279,10 @@ final class ScrobbleService: ObservableObject {
 
         switch outcome {
         case .sent(let count):
-            lastStatusMessage = count == 1 ? "Scrobbled 1 track." : "Scrobbled \(count) tracks."
+            recordAccepted(count)
+            // A successful send clears whatever failure was being shown; leaving a stale error
+            // above a rising count is the confusing part.
+            lastStatusMessage = ""
         case .failed(let error):
             if case .authenticationRequired = error {
                 // The key is dead; make the user reconnect rather than retrying forever.
@@ -237,6 +292,27 @@ final class ScrobbleService: ObservableObject {
         case .waiting, .idle:
             break
         }
+    }
+
+    /// Marks where the tally starts measuring.
+    ///
+    /// Backdated to the earliest play already counted, if there is one: a window that begins
+    /// after a play it already includes is a contradiction the UI would print verbatim. This
+    /// only bites on the upgrade from a build that counted without recording a start.
+    private func beginCounting() {
+        let start = min(Date(), lastAcceptedAt ?? .distantFuture)
+        countingSince = start
+        UserDefaults.standard.set(start.timeIntervalSince1970, forKey: Self.countingSinceKey)
+    }
+
+    private func recordAccepted(_ count: Int) {
+        guard count > 0 else { return }
+        if countingSince == nil { beginCounting() }
+        let now = Date()
+        acceptedCount += count
+        lastAcceptedAt = now
+        UserDefaults.standard.set(acceptedCount, forKey: Self.acceptedCountKey)
+        UserDefaults.standard.set(now.timeIntervalSince1970, forKey: Self.lastAcceptedAtKey)
     }
 
     private func refreshPendingCount() {

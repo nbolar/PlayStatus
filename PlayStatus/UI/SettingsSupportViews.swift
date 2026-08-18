@@ -360,7 +360,10 @@ enum SettingsTab: String, CaseIterable {
                     "now playing", "sign in", "connect", "listening"]
         case .shortcuts:
             return ["hotkey", "hotkeys", "keyboard", "play pause", "next track",
-                    "previous track", "favourite", "favorite", "detached mode"]
+                    "previous track", "favourite", "favorite", "detached mode",
+                    "shortcut", "shortcuts", "keys", "key guide", "space", "seek",
+                    "volume", "mini player", "lyrics", "credits", "history",
+                    "search", "escape", "arrow keys"]
         case .general:
             return ["launch at login", "startup", "updates", "sparkle", "media cache",
                     "memory", "walkthrough", "coachmarks", "advanced",

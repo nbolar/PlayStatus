@@ -269,6 +269,16 @@ struct MenuBarPreviewStrip: View {
                 .frame(maxWidth: model.statusTextWidth + 20, alignment: .trailing)
                 .fixedSize(horizontal: false, vertical: true)
 
+                if model.menuBarControlsEnabled {
+                    HStack(spacing: 0) {
+                        ForEach(["backward.fill", "play.fill", "forward.fill"], id: \.self) { symbol in
+                            Image(systemName: symbol)
+                                .font(.system(size: 10.5, weight: .medium))
+                                .frame(width: 18)
+                        }
+                    }
+                }
+
                 Text("100%")
                     .font(.system(size: 11, weight: .regular))
                     .foregroundStyle(.secondary)
@@ -582,5 +592,53 @@ struct SettingsStatusBadge: View {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .fill(Color.primary.opacity(0.06))
             )
+    }
+}
+
+// MARK: - Keyboard guide
+
+/// A key cap rendered in the same capsule as the hotkey recorder's binding, so the
+/// shortcuts you can change and the ones baked into the player read as one vocabulary.
+struct SettingsKeyCap: View {
+    let key: String
+
+    init(_ key: String) {
+        self.key = key
+    }
+
+    var body: some View {
+        Text(key)
+            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(.ultraThinMaterial, in: Capsule())
+    }
+}
+
+/// Read-only counterpart to `HotkeyRecorderRow` for keys that are fixed. Several rows
+/// carry two caps because the pair is one idea — `←` / `→` is a single seek binding read
+/// in both directions — and the caption names both halves in the same order.
+struct SettingsShortcutGuideRow: View {
+    let keys: [String]
+    let title: String
+    var caption: String? = nil
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            SettingsRowLabel(title: title, caption: caption)
+
+            Spacer(minLength: 12)
+
+            HStack(spacing: 6) {
+                ForEach(Array(keys.enumerated()), id: \.offset) { _, key in
+                    SettingsKeyCap(key)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .frame(minHeight: 44)
+        .accessibilityElement(children: .combine)
     }
 }
