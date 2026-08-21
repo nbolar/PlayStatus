@@ -317,6 +317,7 @@ final class NowPlayingModel: ObservableObject {
     private var missedFetchCount = 0
     private let missedFetchesBeforeIdle = 3
     private var cachedIdlePresentation: (value: PlayerIdlePresentation, provider: NowPlayingProvider, timestamp: CFAbsoluteTime)?
+    private var cachedAutomaticFallback: (value: NowPlayingProvider, priority: ProviderPriority, timestamp: CFAbsoluteTime)?
     private var launchAtLoginSupported: Bool = true
     private let artworkFallback = ArtworkFallbackLookup()
     private var pendingCarriedArtworkExpiry: DispatchWorkItem?
@@ -812,7 +813,54 @@ final class NowPlayingModel: ObservableObject {
     /// the copy and the button can never disagree about which app they mean.
     var idleTargetProvider: NowPlayingProvider {
         guard provider == .none else { return provider }
-        return preferredProvider == .spotify ? .spotify : .music
+        return fallbackProvider
+    }
+
+    /// Which player the surfaces that act on your behalf should target while nothing is
+    /// playing — the idle button and the search field, which used to answer this question
+    /// two different ways on the same card.
+    ///
+    /// `.automatic` is the default preference, so it is the common path rather than a
+    /// corner: collapsing it to Music meant a Spotify-only user was offered the wrong app
+    /// to open, and offered it next to a search field pointed at Spotify.
+    var fallbackProvider: NowPlayingProvider {
+        switch preferredProvider {
+        case .music:
+            return .music
+        case .spotify:
+            return .spotify
+        case .automatic:
+            return automaticFallbackProvider
+        }
+    }
+
+    /// Auto's answer: `providerPriority` sets the order — the same order `chooseSnapshot`
+    /// reads — then a player that is actually running beats that order, and one that is
+    /// not installed loses to it.
+    ///
+    /// Memoised for the reason `idlePresentation` is: `isRunning` enumerates running
+    /// applications, and both callers are read from SwiftUI bodies. Resolving this inside
+    /// `idlePresentation`'s own lookup would have defeated that cache, since the provider
+    /// it keys on is what this returns.
+    private var automaticFallbackProvider: NowPlayingProvider {
+        let now = CFAbsoluteTimeGetCurrent()
+
+        if let cached = cachedAutomaticFallback,
+           cached.priority == providerPriority,
+           now - cached.timestamp < 2.0 {
+            return cached.value
+        }
+
+        let ordered: [NowPlayingProvider] = providerPriority == .spotifyFirst
+            ? [.spotify, .music]
+            : [.music, .spotify]
+        let inspector = ProviderConnectionInspector.shared
+        let resolved = ordered.first(where: { inspector.isRunning($0) })
+            ?? ordered.first(where: { inspector.isInstalled($0) })
+            ?? ordered[0]
+
+        cachedAutomaticFallback = (resolved, providerPriority, now)
+        return resolved
     }
 
     /// What the player says when nothing is playing, and what its one button does.
@@ -875,14 +923,7 @@ final class NowPlayingModel: ObservableObject {
         case .music, .spotify:
             return provider
         case .none:
-            switch preferredProvider {
-            case .music:
-                return .music
-            case .spotify:
-                return .spotify
-            case .automatic:
-                return providerPriority == .spotifyFirst ? .spotify : .music
-            }
+            return fallbackProvider
         }
     }
 
