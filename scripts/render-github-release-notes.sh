@@ -73,6 +73,42 @@ end
 heading = ->(line) { line.match(/^(\#{1,6})\s+(.+?)\s*#*\s*$/) }
 unordered_item = ->(line) { line.match(/^\s*[-*+]\s+(.+)$/) }
 ordered_item = ->(line) { line.match(/^\s*\d+[.)]\s+(.+)$/) }
+
+# GitHub-flavored tables. Split on unescaped pipes, tolerating the optional
+# leading and trailing pipe that most authors write.
+split_row = lambda do |line|
+  cells = line.strip
+  cells = cells[1..].to_s if cells.start_with?("|")
+  cells = cells[0..-2].to_s if cells.end_with?("|") && !cells.end_with?("\\|")
+  cells.split(/(?<!\\)\|/).map { |cell| cell.strip.gsub("\\|", "|") }
+end
+
+# The `| --- | :---: |` row directly under the header. Its cell count is what
+# makes a line of prose containing a pipe not a table.
+delimiter_row = lambda do |line|
+  return false unless line.include?("-")
+  cells = split_row.call(line)
+  !cells.empty? && cells.all? { |cell| cell.match?(/\A:?-+:?\z/) }
+end
+
+alignment_of = lambda do |cell|
+  left = cell.start_with?(":")
+  right = cell.end_with?(":")
+  if left && right then "center"
+  elsif right then "right"
+  elsif left then "left"
+  end
+end
+
+table_start = lambda do |idx|
+  header = lines[idx]
+  divider = lines[idx + 1]
+  return false if header.nil? || divider.nil?
+  return false unless header.include?("|")
+  return false unless delimiter_row.call(divider)
+  split_row.call(header).length == split_row.call(divider).length
+end
+
 block_start = lambda do |line|
   line.strip.empty? || line.start_with?("```") || heading.call(line) ||
     unordered_item.call(line) || ordered_item.call(line) ||
@@ -121,9 +157,34 @@ while index < lines.length
       index += 1
     end
     content << "<#{tag}>\n#{items.join("\n")}\n</#{tag}>"
+  elsif table_start.call(index)
+    headers = split_row.call(lines[index])
+    aligns = split_row.call(lines[index + 1]).map { |cell| alignment_of.call(cell) }
+    index += 2
+
+    cell_tag = lambda do |tag, text, align|
+      style = align ? %( style="text-align: #{align}") : ""
+      "<#{tag}#{style}>#{format_inline.call(text)}</#{tag}>"
+    end
+
+    head = headers.each_with_index.map { |text, i| cell_tag.call("th", text, aligns[i]) }
+    body = []
+    while index < lines.length && lines[index].include?("|") && !lines[index].strip.empty?
+      row = split_row.call(lines[index])
+      # Pad or trim to the header width so a ragged row cannot shift the columns.
+      row = row[0, headers.length] + [""] * [headers.length - row.length, 0].max
+      body << "    <tr>#{row.each_with_index.map { |text, i| cell_tag.call('td', text, aligns[i]) }.join}</tr>"
+      index += 1
+    end
+
+    table = +"<div class=\"table-wrap\">\n  <table>\n"
+    table << "    <thead><tr>#{head.join}</tr></thead>\n"
+    table << "    <tbody>\n#{body.join("\n")}\n    </tbody>\n" unless body.empty?
+    table << "  </table>\n</div>"
+    content << table
   else
     paragraph = []
-    while index < lines.length && !block_start.call(lines[index])
+    while index < lines.length && !block_start.call(lines[index]) && !table_start.call(index)
       paragraph << lines[index].strip
       index += 1
     end
@@ -160,6 +221,11 @@ File.write(html_path, <<~HTML)
       code { background: color-mix(in srgb, currentColor 12%, transparent); border-radius: 5px; font: 0.88em ui-monospace, SFMono-Regular, Menlo, monospace; padding: 2px 5px; overflow-wrap: anywhere; }
       pre { background: color-mix(in srgb, currentColor 9%, transparent); border-radius: 8px; margin: 0 0 16px; overflow-x: auto; padding: 12px; }
       pre code { background: transparent; padding: 0; }
+      .table-wrap { margin: 0 0 16px; overflow-x: auto; }
+      table { border-collapse: collapse; font-size: 0.94em; width: 100%; }
+      th, td { border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent); padding: 7px 14px 7px 0; text-align: left; vertical-align: top; }
+      th { font-weight: 650; }
+      tbody tr:last-child td { border-bottom: 0; }
       blockquote { border-left: 3px solid #0A84FF; margin: 0 0 16px; padding-left: 13px; }
       blockquote p { margin: 0; }
       a { color: #0A84FF; text-decoration: none; }
