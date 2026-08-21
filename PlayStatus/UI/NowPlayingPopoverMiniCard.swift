@@ -219,9 +219,12 @@ struct MiniNowPlayingCard: View {
             // popped a full-card blurred-artwork layer into existence in a single frame
             // — visible in the margins and through every translucent layer above it.
             // It rides the branch's own cross-fade in, so nothing snaps.
+            // Idle drops the artwork here as well as in the hero. Leaving the blurred
+            // wash up under "Nothing playing" kept the last track on screen after it
+            // stopped being true — and it is the loudest layer on an otherwise empty card.
             ArtworkBackdropCrossfadeView(
-                image: model.artwork,
-                animationKey: model.artwork?.artworkTransitionIdentity ?? "art:none",
+                image: idleArtworkCleared ? nil : model.artwork,
+                animationKey: idleArtworkCleared ? "art:idle" : (model.artwork?.artworkTransitionIdentity ?? "art:none"),
                 isEnabled: model.animatedArtworkEnabled,
                 animateOnFirstAppear: !transitionActive,
                 maxOpacity: 0.34,
@@ -247,6 +250,42 @@ struct MiniNowPlayingCard: View {
         )
     }
 
+    /// Whether this card is standing in for a cover it no longer has a track for.
+    ///
+    /// Not `model.artwork == nil`: the image outlives the track it came from, so an idle
+    /// card would keep showing the cover of whatever stopped playing.
+    private var idleArtworkCleared: Bool {
+        model.isIdle
+    }
+
+    /// Mini's copy of `PlayerIdleView`'s plate. The card *is* the artwork here, so this
+    /// fills the hero frame rather than a fixed square.
+    private var miniIdlePlate: some View {
+        GeometryReader { geometry in
+            let side = min(geometry.size.width, geometry.size.height)
+
+            RoundedRectangle(cornerRadius: miniArtworkCornerRadius, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [.white.opacity(0.055), .white.opacity(0.02)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    Image(systemName: "music.note")
+                        .font(.system(size: max(30, side * 0.19), weight: .light))
+                        .foregroundStyle(.white.opacity(0.16))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: miniArtworkCornerRadius, style: .continuous)
+                        .stroke(.white.opacity(playerHairlineOpacity * 0.7), lineWidth: playerHairlineWidth)
+                )
+                .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+        .accessibilityHidden(true)
+    }
+
     @ViewBuilder
     private func miniCardHeroSurface(miniTrackKey: String) -> some View {
         if transitionActive {
@@ -254,6 +293,14 @@ struct MiniNowPlayingCard: View {
             // hidden — `.opacity(0)` still rasterises, and this is the single most
             // expensive subtree in the card.
             Color.clear
+                .modeArtworkAnchor(.mini, in: modeMiniBranchSpace)
+                .padding(miniArtworkPadding)
+        } else if idleArtworkCleared {
+            // The regular player's idle plate, sized to mini's hero. Same anchor and
+            // padding as the cover it stands in for, so the mode morph still has
+            // something in the right place to fly to.
+            miniIdlePlate
+                .clipShape(RoundedRectangle(cornerRadius: miniArtworkCornerRadius, style: .continuous))
                 .modeArtworkAnchor(.mini, in: modeMiniBranchSpace)
                 .padding(miniArtworkPadding)
         } else {
@@ -394,6 +441,39 @@ struct MiniNowPlayingCard: View {
         .animation(modeSecondaryRevealAnimation, value: secondaryContentVisible)
     }
 
+    /// Mini's copy of the regular idle call to action, at this card's type sizes.
+    /// Same two kinds `PlayerIdleView` handles: launch the provider, or start it playing.
+    private func miniIdleActionButton(
+        _ action: PlayerIdlePresentation.Action,
+        scale: CGFloat
+    ) -> some View {
+        Button {
+            switch action.kind {
+            case .play:
+                model.playPause()
+            case .openApp:
+                model.openProviderApp()
+            }
+        } label: {
+            HStack(spacing: 5 * scale) {
+                Image(systemName: action.systemImage)
+                    .font(.system(size: 10.5 * scale, weight: .bold))
+                Text(action.title)
+                    .font(.system(size: 11.5 * scale, weight: .semibold))
+            }
+            .foregroundStyle(Color(red: 0.09, green: 0.10, blue: 0.11))
+            .padding(.horizontal, 12 * scale)
+            .padding(.vertical, 6 * scale)
+            .background(
+                RoundedRectangle(cornerRadius: 7 * scale, style: .continuous)
+                    .fill(.white.opacity(0.94))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 7 * scale, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(action.title))
+    }
+
     private var showRestingProgressRail: Bool {
         model.miniRestingProgressEnabled
     }
@@ -469,6 +549,14 @@ struct MiniNowPlayingCard: View {
                             .foregroundStyle(.white.opacity(0.52))
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
+
+                        // The one action worth taking, same as the regular player offers.
+                        // Mini used to read `idle.action` and drop it on the floor, so the
+                        // card said the player wasn't running and gave you no way to start it.
+                        if let action = idle.action {
+                            miniIdleActionButton(action, scale: miniControlScale)
+                                .padding(.top, 9 * miniControlScale)
+                        }
                     } else {
                         // The same crossing the regular player uses, so both surfaces treat a
                         // track change as the same moment.
@@ -578,8 +666,8 @@ struct MiniNowPlayingCard: View {
     private func miniCardSeamOverlay(seamOpacity: Double) -> some View {
         ZStack(alignment: .bottom) {
             ArtworkBackdropCrossfadeView(
-                image: model.artwork,
-                animationKey: model.artwork?.artworkTransitionIdentity ?? "art:none",
+                image: idleArtworkCleared ? nil : model.artwork,
+                animationKey: idleArtworkCleared ? "art:idle" : (model.artwork?.artworkTransitionIdentity ?? "art:none"),
                 isEnabled: model.animatedArtworkEnabled,
                 animateOnFirstAppear: !transitionActive,
                 maxOpacity: 0.28,
