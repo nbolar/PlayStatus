@@ -88,6 +88,10 @@ final class NowPlayingModel: ObservableObject {
     }
     @AppStorage("scrollableTitle") var scrollableTitle: Bool = true { didSet { bumpStatusBarConfigRevision() } }
     @AppStorage("menuBarControlsEnabled") var menuBarControlsEnabled: Bool = false { didSet { bumpStatusBarConfigRevision() } }
+    /// Named so `DefaultsMigrations` and the storage attribute cannot drift apart.
+    static let showTitleWhenPausedKey = "showTitleWhenPaused"
+    @AppStorage(showTitleWhenPausedKey) var showTitleWhenPaused: Bool = true { didSet { bumpStatusBarConfigRevision() } }
+    @AppStorage("dimSecondaryTitleText") var dimSecondaryTitleText: Bool = false { didSet { bumpStatusBarConfigRevision() } }
     @AppStorage("slideTitleOnChange") var slideTitleOnChange: Bool = false
     @AppStorage("statusTextWidth") private var statusTextWidthStorage: Double = 140
     @AppStorage("artworkColorIntensity") private var artworkColorIntensityStorage: Double = 1.0
@@ -163,6 +167,7 @@ final class NowPlayingModel: ObservableObject {
                 // The layout pass runs off an async hop and would otherwise race ahead
                 // and snap the window to its new size with no animation at all.
                 modeMorphDeadline = CFAbsoluteTimeGetCurrent() + modeTransitionDuration
+                modeMorphSerial &+= 1
             }
             bumpStatusBarConfigRevision()
             notifyPopoverModeTransition()
@@ -172,6 +177,31 @@ final class NowPlayingModel: ObservableObject {
     /// ordinary layout pass must not touch it. Not @Published — it gates layout rather
     /// than causing it.
     var modeMorphDeadline: CFAbsoluteTime = 0
+
+    /// Identifies the current mode flip. The window driver tags its motion events with it
+    /// so a player can ignore events left over from a morph that was interrupted.
+    private(set) var modeMorphSerial = 0
+
+    enum ModeMorphMotionPhase: Equatable {
+        case started
+        case finished
+    }
+
+    struct ModeMorphMotionEvent: Equatable {
+        let serial: Int
+        let phase: ModeMorphMotionPhase
+    }
+
+    /// The window's side of a mode morph, published so the player can run its cross-fade
+    /// and artwork handoff on the window's timeline instead of its own clock. The window
+    /// can start late — its first frame waits for the incoming layout to be built — and a
+    /// fade started at the flip had half-run by then, while a handoff on a fixed timer
+    /// landed before the window stopped moving.
+    @Published private(set) var modeMorphMotionEvent: ModeMorphMotionEvent?
+
+    func reportModeMorphMotion(_ phase: ModeMorphMotionPhase, serial: Int) {
+        modeMorphMotionEvent = ModeMorphMotionEvent(serial: serial, phase: phase)
+    }
     @AppStorage("miniLyricsEnabled") var miniLyricsEnabled: Bool = false {
         didSet {
             miniLyricsTransitionToken &+= 1
@@ -317,6 +347,15 @@ final class NowPlayingModel: ObservableObject {
     private var missedFetchCount = 0
     private let missedFetchesBeforeIdle = 3
     private var cachedIdlePresentation: (value: PlayerIdlePresentation, provider: NowPlayingProvider, timestamp: CFAbsoluteTime)?
+    /// What an idle Music would actually do if it were told to play now.
+    ///
+    /// Probed on the refresh queue while the player is idle — see `refresh()` — because
+    /// answering it costs an Apple Event, and `idlePresentation` is read from a view body.
+    /// Starts pessimistic: the launch refresh answers within a few hundred milliseconds,
+    /// and until it does, "Open Music" is the one offer that cannot turn out to be a button
+    /// that does nothing.
+    @Published private(set) var musicIdlePlayback: MusicProvider.IdlePlayback = .unavailable
+
     private var cachedAutomaticFallback: (value: NowPlayingProvider, priority: ProviderPriority, timestamp: CFAbsoluteTime)?
     private var launchAtLoginSupported: Bool = true
     private let artworkFallback = ArtworkFallbackLookup()
@@ -338,6 +377,14 @@ final class NowPlayingModel: ObservableObject {
     /// happened. Higher QoS for the same reason: it is on the path to a visible update.
     private let provisionalQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.provisional", qos: .userInitiated)
     private let pollingTimerQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.polling", qos: .utility)
+    /// Where player commands are sent from.
+    ///
+    /// `runAppleScript` blocks until the player answers, and every transport control used to
+    /// call it straight from the button action — so a Music that was slow to reply froze the
+    /// menu bar item, the popover and the hotkeys along with it. Serial, so presses reach the
+    /// player in the order they were made; separate from `refreshQueue`, so a command never
+    /// waits behind a metadata poll that is already in flight.
+    private let commandQueue = DispatchQueue(label: "com.nikhilbolar.playstatus.commands", qos: .userInitiated)
     private var refreshInFlight = false
     private var refreshPending = false
     #if DEBUG
@@ -704,8 +751,8 @@ final class NowPlayingModel: ObservableObject {
     /// In `artistAndSong` the song now leads. You recognise a track by its name faster
     /// than by its artist, and the menu bar truncates from the right — so putting the
     /// artist first meant the identifying half was the half that got cut. The secondary
-    /// part is rendered at reduced alpha, which halves its visual weight without giving up
-    /// the information.
+    /// part can be rendered at reduced alpha — see `dimSecondaryTitleText` — which lowers
+    /// its visual weight without giving up the information.
     var menuBarTitleParts: (primary: String, secondary: String?) {
         let cleanTitle = displayTitle
         let cleanArtist = artist
@@ -891,7 +938,8 @@ final class NowPlayingModel: ObservableObject {
             return PlayerIdlePresentation(
                 headline: "Nothing playing",
                 detail: "\(name) isn’t installed on this Mac.",
-                action: nil
+                action: nil,
+                playerIsRunning: false
             )
         }
 
@@ -899,15 +947,106 @@ final class NowPlayingModel: ObservableObject {
             return PlayerIdlePresentation(
                 headline: "Nothing playing",
                 detail: "\(name) isn’t running.",
-                action: .init(title: "Open \(name)", systemImage: "arrow.up.forward.app", kind: .openApp)
+                action: .init(title: "Open \(name)", systemImage: "arrow.up.forward.app", kind: .openApp),
+                playerIsRunning: false
             )
+        }
+
+        // A running player that will not start is the last case, and only Music has it:
+        // with an Apple Music catalog page in front, its own play button is dimmed and the
+        // play command is a silent no-op. Rather than offer "Play in Music" and do nothing,
+        // the card says what is true and offers the one thing that does still work — named
+        // for what it actually does, because a play button that quietly shuffled the whole
+        // library would be misleading in the other direction.
+        if target == .music {
+            switch musicIdlePlayback {
+            case .play:
+                break
+            case .shuffleLibrary:
+                return PlayerIdlePresentation(
+                    headline: "Nothing playing",
+                    detail: "\(name) is open, but has nothing queued.",
+                    action: .init(title: "Shuffle Library", systemImage: "shuffle", kind: .shuffleLibrary),
+                    playerIsRunning: true
+                )
+            case .unavailable:
+                return PlayerIdlePresentation(
+                    headline: "Nothing playing",
+                    detail: "\(name) is open, but has nothing queued.",
+                    action: .init(title: "Open \(name)", systemImage: "arrow.up.forward.app", kind: .openApp),
+                    playerIsRunning: true
+                )
+            }
         }
 
         return PlayerIdlePresentation(
             headline: "Nothing playing",
             detail: "\(name) is open but idle.",
-            action: .init(title: "Play in \(name)", systemImage: "play.fill", kind: .play)
+            action: .init(title: "Play in \(name)", systemImage: "play.fill", kind: .play),
+            playerIsRunning: true
         )
+    }
+
+    /// Drops the memoised idle resolution.
+    ///
+    /// Both caches answer "which player is there", and nothing in the published model
+    /// changes when a player launches or quits while nothing is playing — the snapshot is
+    /// an empty one either way. Whoever learns of the launch has to say so.
+    func invalidateIdleResolution() {
+        cachedIdlePresentation = nil
+        cachedAutomaticFallback = nil
+    }
+
+    /// Records the latest answer to "what would play do", and drops the resolution it
+    /// feeds when it changes.
+    private func applyMusicIdlePlayback(_ capability: MusicProvider.IdlePlayback) {
+        guard musicIdlePlayback != capability else { return }
+        musicIdlePlayback = capability
+        invalidateIdleResolution()
+    }
+
+    /// What the menu bar strip may show and act on.
+    ///
+    /// Derived from `idlePresentation` rather than from a fresh running-application check:
+    /// that resolution is already memoised, and routing through it keeps the strip's idea
+    /// of "the player is there" identical to the one the popover's idle button uses.
+    struct MenuBarTransportAvailability: Equatable {
+        /// False hides the strip outright. A player that is not running has nothing to
+        /// offer, and three dead controls are worse than none.
+        var isVisible: Bool
+        var playEnabled: Bool
+        var skipEnabled: Bool
+    }
+
+    var menuBarTransportAvailability: MenuBarTransportAvailability {
+        guard !canControlPlayback else {
+            return MenuBarTransportAvailability(isVisible: true, playEnabled: true, skipEnabled: true)
+        }
+        // The two questions come apart here. A player that is not running has nothing to
+        // offer, so the strip goes; a player that is running but will not start keeps the
+        // strip and greys the one control that would do nothing — the strip appearing and
+        // vanishing as the user navigates around inside Music would be worse than a dim
+        // arrow. `.play` is the presentation's answer to the second question, since it is
+        // the action the strip's own play button performs.
+        let presentation = idlePresentation
+        return MenuBarTransportAvailability(
+            isVisible: presentation.playerIsRunning,
+            // Nothing is loaded yet, so there is no track to skip past — but the player
+            // itself can still be told to start, exactly as the popover's idle button does.
+            playEnabled: presentation.action?.kind == .play,
+            skipEnabled: false
+        )
+    }
+
+    /// Whether the status item should keep drawing the title while playback is paused.
+    ///
+    /// Paused and stopped are deliberately not the same answer. The providers only report
+    /// track fields for a player that is playing or paused, so an empty title *is* the
+    /// stopped state — and a stopped player has no title to hold on to, exactly as Music
+    /// itself empties its display. `canControlPlayback` is that same "a track is loaded"
+    /// question, so it is the one asked here.
+    var menuBarShowsPausedTitle: Bool {
+        !isPlaying && showTitleWhenPaused && canControlPlayback
     }
 
     var statusIcon: ProviderIconKind { provider.iconKind }
@@ -1330,7 +1469,17 @@ final class NowPlayingModel: ObservableObject {
                     }
                 }
 
+                // Only worth asking while nothing is playing, and only of Music: its play
+                // command is the one that can be a silent no-op. `nil` means "not asked",
+                // which leaves the last answer alone rather than churning it.
+                let idlePlayback: MusicProvider.IdlePlayback? = (music == nil && spotify == nil && self.enableMusic)
+                    ? MusicProvider.idlePlayback()
+                    : nil
+
                 DispatchQueue.main.async { [weak self] in
+                    if let idlePlayback {
+                        self?.applyMusicIdlePlayback(idlePlayback)
+                    }
                     self?.applyFetchedSnapshots(music: music, spotify: spotify)
                 }
             } while self.refreshPending
@@ -1359,8 +1508,7 @@ final class NowPlayingModel: ObservableObject {
             // early return above has already been passed.
             if historyQueueHandoffArmed {
                 historyQueueHandoffArmed = false
-                MusicProvider.shuffleLibrary()
-                refresh()
+                shuffleLibrary()
                 return
             }
 
@@ -1638,9 +1786,11 @@ final class NowPlayingModel: ObservableObject {
         case .music:
             // Not `searchAndPlayInMusicLibrary`: that plays a bare track, which leaves Music
             // with a one-entry queue and a dead Next button.
-            MusicProvider.playHistoryQueue(historyQueueTracks(startingAt: entry))
+            let tracks = historyQueueTracks(startingAt: entry)
+            sendCommand { MusicProvider.playHistoryQueue(tracks) } then: { [weak self] in
+                self?.refresh()
+            }
             historyQueueHandoffArmed = true
-            refresh()
         case .spotify:
             if entry.track.trackIdentity.hasPrefix("spotify:track:"),
                let url = URL(string: entry.track.trackIdentity) {
@@ -1944,6 +2094,28 @@ final class NowPlayingModel: ObservableObject {
 
     // MARK: - Controls
 
+    /// Sends a fire-and-forget player command, and optionally does something once it has
+    /// been sent. `then` runs on the main thread.
+    private func sendCommand(_ body: @escaping () -> Void, then handle: (() -> Void)? = nil) {
+        commandQueue.async {
+            body()
+            guard let handle else { return }
+            DispatchQueue.main.async(execute: handle)
+        }
+    }
+
+    /// Sends a player command whose answer decides what the UI shows next, and hands that
+    /// answer back on the main thread.
+    private func sendCommand<Answer>(
+        _ body: @escaping () -> Answer,
+        answer handle: @escaping (Answer) -> Void
+    ) {
+        commandQueue.async {
+            let answer = body()
+            DispatchQueue.main.async { handle(answer) }
+        }
+    }
+
     func playPause() {
         // A ramp in flight means the last press started playback, so this press is the pause:
         // hand the user's volume back before the player stops.
@@ -1966,80 +2138,126 @@ final class NowPlayingModel: ObservableObject {
         sendPlayPauseCommand()
     }
 
+    /// The idle card's play button.
+    ///
+    /// `play` rather than the transport's `playpause`: from a stopped Music with nothing
+    /// loaded, `playpause` does nothing even with a library list in front, and there is
+    /// nothing to pause here anyway. Sent to the card's own target, because while idle
+    /// `provider` is `.none` and the transport would always pick Music. Plus a re-check:
+    /// whether a play will take is a prediction — `MusicProvider.idlePlayback()` reads the front window, and Music has
+    /// more ways to be unplayable than can be enumerated from outside — so if this one did
+    /// not start anything, the card re-probes and corrects itself to whatever is true now
+    /// rather than leaving a button that did nothing.
+    func startIdlePlayback() {
+        let target = idleTargetProvider
+        sendCommand {
+            switch target {
+            case .spotify: SpotifyProvider.play()
+            case .music, .none: MusicProvider.play()
+            }
+        } then: { [weak self] in
+            // Timed from the command having been sent rather than from the press, so a slow
+            // player is not asked what it is doing before it has been told.
+            guard let self else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + self.idlePlaybackVerifyDelay) { [weak self] in
+                guard let self, self.isIdle else { return }
+                self.refresh()
+            }
+        }
+    }
+
+    /// Long enough for Music to have started and for a poll to notice; short enough that a
+    /// button which did nothing does not sit there looking live.
+    private var idlePlaybackVerifyDelay: TimeInterval { 1.2 }
+
+    /// Starts the whole library, shuffled — the idle card's offer when a plain play would
+    /// do nothing. Only Music reaches this; see `MusicProvider.idlePlayback()`.
+    func shuffleLibrary() {
+        sendCommand { MusicProvider.shuffleLibrary() } then: { [weak self] in
+            self?.refresh()
+        }
+    }
+
     func nextTrack() {
         switch provider {
         case .spotify:
-            SpotifyProvider.next()
+            sendCommand { SpotifyProvider.next() }
         case .music, .none:
             // Music makes `next track` a no-op on the last track of a playlist, so at the end
             // of a staged history queue this hands off to the shuffled library instead of
             // sitting on the final track. Reading the queue position from Music means a queue
             // the user has since navigated away from cannot trigger a spurious handoff.
-            if MusicProvider.advanceOrShuffleLibrary() {
-                historyQueueHandoffArmed = false
+            sendCommand { MusicProvider.advanceOrShuffleLibrary() } answer: { [weak self] handedOff in
+                if handedOff { self?.historyQueueHandoffArmed = false }
             }
         }
     }
 
     func previousTrack() {
-        switch provider {
-        case .spotify: SpotifyProvider.previous()
-        case .music, .none: MusicProvider.previous()
+        let activeProvider = provider
+        sendCommand {
+            switch activeProvider {
+            case .spotify: SpotifyProvider.previous()
+            case .music, .none: MusicProvider.previous()
+            }
         }
     }
 
     func toggleShuffle() {
         guard canControlPlayback else { return }
         let targetState = !isShuffleEnabled
-        let confirmedState: Bool?
+        let activeProvider = provider
 
-        switch provider {
-        case .spotify:
-            confirmedState = SpotifyProvider.setShuffleEnabled(targetState)
-        case .music:
-            confirmedState = MusicProvider.setShuffleEnabled(targetState)
-        case .none:
-            confirmedState = nil
+        sendCommand { () -> Bool? in
+            switch activeProvider {
+            case .spotify: return SpotifyProvider.setShuffleEnabled(targetState)
+            case .music: return MusicProvider.setShuffleEnabled(targetState)
+            case .none: return nil
+            }
+        } answer: { [weak self] confirmedState in
+            guard let self else { return }
+            guard let confirmedState else {
+                self.refresh()
+                return
+            }
+
+            self.isShuffleEnabled = confirmedState
+            self.refreshPlaybackModeStateAfterCommand()
         }
-
-        guard let confirmedState else {
-            refresh()
-            return
-        }
-
-        isShuffleEnabled = confirmedState
-        refreshPlaybackModeStateAfterCommand()
     }
 
     func cycleRepeatMode() {
         guard canControlPlayback else { return }
         let targetMode = repeatMode.next(for: provider)
-        let confirmedMode: PlaybackRepeatMode?
+        let activeProvider = provider
 
-        switch provider {
-        case .spotify:
-            confirmedMode = SpotifyProvider.setRepeatMode(targetMode)
-        case .music:
-            confirmedMode = MusicProvider.setRepeatMode(targetMode)
-        case .none:
-            confirmedMode = nil
+        sendCommand { () -> PlaybackRepeatMode? in
+            switch activeProvider {
+            case .spotify: return SpotifyProvider.setRepeatMode(targetMode)
+            case .music: return MusicProvider.setRepeatMode(targetMode)
+            case .none: return nil
+            }
+        } answer: { [weak self] confirmedMode in
+            guard let self else { return }
+            guard let confirmedMode else {
+                self.refresh()
+                return
+            }
+
+            self.repeatMode = confirmedMode
+            self.refreshPlaybackModeStateAfterCommand()
         }
-
-        guard let confirmedMode else {
-            refresh()
-            return
-        }
-
-        repeatMode = confirmedMode
-        refreshPlaybackModeStateAfterCommand()
     }
 
     func seek(to progress: Double) {
         let p = min(max(progress, 0), 1)
         let target = duration * p
-        switch provider {
-        case .spotify: SpotifyProvider.seek(to: target)
-        case .music, .none: MusicProvider.seek(to: target)
+        let activeProvider = provider
+        sendCommand {
+            switch activeProvider {
+            case .spotify: SpotifyProvider.seek(to: target)
+            case .music, .none: MusicProvider.seek(to: target)
+            }
         }
         // The player is authoritative, but its next read is up to a poll away. Moving the clock
         // now means the rail and the active lyric line land on the new position immediately
@@ -2087,11 +2305,12 @@ final class NowPlayingModel: ObservableObject {
     func toggleOutputMute() { audio.toggleOutputMute() }
 
     private func sendPlayPauseCommand() {
-        switch provider {
-        case .spotify:
-            SpotifyProvider.playPause()
-        case .music, .none:
-            MusicProvider.playPause()
+        let activeProvider = provider
+        sendCommand {
+            switch activeProvider {
+            case .spotify: SpotifyProvider.playPause()
+            case .music, .none: MusicProvider.playPause()
+            }
         }
     }
 
@@ -2130,36 +2349,29 @@ final class NowPlayingModel: ObservableObject {
     }
 
     func openProviderApp() {
-        let providerName: String
-        if provider == .none {
-            providerName = preferredProvider == .spotify ? "Spotify" : "Music"
-        } else {
-            providerName = provider.displayName
-        }
-        let bundleIdentifier = providerName == "Spotify" ? "com.spotify.client" : "com.apple.Music"
+        let bundleIdentifier = idleTargetProvider == .spotify ? "com.spotify.client" : "com.apple.Music"
         if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
             NSWorkspace.shared.openApplication(at: appURL, configuration: .init(), completionHandler: nil)
         }
     }
 
     func likeCurrentSong() {
-        _ = toggleCurrentTrackFavorite()
+        toggleCurrentTrackFavorite()
     }
 
-    @discardableResult
-    func toggleCurrentTrackFavorite() -> Bool {
-        guard canFavoriteCurrentTrack else {
-            return false
-        }
+    func toggleCurrentTrackFavorite() {
+        guard canFavoriteCurrentTrack else { return }
 
-        guard let updatedState = MusicProvider.toggleCurrentTrackFavorite() else {
-            NSLog("PlayStatus favorite toggle failed: Apple Music did not confirm favorite action")
-            return false
-        }
+        sendCommand { MusicProvider.toggleCurrentTrackFavorite() } answer: { [weak self] updatedState in
+            guard let self else { return }
+            guard let updatedState else {
+                NSLog("PlayStatus favorite toggle failed: Apple Music did not confirm favorite action")
+                return
+            }
 
-        isCurrentTrackFavorited = updatedState
-        favoriteActionPulseToken &+= 1
-        return true
+            self.isCurrentTrackFavorited = updatedState
+            self.favoriteActionPulseToken &+= 1
+        }
     }
 
     func searchAndPlayInMusicLibrary(query: String) {
@@ -2168,9 +2380,10 @@ final class NowPlayingModel: ObservableObject {
         // Starting something else retires any staged history queue, so its ending cannot
         // later hand off to a shuffled library the user never asked for.
         historyQueueHandoffArmed = false
-        MusicProvider.searchAndPlay(query: trimmed)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            self.refresh()
+        sendCommand { MusicProvider.searchAndPlay(query: trimmed) } then: { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                self?.refresh()
+            }
         }
     }
 

@@ -606,7 +606,69 @@ enum MusicProvider {
         )
     }
 
+    /// What an idle Music can be asked to do.
+    enum IdlePlayback: String {
+        /// Plain play works: a track is loaded, or the front window is showing a list.
+        case play
+        /// Play would do nothing, but there is a library to shuffle instead.
+        case shuffleLibrary
+        /// Nothing to start at all.
+        case unavailable
+    }
+
+    /// What a play command sent right now would actually do.
+    ///
+    /// Music's own play button is dimmed unless the front window is showing something it
+    /// can play, and while it is dimmed `playpause` is a silent no-op — which is what made
+    /// the idle player's "Play in Music" button look live and do nothing. Two things make
+    /// it live: a track already loaded, which play resumes, or a front window showing a
+    /// list with tracks in it. An Apple Music catalog page — Listen Now, Browse, a search
+    /// result — is neither, and the object model will not even hand back that window's
+    /// view there, which is the cheapest way to tell the two apart.
+    ///
+    /// The track count matters as well as the view: a store page that *is* scriptable
+    /// comes back as an empty playlist, and play does nothing there either. So does the
+    /// view's class: only the user's own library answers play, so a `subscription playlist`
+    /// — one of Apple's, shown in the sidebar with a full track list behind it — is read as
+    /// unplayable even though it counts tracks like a library one would.
+    ///
+    /// A library playlist named explicitly can still be started while all of that is true,
+    /// so a catalog page is not a dead end — it just means the only honest offer left is a
+    /// shuffle, and only when there is actually a library to shuffle.
+    static func idlePlayback() -> IdlePlayback {
+        guard providerAppIsRunning(bundleIdentifier: "com.apple.Music") else { return .unavailable }
+
+        let script = """
+        tell application "Music"
+            if it is not running then return "no"
+            try
+                if exists current track then return "play"
+            end try
+            try
+                set vw to view of front browser window
+                set vwClass to (class of vw) as text
+                if vwClass is "library playlist" or vwClass is "user playlist" then
+                    if (count of tracks of vw) > 0 then return "play"
+                end if
+            end try
+            try
+                if (count of tracks of library playlist 1) > 0 then return "shuffle"
+            end try
+            return "no"
+        end tell
+        """
+
+        switch runAppleScript(script)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+        case "play": return .play
+        case "shuffle": return .shuffleLibrary
+        default: return .unavailable
+        }
+    }
+
     static func playPause() { _ = runAppleScript(#"tell application "Music" to playpause"#) }
+    /// Starts playback outright. From a stopped player with nothing loaded, `playpause` is a
+    /// silent no-op even with a library list in front; `play` starts that list.
+    static func play() { _ = runAppleScript(#"tell application "Music" to play"#) }
     static func next() { _ = runAppleScript(#"tell application "Music" to next track"#) }
     static func previous() {
         let script = """
@@ -837,6 +899,11 @@ enum MusicProvider {
     }
 
     /// Starts a shuffled pass over the whole library.
+    ///
+    /// Naming the playlist is also what lets this work where `playpause` does nothing: the
+    /// command targets the library directly rather than whatever the front window happens
+    /// to be showing, which is why it is the idle card's offer when `idlePlayback()` comes
+    /// back `.shuffleLibrary`.
     static func shuffleLibrary() {
         defer { invalidateColdFields() }
         _ = runAppleScript("""
@@ -1290,6 +1357,7 @@ enum SpotifyProvider {
     }
 
     static func playPause() { _ = runAppleScript(#"tell application "Spotify" to playpause"#) }
+    static func play() { _ = runAppleScript(#"tell application "Spotify" to play"#) }
     static func next() { _ = runAppleScript(#"tell application "Spotify" to next track"#) }
     static func previous() { _ = runAppleScript(#"tell application "Spotify" to previous track"#) }
     static func seek(to seconds: Double) {

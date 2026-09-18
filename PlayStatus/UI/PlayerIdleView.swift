@@ -7,6 +7,10 @@ struct PlayerIdlePresentation {
         enum Kind {
             /// Send play to a provider that is running but idle.
             case play
+            /// Start the whole library, shuffled. What Music gets offered instead of
+            /// `play` when a plain play command would do nothing — see
+            /// `MusicProvider.idlePlayback()`.
+            case shuffleLibrary
             /// Launch a provider that is installed but not running.
             case openApp
         }
@@ -19,6 +23,14 @@ struct PlayerIdlePresentation {
     let headline: String
     let detail: String
     let action: Action?
+    /// Whether the target player is running at all.
+    ///
+    /// Not inferable from `action` any more: a player that is running but cannot be told
+    /// to start — Music with a catalog page in front — offers the same `openApp` action as
+    /// one that is not running, and the menu bar strip has to tell those apart. It hides
+    /// itself when there is no player, but only greys its play button when there is one
+    /// that will not start.
+    let playerIsRunning: Bool
 }
 
 /// The regular player's idle surface.
@@ -116,7 +128,9 @@ struct PlayerIdleView: View {
     private func perform(_ action: PlayerIdlePresentation.Action) {
         switch action.kind {
         case .play:
-            model.playPause()
+            model.startIdlePlayback()
+        case .shuffleLibrary:
+            model.shuffleLibrary()
         case .openApp:
             model.openProviderApp()
         }

@@ -6,6 +6,10 @@ import SwiftUI
 /// shared artwork node are retired.
 let modeTransitionDuration: Double = 0.30
 let miniLyricsTransitionDuration: Double = 0.26
+/// How long a closed details pane stays mounted. Layouts hold the pane's open height while
+/// it is mounted and the window edge hides it, so it must outlast the window's resize —
+/// which starts an async hop after the toggle — or the last frames show bare backing.
+let detailsPaneUnmountDelay: Double = miniLyricsTransitionDuration + 0.12
 
 enum NowPlayingSurfaceMode: String {
     case popover

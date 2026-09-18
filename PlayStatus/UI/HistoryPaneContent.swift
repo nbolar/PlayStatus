@@ -218,7 +218,7 @@ private struct HistoryRow: View {
                         .font(.system(size: style.subtitleSize - 0.5, weight: .semibold, design: .rounded))
                         .foregroundStyle(timestampStyle)
                         .monospacedDigit()
-                        .help("Played \(playCount) times")
+                        .hoverHint("Played \(playCount) times")
                 }
 
                 if !entry.completed {
@@ -227,7 +227,7 @@ private struct HistoryRow: View {
                     Image(systemName: "forward.end")
                         .font(.system(size: style.subtitleSize - 1, weight: .semibold))
                         .foregroundStyle(timestampStyle)
-                        .help("Skipped")
+                        .hoverHint("Skipped")
                 }
 
                 Text(Self.relativeLabel(for: entry.playedAt))
@@ -249,7 +249,7 @@ private struct HistoryRow: View {
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.12)) { self.hovering = hovering }
         }
-        .help("Play \(entry.displayTitle) again")
+        .hoverHint("Play \(entry.displayTitle) again")
         .accessibilityLabel(Text(accessibilityLabel))
         .contextMenu {
             Button("Play Again", action: onReplay)

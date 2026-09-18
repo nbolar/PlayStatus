@@ -197,7 +197,7 @@ struct OutputControlsRow: View {
                     .frame(width: 22 * clampedControlScale, height: 22 * clampedControlScale)
                     .contentShape(Rectangle())
             }
-            .hoverHint(selectedOutputDeviceName)
+            .hoverHint(selectedOutputDeviceName, edge: .top)
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .tint(controlForeground.opacity(0.90))
@@ -219,7 +219,7 @@ struct OutputControlsRow: View {
                     .foregroundStyle(controlForeground.opacity(model.outputMuted ? 0.44 : controlGlyphOpacity))
             }
             .buttonStyle(.plain)
-            .help(model.outputMuted ? "Unmute" : "Mute")
+            .hoverHint(model.outputMuted ? "Unmute" : "Mute", edge: .top)
             .accessibilityLabel(Text("Mute"))
             .accessibilityValue(Text(model.outputMuted ? "On" : "Off"))
 
@@ -256,7 +256,11 @@ struct OutputControlsRow: View {
                     compact: true,
                     isActive: favoriteIsActive,
                     activeColor: Color(red: 0.94, green: 0.36, blue: 0.38),
-                    helpText: favoriteIsActive ? "Remove from Favorites" : "Add to Favorites",
+                    // No `helpText` here: the row spells the provider out in its own
+                    // `hoverHint` below, and a `GlassButton` help text would put a second
+                    // bubble under the same button — one above it, one below, both saying
+                    // nearly the same thing.
+                    helpText: nil,
                     accessibilityTitle: "Favorite",
                     accessibilityStateValue: favoriteIsActive ? "On" : "Off",
                     contrastBoost: contrastBoost,
@@ -271,7 +275,7 @@ struct OutputControlsRow: View {
                             favoritePulseActive = false
                         }
                     }
-                    .help(favoriteIsActive ? "Remove from Favorites (Apple Music)" : "Add to Favorites (Apple Music)")
+                    .hoverHint(favoriteIsActive ? "Remove from Favorites (Apple Music)" : "Add to Favorites (Apple Music)", edge: .top)
             }
         }
         .onAppear {
@@ -418,7 +422,7 @@ struct GlassButton: View {
                 }
                 .onEnded { _ in isPressed = false }
         )
-        .help(helpText ?? "")
+        .hoverHint(helpText ?? "", enabled: helpText != nil)
         .accessibilityLabel(Text(accessibilityTitle ?? helpText ?? systemName))
         .accessibilityValue(Text(accessibilityStateValue ?? ""))
     }

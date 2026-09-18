@@ -172,6 +172,7 @@ struct OnboardingWalkthroughView: View {
     var body: some View {
         WalkthroughShellView(
             mode: mode,
+            steps: coordinator.resolvedSteps,
             currentStep: coordinator.currentStep,
             accentStyle: accentStyle,
             canGoBack: !coordinator.isFirstStep(coordinator.currentStep),
@@ -196,7 +197,11 @@ struct OnboardingWalkthroughView: View {
         case .welcome:
             WalkthroughWelcomeStep(draft: draft, accentStyle: accentStyle)
         case .welcomeBack:
-            WalkthroughUpgradeStep(accentStyle: accentStyle)
+            WalkthroughUpgradeStep(
+                accentStyle: accentStyle,
+                releases: coordinator.presentedReleases,
+                currentVersion: OnboardingCoordinator.currentAppRelease?.description ?? "this build"
+            )
         case .connect:
             WalkthroughConnectStep(
                 draft: draft,
@@ -224,6 +229,7 @@ struct OnboardingWalkthroughView: View {
         case .personalize:
             WalkthroughPersonalizeStep(
                 draft: draft,
+                mode: mode,
                 onOpenSettings: { coordinator.openSettingsFromWalkthrough(using: openSettings) }
             )
         case .finish:
@@ -285,6 +291,7 @@ private struct WalkthroughAccentStyle {
 
 private struct WalkthroughShellView<Content: View>: View {
     let mode: OnboardingMode
+    let steps: [OnboardingStep]
     let currentStep: OnboardingStep
     let accentStyle: WalkthroughAccentStyle
     let canGoBack: Bool
@@ -298,9 +305,25 @@ private struct WalkthroughShellView<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var stepIndex: Int {
+        steps.firstIndex(of: currentStep) ?? 0
+    }
+
     private var stepCountLabel: String {
-        let stepIndex = (mode.steps.firstIndex(of: currentStep) ?? 0) + 1
-        return "Step \(stepIndex) of \(mode.steps.count)"
+        "Step \(stepIndex + 1) of \(steps.count)"
+    }
+
+    private var progress: Double {
+        let total = max(steps.count - 1, 1)
+        return Double(stepIndex) / Double(total)
+    }
+
+    private var appVersionLabel: String {
+        OnboardingCoordinator.currentAppRelease.map { "PlayStatus \($0.description)" } ?? "PlayStatus"
+    }
+
+    private var skipTitle: String {
+        mode == .upgrade ? "Skip the rest" : "Skip setup"
     }
 
     private var dividerColor: Color {
@@ -375,14 +398,16 @@ private struct WalkthroughShellView<Content: View>: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 10) {
-                ForEach(Array(mode.steps.enumerated()), id: \.element) { index, step in
+                ForEach(Array(steps.enumerated()), id: \.element) { index, step in
                     Button {
                         onSelectStep(step)
                     } label: {
                         WalkthroughStepSidebarItem(
                             index: index + 1,
                             step: step,
+                            mode: mode,
                             isSelected: step == currentStep,
+                            isCompleted: index < stepIndex,
                             isEnabled: step != currentStep,
                             accent: accentStyle.tint
                         )
@@ -397,10 +422,17 @@ private struct WalkthroughShellView<Content: View>: View {
             Spacer(minLength: 18)
 
             VStack(alignment: .leading, spacing: 10) {
-                InfoBadgeLine(
-                    title: "Setup first",
-                    message: "Provider choices and permissions happen first so the app is useful before the feature tour."
-                )
+                if mode == .upgrade {
+                    InfoBadgeLine(
+                        title: "Nothing was reset",
+                        message: "Your settings carried over. This window only points out what moved or is new."
+                    )
+                } else {
+                    InfoBadgeLine(
+                        title: "Setup first",
+                        message: "Provider choices and permissions happen first so the app is useful before the feature tour."
+                    )
+                }
                 InfoBadgeLine(
                     title: "Replay anytime",
                     message: "The walkthrough can be reopened from Settings or the app menu later."
@@ -428,6 +460,7 @@ private struct WalkthroughShellView<Content: View>: View {
 
             WalkthroughContentPane(
                 stepID: currentStep.rawValue,
+                stepIndex: stepIndex,
                 reduceMotion: reduceMotion
             ) {
                 content
@@ -445,22 +478,30 @@ private struct WalkthroughShellView<Content: View>: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(stepCountLabel)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(accentStyle.tint)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(accentStyle.softFill)
-                )
+            HStack(spacing: 12) {
+                Text(stepCountLabel)
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(accentStyle.tint)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(accentStyle.softFill)
+                    )
 
-            Text(currentStep.title)
+                WalkthroughProgressBar(progress: progress, accent: accentStyle.tint)
+                    .frame(maxWidth: 180)
+
+                Spacer(minLength: 0)
+            }
+
+            Text(currentStep.title(for: mode))
                 .font(.system(size: 34, weight: .bold, design: .rounded))
 
-            Text(currentStep.subtitle)
+            Text(currentStep.subtitle(for: mode))
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 28)
         .padding(.top, 24)
@@ -468,16 +509,22 @@ private struct WalkthroughShellView<Content: View>: View {
     }
 
     private var footer: some View {
-        HStack {
-            Button("Skip", action: onSkip)
+        HStack(spacing: 12) {
+            Button(skipTitle, action: onSkip)
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+                .keyboardShortcut(.cancelAction)
+
+            Text(appVersionLabel)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.tertiary)
 
             Spacer()
 
             Button("Back", action: onBack)
                 .buttonStyle(.bordered)
                 .disabled(!canGoBack)
+                .keyboardShortcut("[", modifiers: .command)
 
             Button(nextButtonTitle, action: onContinue)
                 .buttonStyle(.borderedProminent)
@@ -491,11 +538,23 @@ private struct WalkthroughShellView<Content: View>: View {
 
 private struct WalkthroughContentPane<Content: View>: View {
     let stepID: String
+    let stepIndex: Int
     let reduceMotion: Bool
     @ViewBuilder let content: Content
 
+    /// Which way the last move went, so a step slides in from the side it came from and
+    /// going Back visibly undoes going Continue.
+    @State private var isMovingForward = true
+    @State private var lastStepIndex = 0
+
     private var transition: AnyTransition {
-        reduceMotion ? .identity : .opacity
+        guard !reduceMotion else { return .identity }
+        let leading = AnyTransition.move(edge: .leading).combined(with: .opacity)
+        let trailing = AnyTransition.move(edge: .trailing).combined(with: .opacity)
+        return .asymmetric(
+            insertion: isMovingForward ? trailing : leading,
+            removal: isMovingForward ? leading : trailing
+        )
     }
 
     var body: some View {
@@ -505,12 +564,17 @@ private struct WalkthroughContentPane<Content: View>: View {
                 .transition(transition)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .clipped()
+        .onChange(of: stepIndex, initial: true) { _, newIndex in
+            isMovingForward = newIndex >= lastStepIndex
+            lastStepIndex = newIndex
+        }
 
         Group {
             if reduceMotion {
                 pane
             } else {
-                pane.animation(.linear(duration: 0.10), value: stepID)
+                pane.animation(.smooth(duration: 0.24), value: stepID)
             }
         }
     }
@@ -599,7 +663,9 @@ private struct WalkthroughBackdropView: View {
 private struct WalkthroughStepSidebarItem: View {
     let index: Int
     let step: OnboardingStep
+    let mode: OnboardingMode
     let isSelected: Bool
+    let isCompleted: Bool
     let isEnabled: Bool
     let accent: Color
 
@@ -610,6 +676,9 @@ private struct WalkthroughStepSidebarItem: View {
         if isSelected {
             return accent.opacity(0.92)
         }
+        if isCompleted {
+            return accent.opacity(0.24)
+        }
         if isHovering {
             return accent.opacity(0.18)
         }
@@ -619,6 +688,9 @@ private struct WalkthroughStepSidebarItem: View {
     private var numberColor: Color {
         if isSelected {
             return .white
+        }
+        if isCompleted {
+            return accent
         }
         return isHovering ? accent : .secondary
     }
@@ -657,9 +729,10 @@ private struct WalkthroughStepSidebarItem: View {
 
             Spacer(minLength: 0)
 
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "chevron.right.circle.fill")
+            Image(systemName: isSelected ? "largecircle.fill.circle" : "chevron.right.circle.fill")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(trailingIconColor)
+                .opacity(isSelected || isHovering ? 1 : 0.7)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
@@ -689,23 +762,53 @@ private struct WalkthroughStepSidebarItem: View {
                 .fill(circleFill)
                 .frame(width: 28, height: 28)
 
-            Text("\(index)")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(numberColor)
+            if isCompleted {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .heavy))
+                    .foregroundStyle(numberColor)
+            } else {
+                Text("\(index)")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(numberColor)
+            }
         }
+        .accessibilityHidden(true)
     }
 
     private var copyBlock: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(step.title)
+            Text(step.title(for: mode))
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(isSelected || isHovering ? Color.primary : Color.secondary)
 
-            Text(step.subtitle)
+            Text(step.subtitle(for: mode))
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
         }
+    }
+}
+
+private struct WalkthroughProgressBar: View {
+    let progress: Double
+    let accent: Color
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.secondary.opacity(0.18))
+
+                Capsule()
+                    .fill(accent)
+                    .frame(width: max(proxy.size.width * min(max(progress, 0), 1), 6))
+            }
+        }
+        .frame(height: 5)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.28), value: progress)
+        .accessibilityHidden(true)
     }
 }
 
@@ -984,45 +1087,112 @@ private struct WalkthroughWelcomeStep: View {
 
 private struct WalkthroughUpgradeStep: View {
     let accentStyle: WalkthroughAccentStyle
+    let releases: [WhatsNewRelease]
+    let currentVersion: String
+
+    /// The relaunch is the one release whose point is a mental model rather than a feature
+    /// list, so its illustration only earns its place when the relaunch is being shown.
+    private var includesRelaunch: Bool {
+        releases.contains { $0.version == OnboardingCoordinator.legacyRelaunchRelease }
+    }
+
+    private var summaryTitle: String {
+        switch releases.count {
+        case 0:
+            return "You are already on the newest release"
+        case 1:
+            return releases[0].headline
+        default:
+            return "\(releases.count) releases shipped while you were away"
+        }
+    }
+
+    private var summaryMessage: String {
+        guard let oldest = releases.last else {
+            return "There is nothing new to catch up on. The rest of this walkthrough is still worth a pass."
+        }
+        if releases.count == 1 {
+            return oldest.summary
+        }
+        return "Everything below shipped between \(oldest.displayVersion) and \(currentVersion), newest first."
+    }
 
     var body: some View {
         WalkthroughStepScrollView {
-            WalkthroughAdaptivePair(
-                primaryMinWidth: 360,
-                secondaryMinWidth: 360
-            ) {
-                WalkthroughSurfaceCard {
-                    VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 16) {
+                WalkthroughSurfaceCard(prominence: .subtle) {
+                    VStack(alignment: .leading, spacing: 10) {
                         WalkthroughSectionTitle(
-                            eyebrow: "Rebuilt experience",
-                            title: "What changed since the last shipped version"
+                            eyebrow: "Now running \(currentVersion)",
+                            title: summaryTitle
                         )
 
-                        UpgradeHighlightCard(
-                            title: "The player is now a modern SwiftUI surface",
-                            message: "Mini mode, regular mode, detached mode, richer transitions, and better visual continuity across every surface.",
-                            accent: WalkthroughFeature.modes.accentColor
-                        )
-
-                        UpgradeHighlightCard(
-                            title: "Lyrics, credits, and provider-aware search are part of the main player",
-                            message: "Search and discovery no longer feel like separate utility flows.",
-                            accent: WalkthroughFeature.lyrics.accentColor
-                        )
-
-                        UpgradeHighlightCard(
-                            title: "Settings are reorganized around display, playback, hotkeys, and system controls",
-                            message: "The old utility-style layout has been replaced with a clearer native settings flow.",
-                            accent: WalkthroughFeature.detached.accentColor
-                        )
+                        Text(summaryMessage)
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-            } secondary: {
-                WalkthroughSurfaceCard(prominence: .subtle) {
-                    UpgradeHeroCard(accentStyle: accentStyle)
+
+                ForEach(releases) { release in
+                    WalkthroughSurfaceCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            ReleaseSectionHeader(
+                                release: release,
+                                accent: accentStyle.tint,
+                                isCurrent: release.displayVersion == currentVersion
+                            )
+
+                            ForEach(release.highlights) { highlight in
+                                UpgradeHighlightCard(highlight: highlight)
+                            }
+                        }
+                    }
+                }
+
+                if includesRelaunch {
+                    WalkthroughSurfaceCard(prominence: .subtle) {
+                        UpgradeHeroCard(accentStyle: accentStyle)
+                    }
                 }
             }
         }
+    }
+}
+
+private struct ReleaseSectionHeader: View {
+    let release: WhatsNewRelease
+    let accent: Color
+    let isCurrent: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(release.displayVersion)
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(accent)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(accent.opacity(0.16)))
+
+                if isCurrent {
+                    Text("This update")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .textCase(.uppercase)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Text(release.headline)
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+
+            Text(release.summary)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -1192,7 +1362,18 @@ private struct WalkthroughExploreStep: View {
 
 private struct WalkthroughPersonalizeStep: View {
     @Bindable var draft: WalkthroughDraftState
+    let mode: OnboardingMode
     let onOpenSettings: () -> Void
+
+    private var eyebrow: String {
+        mode == .upgrade ? "Still yours" : "Day one defaults"
+    }
+
+    private var sectionTitle: String {
+        mode == .upgrade
+            ? "Confirm the settings this update touched"
+            : "Tune the first-run feel before you close this window"
+    }
 
     var body: some View {
         WalkthroughStepScrollView {
@@ -1203,9 +1384,16 @@ private struct WalkthroughPersonalizeStep: View {
                 WalkthroughSurfaceCard {
                     VStack(alignment: .leading, spacing: 18) {
                         WalkthroughSectionTitle(
-                            eyebrow: "Day one defaults",
-                            title: "Tune the first-run feel before you close this window"
+                            eyebrow: eyebrow,
+                            title: sectionTitle
                         )
+
+                        if mode == .upgrade {
+                            Text("These are already set the way you left them. Nothing here changes until you change it.")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
 
                         WalkthroughPickerRow(
                             title: "Display Mode",
@@ -1311,8 +1499,8 @@ private struct WalkthroughFinishStep: View {
 
                         if mode == .upgrade {
                             FinishActionCard(
-                                title: "See the shorter update tour again",
-                                message: "Keep the returning-user view handy if you mainly want the redesign highlights.",
+                                title: "Read what's new again",
+                                message: "Reopen this update tour whenever you want the release highlights back.",
                                 systemImage: "sparkles.rectangle.stack.fill",
                                 accent: WalkthroughFeature.lyrics.accentColor,
                                 action: onReplayUpgradeWalkthrough
@@ -1912,30 +2100,46 @@ private struct QuickHabitRow: View {
 }
 
 private struct UpgradeHighlightCard: View {
-    let title: String
-    let message: String
-    let accent: Color
+    let highlight: WhatsNewHighlight
+
+    // `WalkthroughSurfaceCard` pins its contents to the light colour scheme, so these rows
+    // are always drawn on white paper. They earn their separation from an accent wash
+    // rather than from a brightness step that has nowhere to go.
+    private var accent: Color { highlight.accent.color }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Capsule()
-                    .fill(accent)
-                    .frame(width: 22, height: 6)
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: highlight.symbolName)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(accent)
+                .frame(width: 30, height: 30)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(accent.opacity(0.20))
+                )
+                .accessibilityHidden(true)
 
-                Text(title)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(highlight.title)
                     .font(.system(size: 14, weight: .bold, design: .rounded))
+
+                Text(highlight.message)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            Text(message)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
-        .padding(16)
+        .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.74))
+                .fill(accent.opacity(0.08))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(accent.opacity(0.22), lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
     }
 }

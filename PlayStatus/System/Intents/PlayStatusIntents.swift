@@ -237,7 +237,7 @@ struct ToggleFavoriteIntent: AppIntent {
             // Spotify's AppleScript dictionary has no equivalent, so this is a hard no rather
             // than a silent no-op — a Shortcut that quietly does nothing is undebuggable.
             guard model.provider == .music else { throw PlayStatusIntentError.favoritesUnsupported }
-            _ = model.toggleCurrentTrackFavorite()
+            model.toggleCurrentTrackFavorite()
             return model.isCurrentTrackFavorited
         }
         return .result(value: favorited)

@@ -1,10 +1,33 @@
 import AppKit
 import ObjectiveC.runtime
 
+/// How long any one script may wait on the player before it is written off.
+///
+/// Without this an Apple event runs to `NSAppleScript`'s own default, which is about two
+/// minutes. A Music that is beachballing or stalled on a network fetch would hold the
+/// caller for all of it — and every caller is a queue that has other work waiting behind
+/// it, whether that is the next poll or the next thing the user pressed. Ten seconds is
+/// far longer than any healthy read or command takes, and short enough that a player which
+/// has stopped answering is a hiccup rather than a hang.
+private let appleScriptTimeoutSeconds = 10
+
+/// Bounds the Apple events a script sends.
+///
+/// Every script the app runs is a plain block of statements — no handlers, no top-level
+/// declarations — so all of them can be wrapped. A script that runs out of time fails with
+/// a timeout error, which both entry points already report as `nil`.
+private func timeBounded(_ source: String) -> String {
+    """
+    with timeout of \(appleScriptTimeoutSeconds) seconds
+    \(source)
+    end timeout
+    """
+}
+
 @discardableResult
 func runAppleScript(_ source: String) -> String? {
     var errorDict: NSDictionary?
-    let script = NSAppleScript(source: source)
+    let script = NSAppleScript(source: timeBounded(source))
     let output = script?.executeAndReturnError(&errorDict)
     if errorDict != nil { return nil }
     return output?.stringValue
@@ -12,7 +35,7 @@ func runAppleScript(_ source: String) -> String? {
 
 func runAppleScriptDescriptor(_ source: String) -> NSAppleEventDescriptor? {
     var errorDict: NSDictionary?
-    let script = NSAppleScript(source: source)
+    let script = NSAppleScript(source: timeBounded(source))
     let output = script?.executeAndReturnError(&errorDict)
     if errorDict != nil { return nil }
     return output

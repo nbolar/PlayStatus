@@ -8,8 +8,6 @@ struct MiniNowPlayingCard: View {
     /// True on the render pass where this card takes its artwork back from the shared
     /// morph node; the hero skips its first-appear fade so the swap is invisible.
     let handoffSettling: Bool
-    let availableHeight: CGFloat
-    let resolvedHeight: CGFloat
     let primaryContentVisible: Bool
     let secondaryContentVisible: Bool
     let onToggleMode: () -> Void
@@ -45,14 +43,17 @@ struct MiniNowPlayingCard: View {
         let miniLowerPanelContentHorizontalPadding = 18.0 * miniControlScale
         let miniLowerPanelContentVerticalPadding = (pointerHovering ? 16.0 : 14.0) * miniControlScale
         let infoBandHeight: CGFloat = (infoExpanded ? 216.0 : 118.0) * miniControlScale
-        let resolvedCardHeight = resolvedHeight
-        let liveCardHeight = min(resolvedCardHeight, max(model.miniBaseHeight, availableHeight))
-        let visibleLyricsHeight = min(
+        // The card never reads the live window size. While the pane is mounted the card
+        // holds its open height and the window edge reveals or hides it as AppKit steps the
+        // frame, so a resize changes nothing in here and SwiftUI has no body to re-run.
+        // The pane's open height is capped to the screen the same way the window is.
+        let settledLyricsHeight = min(
             model.miniLyricsPaneHeight,
-            max(0, liveCardHeight - model.miniBaseHeight)
+            max(0, (model.surfaceContentHeightCap ?? .infinity) - model.miniBaseHeight)
         )
-        let shouldRenderMiniLyricsPane = showMiniLyricsPane || visibleLyricsHeight > 0.5
-        let seamOpacity = min(1, max(0, visibleLyricsHeight / max(1, model.miniLyricsPaneHeight)))
+        let shouldRenderMiniLyricsPane = showMiniLyricsPane
+        let resolvedCardHeight = model.miniBaseHeight + (shouldRenderMiniLyricsPane ? settledLyricsHeight : 0)
+        let seamOpacity: Double = model.miniLyricsEnabled ? 1 : 0
         let miniMarqueeLaneWidth = max(120, model.miniPopoverWidth - (miniLowerPanelContentHorizontalPadding * 2))
         let miniTrackKey = "\(model.provider.rawValue)|\(model.artist)|\(model.albumArtist)|\(model.album)|\(model.title)"
         let showMiniControlRow = pointerHovering && primaryContentVisible
@@ -86,9 +87,10 @@ struct MiniNowPlayingCard: View {
                 MiniExpandedDetailsPane(
                     model: model,
                     selectedTab: model.selectedMiniDetailsTab,
-                    visibleHeight: visibleLyricsHeight
+                    height: settledLyricsHeight
                 )
-                .allowsHitTesting(model.miniLyricsEnabled && visibleLyricsHeight > 0.5)
+                .equatable()
+                .allowsHitTesting(model.miniLyricsEnabled)
             }
         }
         .frame(width: model.miniPopoverWidth, height: resolvedCardHeight, alignment: .top)
@@ -450,7 +452,9 @@ struct MiniNowPlayingCard: View {
         Button {
             switch action.kind {
             case .play:
-                model.playPause()
+                model.startIdlePlayback()
+            case .shuffleLibrary:
+                model.shuffleLibrary()
             case .openApp:
                 model.openProviderApp()
             }
@@ -643,7 +647,7 @@ struct MiniNowPlayingCard: View {
                             showFavorite: model.canFavoriteCurrentTrack,
                             favoriteIsActive: model.isCurrentTrackFavorited,
                             favoritePulseToken: model.favoriteActionPulseToken,
-                            onFavorite: { _ = model.toggleCurrentTrackFavorite() }
+                            onFavorite: { model.toggleCurrentTrackFavorite() }
                         )
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
@@ -704,6 +708,7 @@ struct MiniNowPlayingCard: View {
         }
         .frame(height: miniSeamBlendHeight)
         .opacity(seamOpacity)
+        .animation(.easeInOut(duration: miniLyricsTransitionDuration), value: seamOpacity)
         .allowsHitTesting(false)
     }
 
@@ -728,7 +733,7 @@ struct MiniNowPlayingCard: View {
             miniLyricsHideWorkItem = nil
         }
         miniLyricsHideWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + miniLyricsTransitionDuration, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + detailsPaneUnmountDelay, execute: work)
     }
 
     private func toggleMiniDetails(tab: DetailsPaneTab) {
@@ -744,13 +749,32 @@ struct MiniNowPlayingCard: View {
     }
 
     private var artworkLuminance: CGFloat {
-        guard let average = model.artwork?.averageColor()?.usingColorSpace(.deviceRGB) else {
-            return 0.45
+        guard let artwork = model.artwork else { return 0.45 }
+        return ArtworkLuminanceCache.luminance(of: artwork)
+    }
+}
+
+/// Remembers the luminance of the artwork on screen.
+///
+/// Measuring it redraws the image into a bitmap, and it used to run inside the card's body —
+/// so on every re-render, a dozen times in a single mode morph, right where the frames are
+/// tightest. The artwork only changes with the track, so one entry is enough.
+@MainActor
+private enum ArtworkLuminanceCache {
+    private static weak var image: NSImage?
+    private static var value: CGFloat = 0.45
+
+    static func luminance(of artwork: NSImage) -> CGFloat {
+        if image === artwork { return value }
+        let measured: CGFloat
+        if let average = artwork.averageColor()?.usingColorSpace(.deviceRGB) {
+            measured = (0.2126 * average.redComponent) + (0.7152 * average.greenComponent) + (0.0722 * average.blueComponent)
+        } else {
+            measured = 0.45
         }
-        let red = average.redComponent
-        let green = average.greenComponent
-        let blue = average.blueComponent
-        return (0.2126 * red) + (0.7152 * green) + (0.0722 * blue)
+        image = artwork
+        value = measured
+        return measured
     }
 }
 

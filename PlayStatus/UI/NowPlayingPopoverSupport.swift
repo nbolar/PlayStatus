@@ -19,22 +19,41 @@ let modeMorphControlPoints: (Double, Double, Double, Double) = (0.30, 0.90, 0.35
 /// Ticks must not touch SwiftUI state: a display-link callback is outside the render
 /// pass, which is what keeps this safe, whereas resizing from inside a SwiftUI animation
 /// callback re-enters layout and trips an AttributeGraph precondition.
+///
+/// The clock starts on the first frame, not at `start()`. A transition usually begins by
+/// mounting new content, and that first layout can hold the main thread for several
+/// frames; a clock already running through it made the window open the transition by
+/// jumping a third of the way along its curve. Progress is also sampled at the frame's
+/// `targetTimestamp` — when it reaches the glass — rather than when the callback ran.
 @MainActor
 final class ModeMorphDriver: NSObject {
     private var displayLink: CADisplayLink?
+    /// Zero until the first tick sets it.
     private var startTime: CFTimeInterval = 0
     private var onFrame: ((Double) -> Void)?
     private var onFinish: (() -> Void)?
+    private var duration: Double = modeTransitionDuration
+    private var curve = modeMorphControlPoints
 
     var isRunning: Bool { displayLink != nil }
 
-    func start(onFrame: @escaping (Double) -> Void, onFinish: @escaping () -> Void) {
+    /// - Parameter screen: The screen the moving window is on, so the link runs at that
+    ///   display's refresh rate. Falls back to the main screen.
+    func start(
+        on screen: NSScreen? = nil,
+        duration: Double = modeTransitionDuration,
+        curve: (Double, Double, Double, Double) = modeMorphControlPoints,
+        onFrame: @escaping (Double) -> Void,
+        onFinish: @escaping () -> Void
+    ) {
         cancel()
+        self.duration = duration
+        self.curve = curve
         self.onFrame = onFrame
         self.onFinish = onFinish
-        startTime = CACurrentMediaTime()
+        startTime = 0
 
-        guard let link = NSScreen.main?.displayLink(target: self, selector: #selector(tick)) else {
+        guard let link = (screen ?? NSScreen.main)?.displayLink(target: self, selector: #selector(tick(_:))) else {
             finish()
             return
         }
@@ -49,13 +68,16 @@ final class ModeMorphDriver: NSObject {
         onFinish = nil
     }
 
-    @objc private func tick() {
-        let elapsed = (CACurrentMediaTime() - startTime) / modeTransitionDuration
+    @objc private func tick(_ link: CADisplayLink) {
+        if startTime == 0 {
+            startTime = link.timestamp
+        }
+        let elapsed = (link.targetTimestamp - startTime) / duration
         guard elapsed < 1 else {
             finish()
             return
         }
-        onFrame?(Self.ease(elapsed))
+        onFrame?(Self.ease(elapsed, curve: curve))
     }
 
     private func finish() {
@@ -66,8 +88,8 @@ final class ModeMorphDriver: NSObject {
 
     /// y for a given x on cubic-bezier(modeMorphControlPoints), bisected. Cheap enough at
     /// one evaluation per display frame, and keeps the shape documented in one place.
-    static func ease(_ x: Double) -> Double {
-        let (x1, y1, x2, y2) = modeMorphControlPoints
+    static func ease(_ x: Double, curve: (Double, Double, Double, Double) = modeMorphControlPoints) -> Double {
+        let (x1, y1, x2, y2) = curve
         var low = 0.0
         var high = 1.0
         var t = x
@@ -262,8 +284,14 @@ extension View {
         }
     }
 
-    func hoverHint(_ text: String, enabled: Bool = true) -> some View {
-        modifier(HoverHintModifier(text: text, enabled: enabled))
+    /// Shows `text` on hover.
+    ///
+    /// `edge` is which side of the control the bubble sits on. It defaults to `.bottom`,
+    /// but controls sitting on the surface's bottom edge — the volume row — need `.top`:
+    /// the bubble is a plain overlay, so anything hanging past the surface is clipped in
+    /// half rather than floating free the way an AppKit tooltip would.
+    func hoverHint(_ text: String, enabled: Bool = true, edge: VerticalEdge = .bottom) -> some View {
+        modifier(HoverHintModifier(text: text, enabled: enabled, edge: edge))
     }
 
     func playerControlClusterBackground(
@@ -357,14 +385,135 @@ struct ModeArtworkFramePreferenceKey: PreferenceKey {
     }
 }
 
+/// Coordinate space the hover hints measure themselves in, and the surface rect they are
+/// clamped to. Both are published by `hoverHintSurface()` on the player's root view.
+let hoverHintCoordinateSpace = "playerSurface"
+
+private struct HoverHintSurfaceKey: EnvironmentKey {
+    static let defaultValue: CGRect? = nil
+}
+
+extension EnvironmentValues {
+    var hoverHintSurface: CGRect? {
+        get { self[HoverHintSurfaceKey.self] }
+        set { self[HoverHintSurfaceKey.self] = newValue }
+    }
+}
+
+/// The hint that is showing, published up to the surface that draws it.
+private struct ActiveHoverHint: Equatable {
+    let text: String
+    let edge: VerticalEdge
+    /// The hinted control, in `hoverHintCoordinateSpace`.
+    let controlFrame: CGRect
+}
+
+private struct ActiveHoverHintPreferenceKey: PreferenceKey {
+    static var defaultValue: ActiveHoverHint?
+
+    static func reduce(value: inout ActiveHoverHint?, nextValue: () -> ActiveHoverHint?) {
+        value = nextValue() ?? value
+    }
+}
+
+extension View {
+    /// Marks the player surface the hint bubbles are drawn on.
+    ///
+    /// Hinted controls do not draw their own bubble on this surface; they publish it, and
+    /// the surface draws it in one overlay above everything. A bubble drawn as an overlay
+    /// on its own control was clipped by every ancestor (the surface edge, the History
+    /// scroll view) and painted over by later siblings — the next History row covered it,
+    /// and a `zIndex` did not survive the lazy stack reordering rows on a track change.
+    func hoverHintSurface(_ size: CGSize) -> some View {
+        environment(\.hoverHintSurface, CGRect(origin: .zero, size: size))
+            .coordinateSpace(name: hoverHintCoordinateSpace)
+            .overlayPreferenceValue(ActiveHoverHintPreferenceKey.self, alignment: .topLeading) { hint in
+                ZStack(alignment: .topLeading) {
+                    Color.clear
+                    if let hint {
+                        // The padding is the surface inset: it narrows the width offered
+                        // to the bubble, and the clamp below keeps it on the surface.
+                        HoverHintBubble(text: hint.text)
+                            .padding(.horizontal, HoverHintBubble.surfaceInset)
+                            .alignmentGuide(.leading) { d in
+                                // Centred on the control, slid back inside the surface
+                                // when it would hang past a side.
+                                let half = d.width / 2
+                                let center = min(max(hint.controlFrame.midX, half), size.width - half)
+                                return d[HorizontalAlignment.center] - center
+                            }
+                            .alignmentGuide(.top) { d in
+                                let drop = HoverHintBubble.drop
+                                let inset = HoverHintBubble.surfaceInset
+                                let fitsBelow = hint.controlFrame.maxY + drop <= size.height - inset
+                                let fitsAbove = hint.controlFrame.minY - drop >= inset
+                                // The requested edge wins whenever it fits; the flip keeps
+                                // the last visible History row's bubble on the surface.
+                                let below = hint.edge == .bottom ? (fitsBelow || !fitsAbove) : (!fitsAbove && fitsBelow)
+                                return below
+                                    ? d[.bottom] - (hint.controlFrame.maxY + drop)
+                                    : d[.top] - (hint.controlFrame.minY - drop)
+                            }
+                            .transition(.opacity)
+                    }
+                }
+                .frame(width: size.width, height: size.height)
+                .animation(.easeOut(duration: 0.14), value: hint)
+                .allowsHitTesting(false)
+            }
+    }
+}
+
+private struct HoverHintBubble: View {
+    let text: String
+
+    /// How close to the surface edge a bubble may sit before it is pushed back in.
+    static let surfaceInset: CGFloat = 6
+    /// How far the bubble's outer edge sits past the control's edge.
+    static let drop: CGFloat = 28
+
+    var body: some View {
+        // A bubble wider than the width on offer — a History row's "Play <long title>
+        // again" — falls back to one line truncated in the middle, so "again" survives.
+        // No `frame(maxWidth:)` here: a flexible frame grows to the offered width, which
+        // pinned every bubble's centre to the middle of the surface.
+        ViewThatFits(in: .horizontal) {
+            bubble(Text(text))
+                .fixedSize()
+            bubble(Text(text).lineLimit(1).truncationMode(.middle))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func bubble(_ label: some View) -> some View {
+        label
+            .font(.system(size: 10, weight: .medium, design: .rounded))
+            .foregroundStyle(.white.opacity(0.94))
+            .padding(.horizontal, 4)
+            .padding(.vertical, 3)
+            .background(
+                Capsule()
+                    .fill(Color.black.opacity(0.88))
+                    .overlay(
+                        Capsule()
+                            .stroke(.white.opacity(0.16), lineWidth: 1)
+                    )
+            )
+    }
+}
+
 private struct HoverHintModifier: ViewModifier {
     let text: String
     let enabled: Bool
+    var edge: VerticalEdge = .bottom
     private let delay: Double = 0.32
+
+    @Environment(\.hoverHintSurface) private var surface
 
     @State private var hovering = false
     @State private var showHint = false
     @State private var workItem: DispatchWorkItem?
+    @State private var controlFrame: CGRect = .zero
 
     func body(content: Content) -> some View {
         content
@@ -388,26 +537,35 @@ private struct HoverHintModifier: ViewModifier {
             .onDisappear {
                 resetState()
             }
-            .overlay(alignment: .bottom) {
-                if showHint {
-                    Text(text)
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.94))
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 3)
-                        .background(
-                            Capsule()
-                                .fill(Color.black.opacity(0.72))
-                                .overlay(
-                                    Capsule()
-                                        .stroke(.white.opacity(0.16), lineWidth: 1)
-                                )
-                        )
+            // Measured only while the pointer is on the control: every hinted control
+            // would otherwise carry a live geometry reader for the whole session.
+            .background {
+                if hovering, surface != nil {
+                    GeometryReader { proxy in
+                        // Read straight into state rather than through a preference: the
+                        // content's own subtree publishes the default value after the
+                        // background does, so a preference arrives back here as `.zero`.
+                        let frame = proxy.frame(in: .named(hoverHintCoordinateSpace))
+                        Color.clear
+                            .onAppear { controlFrame = frame }
+                            .onChange(of: frame) { _, latest in controlFrame = latest }
+                    }
+                }
+            }
+            // A hinted control inside another (a History row's play count) already
+            // published its own, more specific hint; only fill the slot when it is empty.
+            .transformPreference(ActiveHoverHintPreferenceKey.self) { active in
+                guard active == nil, surface != nil, showHint, !controlFrame.isEmpty else { return }
+                active = ActiveHoverHint(text: text, edge: edge, controlFrame: controlFrame)
+            }
+            // Hosts that publish no surface still get a bubble, drawn on the control.
+            .overlay(alignment: edge == .bottom ? .bottom : .top) {
+                if showHint, surface == nil {
+                    HoverHintBubble(text: text)
                         .fixedSize()
-                        .offset(y: 28)
+                        .offset(y: edge == .bottom ? HoverHintBubble.drop : -HoverHintBubble.drop)
                         .transition(.opacity)
                         .allowsHitTesting(false)
-                        .zIndex(20)
                 }
             }
     }

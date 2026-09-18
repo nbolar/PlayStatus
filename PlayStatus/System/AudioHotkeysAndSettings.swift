@@ -156,6 +156,14 @@ struct PlayStatusSettingsView: View {
                 SettingsRowDivider()
 
                 SettingsSwitchRow(
+                    title: "Dim the artist",
+                    caption: "Draws the artist behind the song title in Artist + Song",
+                    isOn: $model.dimSecondaryTitleText
+                )
+
+                SettingsRowDivider()
+
+                SettingsSwitchRow(
                     title: "Hide text in parentheses",
                     caption: "“Get Lucky (Radio Edit)” → “Get Lucky”",
                     isOn: $model.ignoreParentheses
@@ -167,6 +175,14 @@ struct PlayStatusSettingsView: View {
                     title: "Show playback controls",
                     caption: "Previous, play/pause and next buttons beside the title",
                     isOn: $model.menuBarControlsEnabled
+                )
+
+                SettingsRowDivider()
+
+                SettingsSwitchRow(
+                    title: "Show title when paused",
+                    caption: "Dimmed and still, so you can see what Play will resume",
+                    isOn: $model.showTitleWhenPaused
                 )
             }
 
@@ -663,7 +679,7 @@ struct PlayStatusSettingsView: View {
             SettingsCard {
                 SettingsRow(
                     title: "Walkthrough",
-                    caption: "Replay the setup tour or re-open the shorter update tour"
+                    caption: "Replay the setup tour or re-read what the current version changed"
                 ) {
                     HStack(spacing: 8) {
                         Button {
@@ -675,9 +691,9 @@ struct PlayStatusSettingsView: View {
                         .controlSize(.small)
 
                         Button {
-                            onboarding.presentUpgradeWalkthrough()
+                            WhatsNewCoordinator.shared.presentSheetForCurrentRelease()
                         } label: {
-                            Label("What's New", systemImage: "arrow.clockwise.circle")
+                            Label("What's New", systemImage: "sparkles")
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)

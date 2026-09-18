@@ -7,11 +7,47 @@ final class PassthroughImageView: NSImageView {
     }
 }
 
+/// The status bar title when it is standing still.
+///
+/// Draws its string itself rather than being an `NSTextField`. Any text field inside a status
+/// item — shown or hidden — sends AppKit's replicant snapshot into a loop: every snapshot
+/// re-dirties the status window, which schedules the next one. Measured at 60 redraws/s and
+/// ~30% of the main thread with nothing on screen changing, which came straight out of every
+/// popover animation frame. A plain view drawing the same attributed string does not loop.
+final class StatusBarStaticTitleView: NSView {
+    var attributedTitle = NSAttributedString() {
+        didSet {
+            guard !attributedTitle.isEqual(to: oldValue) else { return }
+            needsDisplay = true
+        }
+    }
+
+    override var isFlipped: Bool { true }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let title = NSMutableAttributedString(attributedString: attributedTitle)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        title.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: title.length))
+        // Same 2pt lead-in an NSTextField label cell draws with, so the title does not shift
+        // against the scrolling layers it alternates with.
+        title.draw(
+            with: bounds.insetBy(dx: 2, dy: 0),
+            options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
+            context: nil
+        )
+    }
+}
+
 final class StatusBarMarqueeView: NSView {
     private let contentLayer = CALayer()
     private let primaryTextLayer = CATextLayer()
     private let secondaryTextLayer = CATextLayer()
-    private let staticTextLabel = NSTextField(labelWithString: "")
+    private let staticTextLabel = StatusBarStaticTitleView()
 
     private let font = NSFont.systemFont(ofSize: 13, weight: .regular)
     private let gap: CGFloat = 36
@@ -29,6 +65,15 @@ final class StatusBarMarqueeView: NSView {
     private var laneWidth: CGFloat = 120
     private var textWidth: CGFloat = 0
     private var shouldScroll = false
+    /// Drawn at reduced alpha while playback is paused, so the state is legible from the
+    /// title alone rather than only from the icon beside it.
+    private var isDimmed = false
+    private let dimmedAlphaScale: CGFloat = 0.55
+    /// How far the qualifying half of the title sits behind the identifying half, when the
+    /// user has asked for that separation at all.
+    private var dimsSecondary = false
+    private let secondaryAlphaScale: CGFloat = 0.6
+    private let secondaryDimmedAlphaScale: CGFloat = 0.8
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -45,7 +90,7 @@ final class StatusBarMarqueeView: NSView {
         contentLayer.addSublayer(secondaryTextLayer)
         secondaryTextLayer.isHidden = true
 
-        configureStaticTextLabel()
+        staticTextLabel.wantsLayer = true
         addSubview(staticTextLabel)
         staticTextLabel.isHidden = true
         updateContentsScale()
@@ -90,11 +135,13 @@ final class StatusBarMarqueeView: NSView {
         secondarySuffix: String? = nil,
         enabled: Bool,
         laneWidth: CGFloat,
-        slideOnChange: Bool
+        slideOnChange: Bool,
+        dimmed: Bool = false,
+        dimSecondary: Bool = false
     ) {
         let text = text.isEmpty ? "Not Playing" : text
         let width = floor(max(80, laneWidth))
-        let signature = "\(text)|\(secondarySuffix ?? "")|\(enabled)|\(Int(width.rounded()))|\(slideOnChange ? 1 : 0)"
+        let signature = "\(text)|\(secondarySuffix ?? "")|\(enabled)|\(Int(width.rounded()))|\(slideOnChange ? 1 : 0)|\(dimmed ? 1 : 0)|\(dimSecondary ? 1 : 0)"
         if signature == currentSignature { return }
         currentSignature = signature
 
@@ -109,6 +156,8 @@ final class StatusBarMarqueeView: NSView {
             secondaryRange = nil
         }
         self.laneWidth = width
+        isDimmed = dimmed
+        dimsSecondary = dimSecondary
         textWidth = measuredTextWidth(text, font: font)
         shouldScroll = enabled && textWidth > width + 1
 
@@ -121,6 +170,8 @@ final class StatusBarMarqueeView: NSView {
         stopScrolling(resetTransform: true)
         currentSignature = ""
         shouldScroll = false
+        isDimmed = false
+        dimsSecondary = false
         contentLayer.frame = CGRect(x: 0, y: floor((bounds.height - textHeight) / 2), width: laneWidth, height: textHeight)
         primaryTextLayer.isHidden = true
         secondaryTextLayer.isHidden = true
@@ -135,20 +186,6 @@ final class StatusBarMarqueeView: NSView {
         textLayer.foregroundColor = resolvedTextColor().cgColor
     }
 
-    private func configureStaticTextLabel() {
-        staticTextLabel.font = font
-        staticTextLabel.isBezeled = false
-        staticTextLabel.isEditable = false
-        staticTextLabel.isSelectable = false
-        staticTextLabel.drawsBackground = false
-        staticTextLabel.usesSingleLineMode = true
-        staticTextLabel.maximumNumberOfLines = 1
-        staticTextLabel.alignment = .left
-        staticTextLabel.lineBreakMode = .byTruncatingTail
-        staticTextLabel.cell?.truncatesLastVisibleLine = true
-        staticTextLabel.wantsLayer = true
-    }
-
     private func applyText(animateTransition: Bool) {
         let textColor = resolvedTextColor()
         let attributed = attributedTitle(textColor: textColor)
@@ -161,8 +198,7 @@ final class StatusBarMarqueeView: NSView {
         secondaryTextLayer.string = attributed
         CATransaction.commit()
 
-        staticTextLabel.attributedStringValue = attributed
-        staticTextLabel.textColor = textColor
+        staticTextLabel.attributedTitle = attributed
         staticTextLabel.isHidden = shouldScroll
 
         if animateTransition {
@@ -252,20 +288,26 @@ final class StatusBarMarqueeView: NSView {
         ]
     }
 
-    /// The title, with its qualifying half dimmed. Attributed rather than two labels so the
-    /// marquee still measures, scrolls, and truncates one string.
+    /// The title, with its qualifying half optionally dimmed. Attributed rather than two
+    /// labels so the marquee still measures, scrolls, and truncates one string.
     private func attributedTitle(textColor: NSColor) -> NSAttributedString {
         let attributed = NSMutableAttributedString(
             string: resolvedText,
             attributes: textAttributes(textColor: textColor)
         )
 
-        if let secondaryRange,
+        if dimsSecondary,
+           let secondaryRange,
            secondaryRange.location >= 0,
            NSMaxRange(secondaryRange) <= attributed.length {
+            // The paused title is already drawn down at `dimmedAlphaScale`, so taking the
+            // usual bite out of it again lands the artist half near the point where it
+            // stops being readable against the menu bar. Two levels of "quieter" only need
+            // to stay distinguishable from each other, not to compound.
+            let scale = isDimmed ? secondaryDimmedAlphaScale : secondaryAlphaScale
             attributed.addAttribute(
                 .foregroundColor,
-                value: textColor.withAlphaComponent(textColor.alphaComponent),
+                value: textColor.withAlphaComponent(textColor.alphaComponent * scale),
                 range: secondaryRange
             )
         }
@@ -274,6 +316,12 @@ final class StatusBarMarqueeView: NSView {
     }
 
     private func resolvedTextColor() -> NSColor {
+        let color = baseTextColor()
+        guard isDimmed else { return color }
+        return color.withAlphaComponent(color.alphaComponent * dimmedAlphaScale)
+    }
+
+    private func baseTextColor() -> NSColor {
         let appearance = window?.effectiveAppearance ?? effectiveAppearance
         if #available(macOS 11.0, *) {
             var resolvedColor: NSColor?

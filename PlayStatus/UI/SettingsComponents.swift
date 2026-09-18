@@ -207,20 +207,14 @@ struct SettingsCardNote: View {
 
 // MARK: - Menu bar preview
 
-/// Live preview of the menu bar item. Uses the model's own formatting and width so
-/// what it shows is what the menu bar will render.
+/// Live preview of the menu bar item. It is not a drawing of the status item: it hosts the
+/// same views, laid out by the same `StatusItemComposer`, so every option on this pane —
+/// and the player's own state — shows up exactly as the menu bar renders it.
 struct MenuBarPreviewStrip: View {
     @ObservedObject var model: NowPlayingModel
 
-    private var previewTitle: String {
-        model.menuBarTextMode == .iconOnly ? "" : model.menuBarTitle
-    }
-
     private var measuredWidth: CGFloat {
-        guard !previewTitle.isEmpty else { return 0 }
-        // Must match StatusBarMarqueeView, which measures and draws with the
-        // proportional system font — not the monospaced face.
-        return measuredTextWidth(previewTitle, font: model.statusBarTitleFont)
+        measuredTextWidth(model.menuBarTitle, font: model.statusBarTitleFont)
     }
 
     /// Mirrors `StatusBarMarqueeView.update`: `textWidth > laneWidth + 1`.
@@ -228,60 +222,33 @@ struct MenuBarPreviewStrip: View {
         measuredWidth > model.statusTextWidth + 1
     }
 
-    /// Mirrors the status item's two-tone title: song at full strength, artist dimmed.
-    private var previewLabel: Text {
-        let parts = model.menuBarTitleParts
-        guard let secondary = parts.secondary else { return Text(previewTitle) }
-        return Text(parts.primary)
-            + Text(model.menuBarTitleSeparator + secondary).foregroundStyle(.secondary)
-    }
-
     private var captionText: String {
         if model.menuBarTextMode == .iconOnly {
             return "Icon only — the menu bar shows just the glyph."
         }
+        if model.menuBarShowsPausedTitle {
+            return overflows
+                ? "Paused — the title dims and stands still, truncated at \(Int(model.statusTextWidth)) px."
+                : "Paused — the title dims and stands still."
+        }
+        if !model.isPlaying {
+            return model.canControlPlayback
+                ? "Paused — the title is hidden until playback resumes."
+                : "Nothing playing — the menu bar shows just the icon."
+        }
         if overflows {
             return model.scrollableTitle
-            ? "Needs \(Int(measuredWidth)) px, so this title will scroll."
-            : "Needs \(Int(measuredWidth)) px, so this title will truncate."
+                ? "Needs \(Int(measuredWidth)) px, so this title will scroll."
+                : "Needs \(Int(measuredWidth)) px, so this title will truncate."
         }
         return "Fits within \(Int(model.statusTextWidth)) px, so it won't scroll."
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 10) {
+            HStack(spacing: 0) {
                 Spacer(minLength: 0)
-
-                HStack(spacing: 5) {
-                    // The real status item draws the provider glyph, not a transport
-                    // symbol — the preview is only useful if it shows what you will get.
-                    ProviderIconView(icon: model.statusIcon, size: 13, weight: .regular)
-                        .frame(width: 13, alignment: .center)
-
-                    if !previewTitle.isEmpty {
-                        previewLabel
-                            .font(.system(size: 13, weight: .regular))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
-                }
-                .frame(maxWidth: model.statusTextWidth + 20, alignment: .trailing)
-                .fixedSize(horizontal: false, vertical: true)
-
-                if model.menuBarControlsEnabled {
-                    HStack(spacing: 0) {
-                        ForEach(["backward.fill", "play.fill", "forward.fill"], id: \.self) { symbol in
-                            Image(systemName: symbol)
-                                .font(.system(size: 10.5, weight: .medium))
-                                .frame(width: 18)
-                        }
-                    }
-                }
-
-                Text("100%")
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(.secondary)
+                StatusItemReplica(model: model, revision: model.statusBarConfigRevision)
             }
             .padding(.horizontal, 12)
             .frame(height: 30)
@@ -300,6 +267,52 @@ struct MenuBarPreviewStrip: View {
                 .foregroundStyle(.secondary)
                 .padding(.leading, 2)
         }
+    }
+}
+
+/// Hosts a `StatusItemComposer` outside the menu bar. `revision` is only there so a settings
+/// change that touches nothing else SwiftUI can see still reaches `updateNSView`.
+private struct StatusItemReplica: NSViewRepresentable {
+    let model: NowPlayingModel
+    let revision: Int
+
+    final class HostView: NSView {
+        let composer = StatusItemComposer()
+        var length: CGFloat = StatusItemComposer.iconOnlyLength
+
+        override init(frame frameRect: NSRect) {
+            super.init(frame: frameRect)
+            composer.install(in: self)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+    }
+
+    private static var height: CGFloat { NSStatusBar.system.thickness }
+
+    func makeNSView(context: Context) -> HostView {
+        let view = HostView(frame: CGRect(x: 0, y: 0, width: StatusItemComposer.iconOnlyLength, height: Self.height))
+        let controls = view.composer.transportControlsView
+        controls.onPrevious = { [model] in model.previousTrack() }
+        controls.onPlayPause = { [model] in model.playPause() }
+        controls.onNext = { [model] in model.nextTrack() }
+        return view
+    }
+
+    func updateNSView(_ nsView: HostView, context: Context) {
+        // Laid out against the height the view will be given, not whatever it has now, so
+        // the first pass is not centred in a zero-height frame.
+        if nsView.bounds.height != Self.height {
+            nsView.setFrameSize(NSSize(width: nsView.bounds.width, height: Self.height))
+        }
+        nsView.length = nsView.composer.apply(model, in: nsView).length
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: HostView, context: Context) -> CGSize? {
+        CGSize(width: nsView.length, height: Self.height)
     }
 }
 

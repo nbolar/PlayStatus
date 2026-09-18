@@ -185,13 +185,26 @@ private struct DetailPaneSurfaceAppearance {
     }
 }
 
+/// Compared explicitly because SwiftUI's own field comparison never matched this view:
+/// with every input unchanged it still re-ran its body, and rebuilt the lyrics list, each
+/// time the card did. The model is observed, so its changes still reach the body without
+/// taking part here.
+extension MiniExpandedDetailsPane: Equatable {
+    nonisolated static func == (lhs: MiniExpandedDetailsPane, rhs: MiniExpandedDetailsPane) -> Bool {
+        MainActor.assumeIsolated {
+            lhs.model === rhs.model && lhs.selectedTab == rhs.selectedTab && lhs.height == rhs.height
+        }
+    }
+}
+
 struct MiniExpandedDetailsPane: View {
     @ObservedObject var model: NowPlayingModel
     let selectedTab: DetailsPaneTab
-    let visibleHeight: CGFloat
+    /// The pane's settled height. It lays out at this size for the whole reveal and the
+    /// card clips it, so nothing in here — the lyrics viewport above all — reflows while
+    /// the window grows or shrinks around it.
+    let height: CGFloat
     @Environment(\.colorScheme) private var colorScheme
-    @State private var activeLineID: UUID?
-    @State private var coordinator = LyricsScrollCoordinator()
     @State private var enableLyricLineAnimations = false
     @State private var settleWorkItem: DispatchWorkItem?
 
@@ -287,7 +300,7 @@ struct MiniExpandedDetailsPane: View {
             .padding(.top, 12)
             .padding(.bottom, 10)
         }
-        .frame(height: max(0, visibleHeight), alignment: .top)
+        .frame(height: max(0, height), alignment: .top)
         .onAppear {
             updateLyricAnimationState(for: selectedTab)
         }
@@ -296,19 +309,6 @@ struct MiniExpandedDetailsPane: View {
         }
         .onChange(of: selectedTab) { _, tab in
             updateLyricAnimationState(for: tab)
-        }
-        .onChange(of: model.lyricsPayload?.lines.first?.id) { _, _ in
-            guard selectedTab == .lyrics else { return }
-            let lines = model.lyricsPayload?.lines ?? []
-            let isTimed = model.lyricsPayload?.isTimed ?? false
-            coordinator.lines = lines
-            coordinator.isTimed = isTimed
-            coordinator.onActiveLineChanged = { id in
-                activeLineID = id
-            }
-            if coordinator.scrollProxy != nil {
-                coordinator.start()
-            }
         }
     }
 
@@ -406,7 +406,7 @@ struct MiniExpandedDetailsPane: View {
                         DetailPaneSourceBadge(text: "LRCLib", emphasized: true, style: .mini)
                     }
                     .buttonStyle(.plain)
-                    .help("Open LRCLIB website")
+                    .hoverHint("Open LRCLIB website")
                 } else {
                     DetailPaneSourceBadge(text: "Apple Music", style: .mini)
                 }
@@ -428,7 +428,6 @@ struct MiniExpandedDetailsPane: View {
 
         let work = DispatchWorkItem {
             enableLyricLineAnimations = true
-            coordinator.allowsAnimatedScroll = true
             settleWorkItem = nil
         }
         settleWorkItem = work
@@ -439,24 +438,59 @@ struct MiniExpandedDetailsPane: View {
         settleWorkItem?.cancel()
         settleWorkItem = nil
         enableLyricLineAnimations = false
-        coordinator.allowsAnimatedScroll = false
-    }
-
-    private func miniLyricsScrollEdgeInset(for viewportHeight: CGFloat) -> CGFloat {
-        min(140, max(28, (viewportHeight * 0.5) - 30))
     }
 
     private var lyricsScroll: some View {
-        let lines = model.lyricsPayload?.lines ?? []
-        let bleed = lyricsBleedOpacities(for: model.artworkColorIntensity)
+        let payload = model.lyricsPayload
+        let isTimed = payload?.isTimed ?? false
         let surface = DetailPaneSurfaceAppearance(
             colorScheme: colorScheme,
             glassTint: model.glassTint,
-            bleed: bleed
+            bleed: lyricsBleedOpacities(for: model.artworkColorIntensity)
         )
 
-        return GeometryReader { geometry in
-            let edgeInset = miniLyricsScrollEdgeInset(for: geometry.size.height)
+        return MiniLyricsScrollContent(
+            lines: payload?.lines ?? [],
+            isTimed: isTimed,
+            inactiveFontSize: model.miniLyricsInactiveFontSize,
+            activeFontSize: model.miniLyricsActiveFontSize,
+            activeStyle: surface.miniActiveLyricStyle,
+            inactiveStyle: surface.miniInactiveLyricStyle,
+            animationsEnabled: enableLyricLineAnimations,
+            onSeek: isTimed ? { model.seek(toSeconds: $0) } : nil
+        )
+    }
+}
+
+/// The mini pane's lyric list, and the owner of the active line.
+///
+/// Kept out of `MiniExpandedDetailsPane` on purpose: that pane is compared with a custom
+/// `==` and wrapped in `.equatable()`, and the active line — set from the coordinator's
+/// timer, not from anything the comparison sees — stopped repainting while it lived there.
+/// The scroll kept following the song with no line highlighted. The regular pane has always
+/// kept this state in its own view and never lost it.
+struct MiniLyricsScrollContent: View {
+    let lines: [LyricsLine]
+    let isTimed: Bool
+    let inactiveFontSize: CGFloat
+    let activeFontSize: CGFloat
+    let activeStyle: Color
+    let inactiveStyle: Color
+    /// Off while the pane is still opening, so neither the first highlight nor the first
+    /// scroll animates against the reveal.
+    let animationsEnabled: Bool
+    /// Absent for untimed lyrics, which have no position to seek to.
+    let onSeek: ((Double) -> Void)?
+    @State private var activeLineID: UUID?
+    @State private var coordinator = LyricsScrollCoordinator()
+
+    private func edgeInset(for viewportHeight: CGFloat) -> CGFloat {
+        min(140, max(28, (viewportHeight * 0.5) - 30))
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let edgeInset = edgeInset(for: geometry.size.height)
             let contentWidth = max(0, geometry.size.width)
 
             ScrollViewReader { proxy in
@@ -468,24 +502,24 @@ struct MiniExpandedDetailsPane: View {
 
                         ForEach(lines) { line in
                             let isActive = line.id == activeLineID
-                            let isSeekable = (model.lyricsPayload?.isTimed ?? false) && line.startTime != nil
+                            let seekStart = onSeek == nil ? nil : line.startTime
                             Text(line.text)
                                 .font(.system(
-                                    size: isActive ? model.miniLyricsActiveFontSize : model.miniLyricsInactiveFontSize,
+                                    size: isActive ? activeFontSize : inactiveFontSize,
                                     weight: isActive ? .semibold : .regular
                                 ))
-                                .foregroundStyle(isActive ? surface.miniActiveLyricStyle : surface.miniInactiveLyricStyle)
+                                .foregroundStyle(isActive ? activeStyle : inactiveStyle)
                                 .lineLimit(2)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, isActive ? 5 : 1)
-                                .animation(enableLyricLineAnimations ? .easeInOut(duration: 0.24) : nil, value: isActive)
+                                .animation(animationsEnabled ? .easeInOut(duration: 0.24) : nil, value: isActive)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
-                                    guard isSeekable, let start = line.startTime else { return }
-                                    model.seek(toSeconds: start)
+                                    guard let seekStart else { return }
+                                    onSeek?(seekStart)
                                 }
-                                .accessibilityAddTraits(isSeekable ? .isButton : [])
+                                .accessibilityAddTraits(seekStart != nil ? .isButton : [])
                                 .id(line.id)
                         }
 
@@ -498,7 +532,8 @@ struct MiniExpandedDetailsPane: View {
                 .forceHideScrollIndicators()
                 .onAppear {
                     coordinator.lines = lines
-                    coordinator.isTimed = model.lyricsPayload?.isTimed ?? false
+                    coordinator.isTimed = isTimed
+                    coordinator.allowsAnimatedScroll = animationsEnabled
                     coordinator.scrollProxy = proxy
                     coordinator.onActiveLineChanged = { id in
                         activeLineID = id
@@ -508,6 +543,17 @@ struct MiniExpandedDetailsPane: View {
                 .onDisappear {
                     coordinator.stop()
                     coordinator.scrollProxy = nil
+                }
+                .onChange(of: lines.first?.id) { _, _ in
+                    coordinator.lines = lines
+                    coordinator.isTimed = isTimed
+                    coordinator.start()
+                }
+                .onChange(of: isTimed) { _, timed in
+                    coordinator.isTimed = timed
+                }
+                .onChange(of: animationsEnabled) { _, enabled in
+                    coordinator.allowsAnimatedScroll = enabled
                 }
             }
         }
@@ -835,7 +881,8 @@ struct RegularDetailsPane: View {
     let inactiveFontSize: CGFloat
     let activeFontSize: CGFloat
     let glassTint: Color
-    let visibleHeight: CGFloat
+    /// Settled height; see `MiniExpandedDetailsPane.height`.
+    let height: CGFloat
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -916,7 +963,7 @@ struct RegularDetailsPane: View {
             .padding(.bottom, 12)
             .padding(.horizontal, 14)
         }
-        .frame(height: max(0, visibleHeight), alignment: .top)
+        .frame(height: max(0, height), alignment: .top)
         .clipped()
     }
 
@@ -930,7 +977,7 @@ struct RegularDetailsPane: View {
                         DetailPaneSourceBadge(text: "LRCLib", emphasized: true)
                     }
                     .buttonStyle(.plain)
-                    .help("Open LRCLIB website")
+                    .hoverHint("Open LRCLIB website")
                 } else {
                     DetailPaneSourceBadge(text: "Apple Music")
                 }

@@ -16,6 +16,10 @@ struct PlayStatusSwiftUIApp: App {
                     onboarding.replayFullWalkthrough()
                 }
                 .keyboardShortcut("/", modifiers: [.command, .shift])
+
+                Button("Release Notes…") {
+                    WhatsNewCoordinator.shared.presentLedger()
+                }
             }
         }
     }

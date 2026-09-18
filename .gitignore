@@ -1,3 +1,6 @@
 # Last.fm credentials. Populated locally and by the release workflow; never committed.
 # config/Secrets.example.plist is the committed template.
 PlayStatus/Secrets.plist
+
+# Local build artifacts.
+build/

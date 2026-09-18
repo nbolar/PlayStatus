@@ -246,7 +246,7 @@ struct RegularControlsColumn: View {
                 showFavorite: model.canFavoriteCurrentTrack,
                 favoriteIsActive: model.isCurrentTrackFavorited,
                 favoritePulseToken: model.favoriteActionPulseToken,
-                onFavorite: { _ = model.toggleCurrentTrackFavorite() }
+                onFavorite: { model.toggleCurrentTrackFavorite() }
             )
             .padding(.top, 4)
         }

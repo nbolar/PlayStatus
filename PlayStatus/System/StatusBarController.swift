@@ -5,20 +5,28 @@ import Combine
 final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
-    private let popoverHost = NSHostingController(rootView: AnyView(EmptyView()))
+    private let popoverHost = PopoverContentController(rootView: AnyView(EmptyView()))
     private let detachedHost = NSHostingController(rootView: AnyView(EmptyView()))
     private lazy var detachedContainerController = DetachedNowPlayingContainerController(hostController: detachedHost)
     private var detachedWindow: DetachedNowPlayingWindow?
     private var cancellables = Set<AnyCancellable>()
     private let model = NowPlayingModel.shared
-    private let iconView = PassthroughImageView()
-    private let marqueeView = StatusBarMarqueeView()
-    private let transportControlsView = StatusBarTransportControlsView()
-    private let iconSize: CGFloat = 13
-    private let statusIconLeadingInset: CGFloat = 4
-    private let statusIconTextSpacing: CGFloat = 5
-    private let statusTextTrailingInset: CGFloat = 4
+    private let statusContents = StatusItemComposer()
+    private var transportControlsView: StatusBarTransportControlsView { statusContents.transportControlsView }
+
+    /// What the part of the status item that is not the transport strip says on hover.
+    /// Resolved live by the owner callback, so it never needs the rects rebuilt.
+    private var statusToolTipTitle: String = ""
+
+    /// The geometry the status item's tooltip rects were last cut for.
+    private var statusToolTipGeometry: (bounds: CGRect, strip: CGRect?)?
+
+    private static let playerBundleIdentifiers: Set<String> = ["com.apple.Music", "com.spotify.client"]
     private var lastStatusLength: CGFloat = -1
+    private var transportClickMonitor: Any?
+    /// Set between a mouse-down routed to the transport strip and its mouse-up, so the drag
+    /// and release follow the press even after the pointer leaves the strip.
+    private var transportClickInProgress = false
     private let anchorFollowDriver = PopoverAnchorFollowDriver()
     private var pendingAnchorFollow: DispatchWorkItem?
     /// Where the popover was last deliberately placed. AppKit re-centres the popover on its
@@ -29,15 +37,26 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     /// gap, or the popover chases the intermediate geometry and swings back — measured at
     /// 0.16s, it moved twice.
     private let anchorFollowSettleDelay: TimeInterval = 0.3
-    private var lastStatusIcon: ProviderIconKind?
     private var lastAppliedPopoverSize: NSSize = .zero
     private let morphDriver = ModeMorphDriver()
+    /// Steps the player window through a details-pane resize. Same reason as the morph:
+    /// `window.animator().setFrame` ran on AppKit's own animation timer rather than the
+    /// display, and dropped two frames at a time through the middle of every pane open and
+    /// close.
+    private let paneResizeDriver = ModeMorphDriver()
+    private var paneResizeTarget: NSRect?
     private var pendingLyricsResizeAnimation = false
     private var lastMiniModeValue: Bool = false
     private var lastLyricsPaneExpandedValue: Bool = false
     private var lyricsResizeAnimationEndTime: CFAbsoluteTime = 0
     private var popoverLayoutUpdateScheduled = false
-    private var surfaceContentLoaded = true
+    /// Whether the player's SwiftUI tree is mounted in the hosting views.
+    ///
+    /// Starts false and is mounted on first reveal. A mounted tree is not inert: the
+    /// progress rail runs a `.linear` animation for the length of every polling interval,
+    /// so Core Animation keeps producing frames — and an `NSHostingView` renders its whole
+    /// display list on each one, whether or not anything is on screen.
+    private var surfaceContentLoaded = false
     /// Installed only while a player surface is on screen, so the bindings cannot fire from
     /// Settings or the walkthrough.
     private lazy var keyboardCommands = PlayerKeyboardCommands(
@@ -47,8 +66,36 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     )
     private let detachedWindowOriginXKey = "detachedWindowOriginX"
     private let detachedWindowOriginYKey = "detachedWindowOriginY"
+    /// Set when this process found an older copy already running and is standing down, so
+    /// the termination that follows does not write anything on its way out.
+    private var isRedundantInstance = false
+
+    /// Whether another copy of PlayStatus is already running.
+    ///
+    /// Nothing about this app is per-window, so a second copy — launched from Downloads
+    /// beside the one in Applications, say — buys nothing and costs plenty: two status items
+    /// in the menu bar, two processes polling the same players, and two writers racing over
+    /// the same defaults, play history and scrobble queue. Duplicated plays cannot be told
+    /// apart after the fact, so the newer copy steps aside instead.
+    private static func anotherInstanceIsRunning() -> Bool {
+        guard let identifier = Bundle.main.bundleIdentifier else { return false }
+        let ownProcess = ProcessInfo.processInfo.processIdentifier
+        return NSRunningApplication.runningApplications(withBundleIdentifier: identifier)
+            .contains { $0.processIdentifier != ownProcess && !$0.isTerminated }
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // First, and before the model is ever touched: a redundant copy must not install a
+        // status item, start a poll, or bring `NowPlayingModel.shared` into existence.
+        if Self.anotherInstanceIsRunning() {
+            isRedundantInstance = true
+            NSApp.terminate(nil)
+            return
+        }
+
+        // Ahead of the status item, which is the first thing to read these values.
+        DefaultsMigrations.runIfNeeded()
+
         NSApp.setActivationPolicy(.accessory)
 
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -65,17 +112,11 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             button.attributedTitle = NSAttributedString(string: "")
             button.title = ""
 
-            iconView.imageScaling = .scaleProportionallyDown
-            iconView.contentTintColor = .labelColor
-            button.addSubview(iconView)
-            button.addSubview(marqueeView)
-            marqueeView.isHidden = true
-
             transportControlsView.onPrevious = { [weak self] in self?.model.previousTrack() }
             transportControlsView.onPlayPause = { [weak self] in self?.model.playPause() }
             transportControlsView.onNext = { [weak self] in self?.model.nextTrack() }
-            button.addSubview(transportControlsView)
-            transportControlsView.isHidden = true
+            statusContents.install(in: button)
+            installTransportClickRouting(for: button)
         }
 
         popover.behavior = .transient
@@ -85,7 +126,6 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             // We drive popover sizing explicitly via updatePopoverLayout().
             // Disable HostingController auto-size propagation to avoid transient
             // intermediate window sizes during rapid SwiftUI tree changes.
-            popoverHost.sizingOptions = []
             detachedHost.sizingOptions = []
         }
         popover.contentViewController = popoverHost
@@ -116,6 +156,16 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             .store(in: &cancellables)
 
         model.$isPlaying
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusButton() }
+            .store(in: &cancellables)
+
+        // What an idle Music would do with a play command is one of the strip's inputs: it
+        // is what decides between a live play button and a greyed one. Nothing else changes
+        // when the user navigates from their library to a catalog page, so without this
+        // the strip keeps whatever it drew last.
+        model.$musicIdlePlayback
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateStatusButton() }
@@ -237,6 +287,31 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
                 .store(in: &cancellables)
         }
 
+        // A player launching or quitting is invisible to the model while nothing is
+        // playing: the snapshot is empty either way, so no published field changes and the
+        // strip would keep whatever visibility it had. These two notifications are the
+        // only signal that the set of controllable players moved.
+        for name in [
+            NSWorkspace.didLaunchApplicationNotification,
+            NSWorkspace.didTerminateApplicationNotification,
+        ] {
+            NSWorkspace.shared.notificationCenter.publisher(for: name)
+                .compactMap { $0.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication }
+                .filter { Self.playerBundleIdentifiers.contains($0.bundleIdentifier ?? "") }
+                .receive(on: RunLoop.main)
+                .sink { [weak self] _ in
+                    guard let self else { return }
+                    self.model.invalidateIdleResolution()
+                    self.updateStatusButton()
+                    // A player that just quit leaves its last track behind in the snapshot,
+                    // which reads as "controllable" until the next poll comes round. Ask for
+                    // that poll now so the strip does not offer controls for an app that is
+                    // no longer there.
+                    self.model.refresh()
+                }
+                .store(in: &cancellables)
+        }
+
         updateStatusButton()
 
         HotkeyManager.shared.configure(callbacks: [
@@ -287,7 +362,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         case "previous", "prev":
             model.previousTrack()
         case "favorite", "like":
-            _ = model.toggleCurrentTrackFavorite()
+            model.toggleCurrentTrackFavorite()
         case "toggle", "player":
             model.requestTogglePlayerSurface()
         case "shuffle":
@@ -310,10 +385,58 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // This copy never set anything up and shares its state with the copy that is staying,
+        // so it has nothing to persist and no business persisting anything.
+        guard !isRedundantInstance else { return }
+
         persistDetachedWindowOrigin()
         HotkeyManager.shared.unregisterAll()
         // Quitting mid-track must not lose the play in progress.
         model.flushPlaybackSession()
+    }
+
+    /// Hands clicks on the transport strip to the strip before the status item button sees them.
+    ///
+    /// On macOS 27 the menu bar delivers every click on a status item with `locationInWindow`
+    /// set to the centre of the item's window, wherever the pointer actually was. The
+    /// button answers `hitTest` for that point, so the strip never saw `mouseDown` — and had
+    /// it, the centre names no control — and every play, previous or next click toggled the
+    /// popover instead. `NSEvent.mouseLocation` still reports the real pointer, so the press
+    /// is placed from that. It agrees with `locationInWindow` wherever that is honest, and
+    /// swallowing the event keeps the strip from being handed the same press twice.
+    private func installTransportClickRouting(for button: NSStatusBarButton) {
+        transportClickMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
+        ) { [weak self, weak button] event in
+            guard let self, let button, let window = button.window else { return event }
+            guard event.window === window else {
+                // A press that began on the strip must not leave the router armed when its
+                // release is delivered elsewhere, or the next unrelated mouse-up anywhere in
+                // the app is swallowed and replayed as this press ending.
+                if event.type == .leftMouseUp { transportClickInProgress = false }
+                return event
+            }
+            let strip = transportControlsView
+            let point = strip.convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
+            switch event.type {
+            case .leftMouseDown:
+                guard !strip.isHidden, strip.bounds.contains(point) else { return event }
+                transportClickInProgress = true
+                strip.pressBegan(at: point)
+                return nil
+            case .leftMouseDragged:
+                guard transportClickInProgress else { return event }
+                strip.pressMoved(to: point)
+                return nil
+            case .leftMouseUp:
+                guard transportClickInProgress else { return event }
+                transportClickInProgress = false
+                strip.pressEnded(at: point)
+                return nil
+            default:
+                return event
+            }
+        }
     }
 
     @objc private func togglePopover(_ sender: Any?) {
@@ -459,6 +582,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         pendingAnchorFollow?.cancel()
         pendingAnchorFollow = nil
         anchorFollowDriver.cancel()
+        cancelPaneResize()
         placedPopoverOrigin = nil
         if model.surfaceMode == .popover {
             model.isPopoverVisible = false
@@ -488,88 +612,54 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private func updateStatusButton() {
         guard let statusItem, let button = statusItem.button else { return }
 
-        let icon = model.statusIcon
-        if icon != lastStatusIcon {
-            iconView.image = statusImage(for: icon)
-            lastStatusIcon = icon
+        let layout = statusContents.apply(model, in: button)
+        if abs(lastStatusLength - layout.length) > 0.1 {
+            statusItem.length = layout.length
+            lastStatusLength = layout.length
         }
-
-        let showMenuBarText = model.isPlaying && model.menuBarTextMode != .iconOnly
-        let showControls = model.menuBarControlsEnabled
-        let controlsWidth = showControls ? StatusBarTransportControlsView.totalWidth : 0
-        transportControlsView.isHidden = !showControls
-        if showControls {
-            transportControlsView.apply(isPlaying: model.isPlaying, enabled: model.canControlPlayback)
-        }
-
-        if !showMenuBarText {
-            let iconLength: CGFloat = 22
-            let desiredLength = iconLength + controlsWidth
-            if abs(lastStatusLength - desiredLength) > 0.1 {
-                statusItem.length = desiredLength
-                lastStatusLength = desiredLength
-            }
-            let iconY = floor((button.bounds.height - iconSize) / 2)
-            let iconX = floor((iconLength - iconSize) / 2)
-            iconView.frame = CGRect(x: iconX, y: iconY, width: iconSize, height: iconSize)
-            layoutTransportControls(in: button, leadingEdge: iconLength, width: controlsWidth)
-            marqueeView.suspendScrolling()
-            marqueeView.isHidden = true
-            button.image = nil
-            button.attributedTitle = NSAttributedString(string: "")
-            button.title = ""
-            button.toolTip = model.statusLine
-            return
-        }
-
-        let configuredLaneWidth = model.statusTextWidth
-        let actualTextWidth = measuredTextWidth(
-            model.menuBarTitle,
-            font: .systemFont(ofSize: 13, weight: .regular)
-        )
-        let effectiveLaneWidth = floor(min(configuredLaneWidth, max(24, actualTextWidth + 2)))
-        let laneChrome = statusIconLeadingInset
-            + iconSize
-            + statusIconTextSpacing
-            + statusTextTrailingInset
-            + controlsWidth
-
-        // The icon and marquee are custom button subviews, so their complete
-        // horizontal layout must fit inside the status item. Reserving only the
-        // text lane clips long titles as soon as they reach the configured width.
-        let desiredLength = laneChrome + effectiveLaneWidth
-        if abs(lastStatusLength - desiredLength) > 0.1 {
-            statusItem.length = desiredLength
-            lastStatusLength = desiredLength
-        }
-        let iconY = floor((button.bounds.height - iconSize) / 2)
-        iconView.frame = CGRect(x: statusIconLeadingInset, y: iconY, width: iconSize, height: iconSize)
-        marqueeView.isHidden = false
         button.image = nil
         button.attributedTitle = NSAttributedString(string: "")
         button.title = ""
+        statusToolTipTitle = layout.showsTitle ? model.menuBarTitle : model.statusLine
+        refreshStatusItemToolTips(in: button)
+    }
 
-        let laneHeight: CGFloat = 16
-        let x = floor(iconView.frame.maxX + statusIconTextSpacing)
-        let y = floor((button.bounds.height - laneHeight) / 2)
-        let targetFrame = CGRect(x: x, y: y, width: effectiveLaneWidth, height: laneHeight)
-        if !marqueeView.frame.equalTo(targetFrame) {
-            marqueeView.frame = targetFrame
+    /// Registers the status item's tooltips as rects on the button.
+    ///
+    /// `button.toolTip` alone cannot do this: the strip needs a bubble per control, and a
+    /// rect registered on the strip itself is never consulted — the tooltip manager
+    /// resolves a point by hit-testing, and an `NSStatusBarButton` answers for its whole
+    /// area. So the strip's own rects were dead: every slot showed the status line, and
+    /// crossing one killed the bubble it could not replace, which is why sliding over the
+    /// play button left its neighbours silent. Registering the rects on the button, with
+    /// the strip as their owner, puts them where AppKit looks and still lets the strip
+    /// name its own controls.
+    private func refreshStatusItemToolTips(in button: NSView) {
+        let strip = transportControlsView.isHidden ? nil : transportControlsView.frame
+        // Titles are resolved at display time, so the rects only have to be rebuilt when
+        // the item changes shape. Re-registering pulls a rect out from under a pointer
+        // already resting on it, which dismisses whatever bubble is up.
+        if let statusToolTipGeometry,
+           statusToolTipGeometry.bounds == button.bounds,
+           statusToolTipGeometry.strip == strip {
+            return
         }
-        layoutTransportControls(
-            in: button,
-            leadingEdge: targetFrame.maxX + statusTextTrailingInset,
-            width: controlsWidth
-        )
-        let titleParts = model.menuBarTitleParts
-        marqueeView.update(
-            text: model.menuBarTitle,
-            secondarySuffix: titleParts.secondary.map { model.menuBarTitleSeparator + $0 },
-            enabled: model.scrollableTitle,
-            laneWidth: effectiveLaneWidth,
-            slideOnChange: model.slideTitleOnChange
-        )
-        button.toolTip = model.menuBarTitle
+        statusToolTipGeometry = (button.bounds, strip)
+        button.removeAllToolTips()
+
+        let height = max(button.bounds.height, 1)
+        let statusWidth = strip?.minX ?? max(button.bounds.width, lastStatusLength)
+        if statusWidth > 0 {
+            _ = button.addToolTip(
+                CGRect(x: 0, y: 0, width: statusWidth, height: height),
+                owner: self,
+                userData: nil
+            )
+        }
+        guard strip != nil else { return }
+        for rect in transportControlsView.toolTipRects(in: button) {
+            _ = button.addToolTip(rect, owner: transportControlsView, userData: nil)
+        }
     }
 
     /// Keeps an open popover under its anchor.
@@ -624,37 +714,6 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         guard !morphDriver.isRunning else { return }
         window.setFrameOrigin(before)
         anchorFollowDriver.animate(window, to: after)
-    }
-
-    private func layoutTransportControls(in button: NSView, leadingEdge: CGFloat, width: CGFloat) {
-        guard width > 0 else { return }
-        let targetFrame = CGRect(x: leadingEdge, y: 0, width: width, height: button.bounds.height)
-        if !transportControlsView.frame.equalTo(targetFrame) {
-            transportControlsView.frame = targetFrame
-            transportControlsView.needsLayout = true
-        }
-    }
-
-    private func statusImage(for icon: ProviderIconKind) -> NSImage? {
-        switch icon {
-        case .sfSymbol(let symbolName):
-            return NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-                .withSymbolConfiguration(.init(pointSize: iconSize, weight: .regular))
-        case .iconifyAsset(let assetName):
-            return statusAssetImage(named: assetName)
-        }
-    }
-
-    private func statusAssetImage(named assetName: String) -> NSImage? {
-        guard let base = NSImage(named: NSImage.Name(assetName)) else { return nil }
-        guard let copy = base.copy() as? NSImage else {
-            base.isTemplate = true
-            base.size = NSSize(width: iconSize, height: iconSize)
-            return base
-        }
-        copy.isTemplate = true
-        copy.size = NSSize(width: iconSize, height: iconSize)
-        return copy
     }
 
     private func desiredSurfaceContentSize() -> NSSize {
@@ -825,25 +884,39 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             targetFrame = popoverWindow.flatMap { popoverTargetFrame(for: $0) }
         }
 
-        guard let window, let targetFrame else { return }
+        let serial = model.modeMorphSerial
+        guard let window, let targetFrame else {
+            // Nothing to move, but the player is still waiting to cross-fade and settle.
+            DispatchQueue.main.async { [model] in
+                model.reportModeMorphMotion(.started, serial: serial)
+                model.reportModeMorphMotion(.finished, serial: serial)
+            }
+            return
+        }
+        cancelPaneResize()
 
-        // The hosting view does not track the window on its own — sizingOptions is
-        // empty, and popover.contentSize is deliberately never touched while shown. On
-        // shrink that lag is visible: the SwiftUI content derives its morph progress
-        // from the host's width, so the artwork trailed the window and snapped into
-        // place at the end. Stepping the host alongside the window keeps the two equal
-        // on every tick. Shrink only: the grow direction reads as a reveal with the lag
-        // in place, and that behaviour is approved as-is.
-        let hostView = isDetached ? detachedHost.view : popoverHost.view
-        let stepsHostView = targetFrame.width < window.frame.width
+        // The popover's AppKit container autoresizes its hosting child in both
+        // directions. Keep the detached window's existing shrink synchronization;
+        // never resize the popover hosting view independently of its container.
+        let hostView = detachedHost.view
+        let stepsHostView = isDetached && targetFrame.width < window.frame.width
 
         // Both endpoints are captured up front and every frame is interpolated between
         // them. Nothing reads the live frame back, so per-frame rounding cannot
         // accumulate — that feedback loop used to walk the popover up the screen a
         // little further on every toggle.
         let startFrame = window.frame
+        var reportedStart = false
         morphDriver.start(
-            onFrame: { progress in
+            on: window.screen,
+            onFrame: { [model] progress in
+                if !reportedStart {
+                    reportedStart = true
+                    // Ticks stay out of SwiftUI state; the player hears about it next pass.
+                    DispatchQueue.main.async {
+                        model.reportModeMorphMotion(.started, serial: serial)
+                    }
+                }
                 let stepped = NSRect(
                     x: round(startFrame.minX + ((targetFrame.minX - startFrame.minX) * progress)),
                     y: round(startFrame.minY + ((targetFrame.minY - startFrame.minY) * progress)),
@@ -855,10 +928,13 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
                     hostView.setFrameSize(window.contentRect(forFrameRect: stepped).size)
                 }
             },
-            onFinish: { [weak self] in
+            onFinish: { [weak self, model] in
                 window.setFrame(targetFrame, display: true)
                 if stepsHostView {
                     hostView.setFrameSize(window.contentRect(forFrameRect: targetFrame).size)
+                }
+                DispatchQueue.main.async {
+                    model.reportModeMorphMotion(.finished, serial: serial)
                 }
                 guard let self else { return }
                 let settled = self.currentSurfaceContentSize(
@@ -877,11 +953,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private func updatePopoverLayout() {
         let popoverOwnsHeightCap = model.surfaceMode == .popover
         var targetSize = currentSurfaceContentSize(updatesHeightCap: popoverOwnsHeightCap)
-        let width = targetSize.width
-        let hostView = popoverHost.view
-        if !popover.isShown && abs(hostView.frame.width - width) > 0.5 {
-            hostView.setFrameSize(NSSize(width: width, height: hostView.frame.height))
-        }
+        let containerView = popoverHost.view
 
         // Use pre-calculated heights for BOTH modes — never call layoutSubtreeIfNeeded().
         //
@@ -896,17 +968,15 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         //   • Mini:    miniBaseHeight + optional preset-driven miniLyricsPaneHeight
         // Mini mode still resolves to fixed target heights; SwiftUI uses live host height
         // while shown so pane reveal tracks the window animation without a second timeline.
-        if !popover.isShown && !sizeApproximatelyEqual(hostView.frame.size, targetSize) {
-            hostView.setFrameSize(targetSize)
+        if !popover.isShown && !sizeApproximatelyEqual(containerView.frame.size, targetSize) {
+            containerView.setFrameSize(targetSize)
         }
 
-        // Only rebuild the root view when the popover is not yet shown (initial setup).
-        // While shown, keep the existing SwiftUI tree and only adjust the outer window
-        // frame to avoid transient intermediate layout states.
-        if !popover.isShown, surfaceContentLoaded {
-            popoverHost.rootView = AnyView(NowPlayingPopover(model: model))
-            applyAppearanceOverride()
-        }
+        // Deliberately no root-view rebuild here. `ensureSurfaceContentLoaded()` is the one
+        // place the tree is mounted, and it runs ahead of every reveal. Re-assigning
+        // `rootView` with a fresh `AnyView` gives SwiftUI a new root identity, which throws
+        // away the @State underneath it — and it did so on every layout pass while the
+        // popover was closed, rebuilding a tree nobody was looking at.
 
         guard popover.isShown else {
             if !sizeApproximatelyEqual(popover.contentSize, targetSize) {
@@ -932,16 +1002,13 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
                 if remainingLyricsResizeAnimation <= 0.001 {
                     lyricsResizeAnimationEndTime = 0
                 }
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = min(
-                        miniLyricsTransitionDuration,
-                        max(0.08, remainingLyricsResizeAnimation)
-                    )
-                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                    context.allowsImplicitAnimation = true
-                    window.animator().setFrame(targetFrame, display: true)
-                }
+                stepPaneResize(
+                    window,
+                    to: targetFrame,
+                    duration: min(miniLyricsTransitionDuration, max(0.08, remainingLyricsResizeAnimation))
+                )
             } else {
+                cancelPaneResize()
                 window.setFrame(targetFrame, display: true)
             }
             lastAppliedPopoverSize = targetSize
@@ -953,6 +1020,53 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
                 lastAppliedPopoverSize = targetSize
             }
         }
+    }
+
+    /// Starts, or re-targets, a stepped pane resize. A layout pass that lands mid-resize with
+    /// the same destination leaves the running one alone rather than restarting its curve.
+    ///
+    /// - Parameter hostView: The detached window's hosting view, stepped with the window
+    ///   while it shrinks — the same synchronization the morph needs there.
+    private func stepPaneResize(
+        _ window: NSWindow,
+        to targetFrame: NSRect,
+        duration: Double,
+        syncingHostView hostView: NSView? = nil
+    ) {
+        if paneResizeDriver.isRunning, paneResizeTarget == targetFrame { return }
+        paneResizeTarget = targetFrame
+        // Endpoints captured up front, as in the morph, so per-frame rounding cannot drift.
+        let startFrame = window.frame
+        let stepsHostView = hostView != nil && targetFrame.height < startFrame.height
+        paneResizeDriver.start(
+            on: window.screen,
+            duration: duration,
+            curve: (0.42, 0, 0.58, 1),
+            onFrame: { progress in
+                let stepped = NSRect(
+                    x: round(startFrame.minX + ((targetFrame.minX - startFrame.minX) * progress)),
+                    y: round(startFrame.minY + ((targetFrame.minY - startFrame.minY) * progress)),
+                    width: round(startFrame.width + ((targetFrame.width - startFrame.width) * progress)),
+                    height: round(startFrame.height + ((targetFrame.height - startFrame.height) * progress))
+                )
+                window.setFrame(stepped, display: true)
+                if stepsHostView {
+                    hostView?.setFrameSize(window.contentRect(forFrameRect: stepped).size)
+                }
+            },
+            onFinish: { [weak self] in
+                window.setFrame(targetFrame, display: true)
+                if stepsHostView {
+                    hostView?.setFrameSize(window.contentRect(forFrameRect: targetFrame).size)
+                }
+                self?.paneResizeTarget = nil
+            }
+        )
+    }
+
+    private func cancelPaneResize() {
+        paneResizeDriver.cancel()
+        paneResizeTarget = nil
     }
 
     private func updateDetachedWindowLayout() {
@@ -992,16 +1106,14 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             if remainingLyricsResizeAnimation <= 0.001 {
                 lyricsResizeAnimationEndTime = 0
             }
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = min(
-                    miniLyricsTransitionDuration,
-                    max(0.08, remainingLyricsResizeAnimation)
-                )
-                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                context.allowsImplicitAnimation = true
-                window.animator().setFrame(targetFrame, display: true)
-            }
+            stepPaneResize(
+                window,
+                to: targetFrame,
+                duration: min(miniLyricsTransitionDuration, max(0.08, remainingLyricsResizeAnimation)),
+                syncingHostView: detachedHost.view
+            )
         } else {
+            cancelPaneResize()
             window.setFrame(targetFrame, display: true)
         }
         persistDetachedWindowOrigin(from: targetFrame)
@@ -1199,6 +1311,12 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private func handleSurfaceVisibilityStateChanged(_ isVisible: Bool) {
         if isVisible {
             ensureSurfaceContentLoaded()
+            // Ask before showing rather than trusting the last idle poll. What an idle
+            // Music would do with a play command changes as the user navigates around
+            // inside Music, silently and without touching anything this app observes — so
+            // a card opened moments after they left their library for a catalog page would
+            // otherwise offer a play button that does nothing for the rest of the poll.
+            model.refresh()
         } else {
             unloadSurfaceContentIfPossible()
         }
@@ -1212,8 +1330,14 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
         surfaceContentLoaded = true
     }
 
+    /// Tears the player's SwiftUI tree down once no surface is showing it.
+    ///
+    /// Not gated on `reduceHiddenMemoryUsage`: that setting is about artwork and video
+    /// streams, and this is about CPU. A mounted tree keeps animating its progress rail
+    /// against `PlaybackClock`, which had the hidden hosting view rendering its display
+    /// list every display cycle — measured at roughly a tenth of a core with nothing but
+    /// the menu bar item on screen.
     private func unloadSurfaceContentIfPossible() {
-        guard model.reduceHiddenMemoryUsage else { return }
         guard !popover.isShown, detachedWindow?.isVisible != true else { return }
         guard surfaceContentLoaded else { return }
 
@@ -1281,5 +1405,16 @@ final class PopoverAnchorFollowDriver: NSObject {
                 y: from.y + (target.y - from.y) * progress
             )
         )
+    }
+}
+
+extension StatusBarController: NSViewToolTipOwner {
+    func view(
+        _ view: NSView,
+        stringForToolTip tag: NSView.ToolTipTag,
+        point: NSPoint,
+        userData: UnsafeMutableRawPointer?
+    ) -> String {
+        statusToolTipTitle
     }
 }

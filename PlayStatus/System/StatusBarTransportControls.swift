@@ -41,10 +41,12 @@ final class StatusBarTransportControlsView: NSView {
     private let chipHoverAlpha: CGFloat = 0.30
     private let chipPressedAlpha: CGFloat = 0.42
 
-    // Mirrors GlassButton: secondaries rest at 0.72, lift to 0.96 under the pointer,
-    // and the whole row drops to 0.40 when there is nothing to control.
-    private let restingAlpha: CGFloat = 0.72
-    private let hoverAlpha: CGFloat = 0.96
+    // Full-strength ink, like every other menu bar icon — including this app's own status
+    // glyph, which the strip sits directly beside. The strip used to borrow GlassButton's
+    // 0.72 resting / 0.96 hover pair, but that reads on the menu bar as a disabled control
+    // rather than a quiet one, and it left active and inactive only a shade apart. Hover
+    // feedback is the chip's job here; the glyph does not have to lift as well.
+    private let activeAlpha: CGFloat = 1.0
     private let disabledAlpha: CGFloat = 0.40
 
     private let stateFadeDuration: TimeInterval = 0.14
@@ -60,7 +62,10 @@ final class StatusBarTransportControlsView: NSView {
     private let nextGlyph = PassthroughImageView()
 
     private var isPlaying = false
-    private var isEnabled = false
+    /// Enablement is per control, not per strip: a player that is open but idle can still
+    /// be told to play, while there is no track to skip past yet.
+    private var playEnabled = false
+    private var skipEnabled = false
     private var hoveredControl: Control?
     private var pressedControl: Control?
 
@@ -100,7 +105,6 @@ final class StatusBarTransportControlsView: NSView {
 
     override func layout() {
         super.layout()
-        refreshToolTips()
         for control in Control.allCases {
             for glyph in glyphs(for: control) {
                 glyph.frame = glyphFrame(for: control, pressed: pressedControl == control)
@@ -148,18 +152,18 @@ final class StatusBarTransportControlsView: NSView {
 
     // MARK: - State
 
-    func apply(isPlaying: Bool, enabled: Bool) {
+    func apply(isPlaying: Bool, playEnabled: Bool, skipEnabled: Bool) {
         let playStateChanged = self.isPlaying != isPlaying
-        let enabledChanged = isEnabled != enabled
+        let enabledChanged = self.playEnabled != playEnabled || self.skipEnabled != skipEnabled
         guard playStateChanged || enabledChanged else { return }
         self.isPlaying = isPlaying
-        isEnabled = enabled
-        if !enabled {
-            hoveredControl = nil
-            pressedControl = nil
+        self.playEnabled = playEnabled
+        self.skipEnabled = skipEnabled
+        if let hoveredControl, !isEnabled(hoveredControl) {
+            self.hoveredControl = nil
         }
-        if playStateChanged {
-            refreshToolTips()
+        if let pressedControl, !isEnabled(pressedControl) {
+            self.pressedControl = nil
         }
         // Only animate a live change. The first pass, and any pass that arrives while the
         // strip is hidden, would otherwise fade in from nothing the moment it appears.
@@ -230,34 +234,54 @@ final class StatusBarTransportControlsView: NSView {
             let isVisibleHalf = (glyph === pauseGlyph) == isPlaying
             guard isVisibleHalf else { return 0 }
         }
-        guard isEnabled else { return disabledAlpha }
-        if pressedControl == control { return hoverAlpha }
-        return hoveredControl == control ? hoverAlpha : restingAlpha
+        return isEnabled(control) ? activeAlpha : disabledAlpha
+    }
+
+    private func isEnabled(_ control: Control) -> Bool {
+        switch control {
+        case .playPause: return playEnabled
+        case .previous, .next: return skipEnabled
+        }
     }
 
     // MARK: - Pointer
 
     override func mouseDown(with event: NSEvent) {
-        guard isEnabled else { return }
-        pressedControl = control(at: convert(event.locationInWindow, from: nil))
-        hoveredControl = pressedControl ?? hoveredControl
-        applyState(animated: true)
+        pressBegan(at: convert(event.locationInWindow, from: nil))
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard isEnabled, pressedControl != nil else { return }
-        let inside = control(at: convert(event.locationInWindow, from: nil)) == pressedControl
+        pressMoved(to: convert(event.locationInWindow, from: nil))
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        pressEnded(at: convert(event.locationInWindow, from: nil))
+    }
+
+    // The press takes points rather than events because a status item's events cannot be
+    // trusted for position on macOS 27 — see `StatusBarController.installTransportClickRouting`.
+
+    func pressBegan(at point: NSPoint) {
+        guard let target = control(at: point), isEnabled(target) else { return }
+        pressedControl = target
+        hoveredControl = target
+        applyState(animated: true)
+    }
+
+    func pressMoved(to point: NSPoint) {
+        guard pressedControl != nil else { return }
+        let inside = control(at: point) == pressedControl
         let target = inside ? pressedControl : nil
         guard hoveredControl != target else { return }
         hoveredControl = target
         applyState(animated: true)
     }
 
-    override func mouseUp(with event: NSEvent) {
-        let landed = control(at: convert(event.locationInWindow, from: nil))
-        let fired = isEnabled && landed != nil && landed == pressedControl ? landed : nil
+    func pressEnded(at point: NSPoint) {
+        let landed = control(at: point)
+        let fired = landed != nil && landed == pressedControl ? landed : nil
         pressedControl = nil
-        hoveredControl = isEnabled ? landed : nil
+        hoveredControl = landed.flatMap { isEnabled($0) ? $0 : nil }
         applyState(animated: true)
 
         switch fired {
@@ -283,8 +307,8 @@ final class StatusBarTransportControlsView: NSView {
     }
 
     private func updateHover(at point: NSPoint) {
-        guard isEnabled, pressedControl == nil else { return }
-        let target = control(at: point)
+        guard pressedControl == nil else { return }
+        let target = control(at: point).flatMap { isEnabled($0) ? $0 : nil }
         guard hoveredControl != target else { return }
         hoveredControl = target
         applyState(animated: true)
@@ -319,14 +343,50 @@ final class StatusBarTransportControlsView: NSView {
 
     // MARK: - Chrome
 
-    /// The glyph views pass their hits through, so tooltips have to be registered as
-    /// rects on the container instead of set on each image view.
-    private func refreshToolTips() {
-        removeAllToolTips()
-        let titles = ["Previous Track", isPlaying ? "Pause" : "Play", "Next Track"]
-        for (index, title) in titles.enumerated() {
-            guard let control = Control(rawValue: index) else { continue }
-            addToolTip(slotRect(for: control), owner: title as NSString, userData: nil)
+    /// What a greyed-out control says.
+    ///
+    /// A disabled slot still needs a tooltip — a slot the pointer crosses in silence is a
+    /// slot whose bubble never comes back — but naming the action the strip will not
+    /// perform is what made "Next Track" look live while the player sat idle. This names
+    /// the state instead.
+    private static let idleToolTipTitle = "Nothing playing"
+
+    /// The slot rects the status item button registers on the strip's behalf, in that
+    /// button's coordinate space.
+    ///
+    /// They cannot be registered here. `addToolTip` rects are only consulted for the view
+    /// the tooltip manager hit-tests to, and an `NSStatusBarButton` answers that for its
+    /// whole area — so every rect this view registered was dead, and all three slots
+    /// silently showed the button's own status line. The strip still owns the rects and
+    /// names them; only the registration moves.
+    func toolTipRects(in host: NSView) -> [CGRect] {
+        Control.allCases.map { convert(toolTipRect(for: $0), to: host) }
+    }
+
+    /// A slot's tooltip rect. `previous` also takes the leading gap, which is inside the
+    /// strip's bounds but belongs to no control.
+    private func toolTipRect(for control: Control) -> CGRect {
+        let slot = slotRect(for: control)
+        guard control == .previous else { return slot }
+        return CGRect(x: 0, y: slot.minY, width: slot.maxX, height: slot.height)
+    }
+
+    /// Which control a point names for tooltip purposes.
+    ///
+    /// Unlike `control(at:)` this never comes up empty: the rects were cut to cover the
+    /// strip edge to edge, so a point that has drifted a hair past one takes the nearest
+    /// slot rather than losing its bubble.
+    private func toolTipControl(at point: NSPoint) -> Control {
+        let index = Int(floor((point.x - Self.leadingGap) / Self.buttonWidth))
+        return Control(rawValue: min(max(index, 0), Control.allCases.count - 1)) ?? .playPause
+    }
+
+    private func toolTipTitle(for control: Control) -> String {
+        guard isEnabled(control) else { return Self.idleToolTipTitle }
+        switch control {
+        case .previous: return "Previous Track"
+        case .playPause: return isPlaying ? "Pause" : "Play"
+        case .next: return "Next Track"
         }
     }
 
@@ -353,5 +413,25 @@ final class StatusBarTransportControlsView: NSView {
             .withSymbolConfiguration(.init(pointSize: symbolPointSize, weight: .semibold))
         image?.isTemplate = true
         return image
+    }
+}
+
+extension StatusBarTransportControlsView: NSViewToolTipOwner {
+    /// The owner has to be the view, not a title string. `addToolTip(_:owner:userData:)`
+    /// does not retain its owner and the hover timer holds it unretained as well, so the
+    /// old `title as NSString` owner was deallocated as soon as the autorelease pool
+    /// drained — `toolTipTimerFired` then sent `respondsToSelector:` to freed memory and
+    /// trapped. The strip is retained by the status item button for as long as the rects
+    /// exist, so there is nothing left to dangle.
+    ///
+    /// `view` is the button the rects are registered on, so the point has to come back
+    /// into the strip's own space before it can name a control.
+    func view(
+        _ view: NSView,
+        stringForToolTip tag: NSView.ToolTipTag,
+        point: NSPoint,
+        userData: UnsafeMutableRawPointer?
+    ) -> String {
+        toolTipTitle(for: toolTipControl(at: convert(point, from: view)))
     }
 }

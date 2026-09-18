@@ -6,6 +6,13 @@ struct NowPlayingPopover: View {
     @ObservedObject private var onboarding = OnboardingCoordinator.shared
     @State private var searchText = ""
     @State private var isSearchExpanded = false
+    /// Whether the header icon row is currently clipped to its own bounds.
+    ///
+    /// The clip exists only for the search field's fold — see `regularControlCluster`. It
+    /// has to be off at rest, or it also trims every hover hint the row's buttons drop
+    /// below themselves, which is why those buttons were the one cluster in the app with
+    /// no working tooltip.
+    @State private var headerFoldClipActive = false
     @FocusState private var isSearchFocused: Bool
     @State private var searchSectionFrame: CGRect = .zero
     @State private var modeTransitionActive = false
@@ -24,6 +31,7 @@ struct NowPlayingPopover: View {
     /// first-appear fade — without this the artwork blinked out at the exact frame the
     /// morph settled and faded back in from nothing.
     @State private var modeHandoffSettling = false
+    @State private var modeMorphFadesStarted = false
     @State private var modePrimaryContentVisible = true
     @State private var modeSecondaryContentVisible = true
     @State private var showRegularDetailsPane = false
@@ -104,34 +112,53 @@ struct NowPlayingPopover: View {
         )
     }
 
+    /// How far outside the header row the resting clip sits — comfortably past the
+    /// 28pt hint offset and the bubble's own height.
+    private static let headerFoldClipRelief: CGFloat = 120
+    /// Long enough for the search field's collapse spring (response 0.34) to settle.
+    private static let headerFoldSettleDelay: TimeInterval = 0.45
+
     var body: some View {
-        GeometryReader { geometry in
-            // The content fills whatever the host currently is rather than animating a
-            // size of its own. Core Animation moves the window, AppKit resizes the host
-            // under it, and the layout simply follows — so the content cannot slide
-            // against its own window the way it does when both sides animate separately.
-            // This is the same model the lyrics pane has always used.
-            modeContent(surfaceSize: geometry.size)
-                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
-                // The travelling artwork lives on this overlay, not inside the branch
-                // ZStack. The ZStack is as wide as its widest branch — wider than the
-                // host mid-morph — so `.position()` coordinates inside it are shifted
-                // left of host coordinates by half the overhang: zero at the wide end
-                // of a morph, 75pt by the narrow end. The artwork drifted left along
-                // exactly that curve and then snapped right at handoff. This overlay is
-                // clamped to the host frame, so positions here mean host coordinates.
-                .overlay(alignment: .topLeading) {
-                    if modeTransitionActive {
-                        sharedMorphingArtwork(
-                            progress: morphProgress(forSurfaceWidth: geometry.size.width),
-                            surface: geometry.size,
-                            regularSize: surfaceSize(for: false),
-                            miniSize: surfaceSize(for: true)
-                        )
-                    }
-                }
-                .clipped()
+        // Nothing here reads the live surface size except the leaves that genuinely follow
+        // the window frame by frame — the morph backdrop and the travelling artwork — and
+        // each reads it through its own GeometryReader. The branches sit at fixed sizes and
+        // the host clips them, so while AppKit steps the window through a morph or a pane
+        // resize SwiftUI re-runs those two leaves and nothing else. This used to be one
+        // GeometryReader around the whole player, which rebuilt both layouts every frame.
+        Color.clear.background(alignment: .top) {
+            GeometryReader { geometry in
+                modeMorphBackdrop(
+                    progress: morphProgress(forSurfaceWidth: geometry.size.width),
+                    surface: geometry.size
+                )
+            }
         }
+        .overlay(alignment: .top) {
+            modeContent()
+        }
+        // The travelling artwork lives on this overlay, not inside the branch
+        // ZStack. The ZStack is as wide as its widest branch — wider than the
+        // host mid-morph — so `.position()` coordinates inside it are shifted
+        // left of host coordinates by half the overhang: zero at the wide end
+        // of a morph, 75pt by the narrow end. The artwork drifted left along
+        // exactly that curve and then snapped right at handoff. This overlay is
+        // clamped to the host frame, so positions here mean host coordinates.
+        .overlay(alignment: .topLeading) {
+            if modeTransitionActive {
+                GeometryReader { geometry in
+                    sharedMorphingArtwork(
+                        progress: morphProgress(forSurfaceWidth: geometry.size.width),
+                        surface: geometry.size,
+                        regularSize: surfaceSize(for: false),
+                        miniSize: surfaceSize(for: true)
+                    )
+                }
+            }
+        }
+        .clipped()
+        // Hints only show at rest, so they clamp to the settled surface. Handing them the
+        // live size re-invalidated every hinted control on each frame of a resize.
+        .hoverHintSurface(surfaceSize(for: model.miniMode))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .clipped()
         .coordinateSpace(name: "popoverRoot")
@@ -157,6 +184,9 @@ struct NowPlayingPopover: View {
                     isSearchExpanded = false
                 }
             }
+        }
+        .onChange(of: model.modeMorphMotionEvent) { _, event in
+            handleModeMorphMotion(event)
         }
         .onChange(of: model.miniMode) { _, miniMode in
             runModeMorph(toMini: miniMode)
@@ -194,6 +224,17 @@ struct NowPlayingPopover: View {
         }
         .onChange(of: isSearchExpanded) { _, expanded in
             model.searchFieldIsOpen = expanded
+            if expanded {
+                headerFoldClipActive = true
+            } else {
+                // Hold the clip until the collapse spring has settled: dropping it early
+                // lets the icons render at full width inside a frame that is still
+                // animating back, which smears them across the closing field.
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.headerFoldSettleDelay) {
+                    guard !isSearchExpanded else { return }
+                    headerFoldClipActive = false
+                }
+            }
         }
         .onChange(of: model.searchDismissRequestToken) { _, _ in
             isSearchFocused = false
@@ -254,17 +295,13 @@ struct NowPlayingPopover: View {
     /// and both layouts ended up cross-dissolving at full strength. Here each branch
     /// renders at its own natural size, clipped by the morphing container, and the
     /// inactive one is retired only once the transition has settled.
-    private func modeContent(surfaceSize surface: CGSize) -> some View {
+    private func modeContent() -> some View {
         let regularSize = surfaceSize(for: false)
         let miniSize = surfaceSize(for: true)
-        let progress = morphProgress(forSurfaceWidth: surface.width)
-        let availableHeight = max(0, surface.height)
 
         return ZStack(alignment: .top) {
-            modeMorphBackdrop(progress: progress, surface: surface)
-
             if renderRegularBranch {
-                regularContent(availableHeight: model.miniMode ? regularSize.height : availableHeight)
+                regularContent()
                     .frame(width: regularSize.width, height: regularSize.height, alignment: .top)
                     .coordinateSpace(name: modeRegularBranchSpace)
                     .opacity(regularBranchVisible ? 1 : 0)
@@ -276,8 +313,6 @@ struct NowPlayingPopover: View {
                     model: model,
                     transitionActive: artworkHandedOff,
                     handoffSettling: modeHandoffSettling,
-                    availableHeight: model.miniMode ? availableHeight : miniSize.height,
-                    resolvedHeight: miniSize.height,
                     primaryContentVisible: modePrimaryContentVisible,
                     secondaryContentVisible: modeSecondaryContentVisible,
                     onToggleMode: {
@@ -358,24 +393,25 @@ struct NowPlayingPopover: View {
         from + ((to - from) * progress)
     }
 
-    private func regularContent(availableHeight: CGFloat) -> some View {
+    private func regularContent() -> some View {
         // The branch always lays out at its own settled size; the morphing container
         // clips it. Reflowing this layout mid-transition would be both expensive and
         // visibly unstable.
         let regularSurfaceSize = surfaceSize(for: false)
         let baseRegularHeight = model.estimatedRegularPopoverHeight
-        let resolvedRegularHeight = regularSurfaceSize.height
-        let liveRegularHeight = min(resolvedRegularHeight, max(baseRegularHeight, availableHeight))
         // Artwork + the gap + both content margins. The text column gets everything else.
         let regularMarqueeLaneWidth = min(
             292,
             max(130, regularSurfaceSize.width - regularArtworkSize - (playerSurfaceContentPadding * 2) - 16)
         )
-        let visibleRegularDetailsHeight = min(
+        // Holds its open height while the pane is mounted and lets the window edge reveal
+        // it; see `MiniNowPlayingCard`. Nothing in this layout follows the live window.
+        let settledRegularDetailsHeight = min(
             model.regularLyricsPaneHeight,
-            max(0, liveRegularHeight - baseRegularHeight)
+            max(0, (model.surfaceContentHeightCap ?? .infinity) - baseRegularHeight)
         )
-        let shouldRenderRegularDetailsPane = showRegularDetailsPane || visibleRegularDetailsHeight > 0.5
+        let shouldRenderRegularDetailsPane = showRegularDetailsPane
+        let resolvedRegularHeight = baseRegularHeight + (shouldRenderRegularDetailsPane ? settledRegularDetailsHeight : 0)
         let regularControlContrastBoost = model.regularControlsContrastBoost
         // Detached no longer dims itself. The 0.80 multiplier existed to compensate for the
         // material and wash the window used to stack underneath the player; with those gone
@@ -442,9 +478,9 @@ struct NowPlayingPopover: View {
                     inactiveFontSize: model.regularLyricsInactiveFontSize,
                     activeFontSize: model.regularLyricsActiveFontSize,
                     glassTint: model.glassTint,
-                    visibleHeight: visibleRegularDetailsHeight
+                    height: settledRegularDetailsHeight
                 )
-                .allowsHitTesting(regularDetailsRequested && visibleRegularDetailsHeight > 0.5)
+                .allowsHitTesting(regularDetailsRequested)
             }
         }
         .frame(width: regularSurfaceSize.width, height: resolvedRegularHeight, alignment: .topLeading)
@@ -622,7 +658,10 @@ struct NowPlayingPopover: View {
             // you are not, and while you are, these five are not what you are aiming at.
             .frame(width: isSearchExpanded ? 0 : nil)
             .opacity(isSearchExpanded ? 0 : 1)
-            .clipped()
+            // A negative inset is an outset: at rest the clip sits far enough outside the
+            // row to let a hint bubble hang below it, and only closes to the row's own
+            // bounds while the fold is running.
+            .clipShape(Rectangle().inset(by: headerFoldClipActive ? 0 : -Self.headerFoldClipRelief))
             .allowsHitTesting(!isSearchExpanded)
         }
         .fixedSize(horizontal: true, vertical: false)
@@ -797,12 +836,38 @@ struct NowPlayingPopover: View {
     }
 
     /// Geometry is not animated here at all. The window resize is the only timeline; the
-    /// content follows the host it is given and derives its morph progress from it. All
-    /// this schedules is the cross-fade between the two layouts.
+    /// content follows the host it is given and derives its morph progress from it. This
+    /// mounts both layouts for the flip; the cross-fade starts when the window does and the
+    /// handoff happens when it stops — see `NowPlayingModel.modeMorphMotionEvent`.
     private func runModeMorph(toMini miniMode: Bool) {
         modeTransitionEndWorkItem?.cancel()
         modeTransitionActive = true
+        modeMorphFadesStarted = false
         displayedMiniMode = miniMode
+
+        // Only if the window never reports back. Long enough to outlast a slow first frame.
+        let fallback = DispatchWorkItem {
+            startModeMorphFades()
+            finishModeMorph()
+        }
+        modeTransitionEndWorkItem = fallback
+        DispatchQueue.main.asyncAfter(deadline: .now() + modeTransitionDuration + 0.7, execute: fallback)
+    }
+
+    private func handleModeMorphMotion(_ event: NowPlayingModel.ModeMorphMotionEvent?) {
+        guard let event, event.serial == model.modeMorphSerial, modeTransitionActive else { return }
+        switch event.phase {
+        case .started:
+            startModeMorphFades()
+        case .finished:
+            finishModeMorph()
+        }
+    }
+
+    private func startModeMorphFades() {
+        guard modeTransitionActive, !modeMorphFadesStarted else { return }
+        modeMorphFadesStarted = true
+        let miniMode = displayedMiniMode
 
         // The layout that is leaving fades out fast and does not move.
         withAnimation(modeOutgoingFadeAnimation) {
@@ -820,21 +885,24 @@ struct NowPlayingPopover: View {
                 regularBranchVisible = true
             }
         }
+    }
 
-        let finish = DispatchWorkItem {
-            guard displayedMiniMode == model.miniMode else { return }
-            // Both flips land in one render pass: the shared morph node unmounts and the
-            // branch artwork remounts — with its appear fade suppressed — on the same
-            // frame, so the image never has a frame where nobody is drawing it.
-            modeHandoffSettling = true
-            modeTransitionActive = false
-            modeTransitionEndWorkItem = nil
-            DispatchQueue.main.async {
-                modeHandoffSettling = false
-            }
+    private func finishModeMorph() {
+        guard modeTransitionActive, displayedMiniMode == model.miniMode else { return }
+        modeTransitionEndWorkItem?.cancel()
+        modeTransitionEndWorkItem = nil
+        // Settles the fades too, for the case where the window finished before the start
+        // event was ever seen.
+        regularBranchVisible = !displayedMiniMode
+        miniBranchVisible = displayedMiniMode
+        // Both flips land in one render pass: the shared morph node unmounts and the
+        // branch artwork remounts — with its appear fade suppressed — on the same
+        // frame, so the image never has a frame where nobody is drawing it.
+        modeHandoffSettling = true
+        modeTransitionActive = false
+        DispatchQueue.main.async {
+            modeHandoffSettling = false
         }
-        modeTransitionEndWorkItem = finish
-        DispatchQueue.main.asyncAfter(deadline: .now() + modeTransitionDuration, execute: finish)
     }
 
     private func settleModeMorphImmediately() {
@@ -871,7 +939,7 @@ struct NowPlayingPopover: View {
             regularDetailsHideWorkItem = nil
         }
         regularDetailsHideWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + miniLyricsTransitionDuration, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + detailsPaneUnmountDelay, execute: work)
     }
 
     private func toggleRegularDetails(tab: DetailsPaneTab) {
