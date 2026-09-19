@@ -666,9 +666,34 @@ enum MusicProvider {
     }
 
     static func playPause() { _ = runAppleScript(#"tell application "Music" to playpause"#) }
-    /// Starts playback outright. From a stopped player with nothing loaded, `playpause` is a
-    /// silent no-op even with a library list in front; `play` starts that list.
-    static func play() { _ = runAppleScript(#"tell application "Music" to play"#) }
+    /// Starts playback outright.
+    ///
+    /// From a stopped player with nothing loaded, `playpause` is a silent no-op even with a
+    /// library list in front. A bare `play` is not much better: with no current track and no
+    /// current playlist it has no implicit target, so Music ignores it as well — measured
+    /// with a 5037-track user playlist in front, which `idlePlayback()` reads as playable
+    /// and which Music itself will start the moment the command names it. So the list in
+    /// front is named. The bare verb is kept for the case it is actually good at, resuming a
+    /// track that is already loaded, and as the fallback when there is no browser window to
+    /// name — a Music with no window at all still answers `play` from its own queue.
+    static func play() {
+        let script = """
+        tell application "Music"
+            try
+                if exists current track then
+                    play
+                    return
+                end if
+            end try
+            try
+                play (view of front browser window)
+                return
+            end try
+            play
+        end tell
+        """
+        _ = runAppleScript(script)
+    }
     static func next() { _ = runAppleScript(#"tell application "Music" to next track"#) }
     static func previous() {
         let script = """
