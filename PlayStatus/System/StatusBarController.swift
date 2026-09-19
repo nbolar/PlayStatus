@@ -113,7 +113,18 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             button.title = ""
 
             transportControlsView.onPrevious = { [weak self] in self?.model.previousTrack() }
-            transportControlsView.onPlayPause = { [weak self] in self?.model.playPause() }
+            // A stopped player has nothing to pause, and `playpause` does nothing when
+            // Music sits idle — the same reason the popover's idle card sends `play`. The
+            // strip's play button is only live in that state because `startIdlePlayback`
+            // is what it will do, so it has to be what it does.
+            transportControlsView.onPlayPause = { [weak self] in
+                guard let self else { return }
+                if model.canControlPlayback {
+                    model.playPause()
+                } else {
+                    model.startIdlePlayback()
+                }
+            }
             transportControlsView.onNext = { [weak self] in self?.model.nextTrack() }
             statusContents.install(in: button)
             installTransportClickRouting(for: button)
@@ -420,7 +431,11 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             let point = strip.convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
             switch event.type {
             case .leftMouseDown:
-                guard !strip.isHidden, strip.bounds.contains(point) else { return event }
+                // Only a press the strip will act on is taken. Asking `bounds` alone meant
+                // a greyed slot swallowed the event and then did nothing with it, so the
+                // button never got to toggle the popover either — two thirds of the strip
+                // was a dead click while the player sat stopped.
+                guard strip.wantsPress(at: point) else { return event }
                 transportClickInProgress = true
                 strip.pressBegan(at: point)
                 return nil

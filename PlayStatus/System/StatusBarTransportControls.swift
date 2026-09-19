@@ -246,20 +246,35 @@ final class StatusBarTransportControlsView: NSView {
 
     // MARK: - Pointer
 
-    override func mouseDown(with event: NSEvent) {
-        pressBegan(at: convert(event.locationInWindow, from: nil))
-    }
-
-    override func mouseDragged(with event: NSEvent) {
-        pressMoved(to: convert(event.locationInWindow, from: nil))
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        pressEnded(at: convert(event.locationInWindow, from: nil))
+    /// The strip is never the target of a click.
+    ///
+    /// It draws, it does not hit-test — every press reaches it through the router in
+    /// `StatusBarController.installTransportClickRouting`, which knows where the pointer
+    /// really was. Answering `hitTest` is what broke the stopped player: macOS 27 hands the
+    /// status item every click with `locationInWindow` set to the item window's centre, and
+    /// once the title lane is gone the item is 81pt wide with the strip across 22...81 — so
+    /// that centre lands on the strip whatever the user aimed at. AppKit made the strip the
+    /// event's target, the button never actioned, and the whole item stopped opening the
+    /// popover while a play chip flashed under a click 40pt away. Staying out of the hit
+    /// test leaves the button as the only thing AppKit can target, and the router still
+    /// takes the presses that are genuinely the strip's.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
     }
 
     // The press takes points rather than events because a status item's events cannot be
     // trusted for position on macOS 27 — see `StatusBarController.installTransportClickRouting`.
+
+    /// Whether a press at `point` is the strip's to take.
+    ///
+    /// The router asks before it swallows an event. A greyed slot is not the strip's:
+    /// the strip would do nothing with it, and a press that is eaten and then dropped is a
+    /// dead click on the status item — which, while the player sits stopped and two of the
+    /// three slots are greyed, is most of the item's width.
+    func wantsPress(at point: NSPoint) -> Bool {
+        guard !isHidden, let target = control(at: point) else { return false }
+        return isEnabled(target)
+    }
 
     func pressBegan(at point: NSPoint) {
         guard let target = control(at: point), isEnabled(target) else { return }
