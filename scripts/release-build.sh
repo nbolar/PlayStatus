@@ -19,6 +19,9 @@ require_value NOTARY_PROFILE
 if [[ -n "${RELEASE_TAG:-}" ]]; then
   VERSION="$(scripts/validate-release-tag.sh "$RELEASE_TAG")"
   BUILD_NUMBER="$(scripts/release-build-number.sh "$RELEASE_TAG")"
+  # Empty for a tag. Expanded below with the `${a[@]+...}` guard, because bash
+  # 3.2 — what the runner's `env bash` finds — calls an empty array unbound
+  # under `set -u`, and failed v3.1.3's first release run on it.
   VERSION_OVERRIDES=()
 else
   require_value VERSION
@@ -48,7 +51,7 @@ xcodebuild \
   APPLE_DEVELOPER_IDENTITY="$APPLE_DEVELOPER_IDENTITY" \
   CODE_SIGN_IDENTITY="$APPLE_DEVELOPER_IDENTITY" \
   DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-  "${VERSION_OVERRIDES[@]}"
+  ${VERSION_OVERRIDES[@]+"${VERSION_OVERRIDES[@]}"}
 
 APP_PATH="$ARCHIVE_PATH/Products/Applications/PlayStatus.app"
 if [[ ! -d "$APP_PATH" ]]; then
