@@ -356,6 +356,27 @@ final class NowPlayingModel: ObservableObject {
     /// that does nothing.
     @Published private(set) var musicIdlePlayback: MusicProvider.IdlePlayback = .unavailable
 
+    /// When the idle card's play button was last pressed and started nothing.
+    ///
+    /// The only evidence there is. With `.playUnconfirmed` the front window will not say
+    /// whether play works, so the card offers it and watches: a press that leaves Music
+    /// stopped is recorded here, and until it expires the card offers the shuffle instead
+    /// of a button that has just been shown not to work. It expires because the user can
+    /// navigate Music to a page where play *does* work without anything observable from
+    /// out here changing — an unreadable window looks the same either way — so the memo
+    /// has to let go on its own rather than strand a shuffle offer on a playable page.
+    private var musicIdlePlayFailedAt: Date?
+
+    /// Long enough to cover the press that failed and a second look at the card, short
+    /// enough that a page the user has since navigated away from is not still answering
+    /// for the one in front of them.
+    private let musicIdlePlayFailureMemory: TimeInterval = 30
+
+    private var musicIdlePlayRecentlyFailed: Bool {
+        guard let musicIdlePlayFailedAt else { return false }
+        return Date().timeIntervalSince(musicIdlePlayFailedAt) < musicIdlePlayFailureMemory
+    }
+
     private var cachedAutomaticFallback: (value: NowPlayingProvider, priority: ProviderPriority, timestamp: CFAbsoluteTime)?
     private var launchAtLoginSupported: Bool = true
     private let artworkFallback = ArtworkFallbackLookup()
@@ -962,7 +983,10 @@ final class NowPlayingModel: ObservableObject {
             switch musicIdlePlayback {
             case .play:
                 break
-            case .shuffleLibrary:
+            case .playUnconfirmed:
+                // Offer play until a press proves it does nothing here; then the shuffle,
+                // which is the one thing that still works on a page Music will not start.
+                guard musicIdlePlayRecentlyFailed else { break }
                 return PlayerIdlePresentation(
                     headline: "Nothing playing",
                     detail: "\(name) is open, but has nothing queued.",
@@ -1002,6 +1026,9 @@ final class NowPlayingModel: ObservableObject {
     private func applyMusicIdlePlayback(_ capability: MusicProvider.IdlePlayback) {
         guard musicIdlePlayback != capability else { return }
         musicIdlePlayback = capability
+        // A different answer is a different Music: whatever the last press proved, it was
+        // about the window that is no longer in front.
+        musicIdlePlayFailedAt = nil
         invalidateIdleResolution()
     }
 
@@ -2160,7 +2187,29 @@ final class NowPlayingModel: ObservableObject {
             // player is not asked what it is doing before it has been told.
             guard let self else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + self.idlePlaybackVerifyDelay) { [weak self] in
-                guard let self, self.isIdle else { return }
+                guard let self else { return }
+                guard self.isIdle else {
+                    // It played. Nothing to remember.
+                    self.musicIdlePlayFailedAt = nil
+                    return
+                }
+                // Still idle after being told to play: the press did nothing. Worth
+                // recording only where the card was guessing, and it only matters for
+                // Music — Spotify's play is not one of the ones that can be a no-op.
+                if target != .spotify, self.musicIdlePlayback == .playUnconfirmed {
+                    self.musicIdlePlayFailedAt = Date()
+                    self.invalidateIdleResolution()
+                    // The memo expires on a clock, and the classification it hangs off may
+                    // never change, so the card is woken once more to drop it. Without this
+                    // the shuffle offer could outlive the reason for it until some other
+                    // refresh happened to invalidate the resolution.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + self.musicIdlePlayFailureMemory) { [weak self] in
+                        guard let self, !self.musicIdlePlayRecentlyFailed else { return }
+                        self.musicIdlePlayFailedAt = nil
+                        self.invalidateIdleResolution()
+                        self.objectWillChange.send()
+                    }
+                }
                 self.refresh()
             }
         }

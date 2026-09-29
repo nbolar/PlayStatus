@@ -376,6 +376,10 @@ final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDeleg
             model.toggleCurrentTrackFavorite()
         case "toggle", "player":
             model.requestTogglePlayerSurface()
+        case "idleplay":
+            // The idle card's button, which no other verb reaches: `playpause` is the
+            // transport's, and from a stopped Music the two are not the same command.
+            model.startIdlePlayback()
         case "shuffle":
             model.toggleShuffle()
         case "repeat":

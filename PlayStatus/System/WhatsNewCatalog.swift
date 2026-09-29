@@ -311,6 +311,37 @@ enum WhatsNewCatalog {
                     accent: .amber
                 )
             ]
+        ),
+        WhatsNewRelease(
+            version: ReleaseVersion("3.1.3")!,
+            headline: "Clicks, drags, and Play that starts Music",
+            summary: "Fixes for macOS 27, and for starting Music when nothing is playing.",
+            highlights: [
+                WhatsNewHighlight(
+                    symbolName: "cursorarrow.click",
+                    title: "The menu bar item opens when stopped",
+                    message: "On macOS 27, clicking the item with nothing playing failed to open the player. It opens again, and a greyed-out control opens it too.",
+                    accent: .blue
+                ),
+                WhatsNewHighlight(
+                    symbolName: "play.circle",
+                    title: "Play works when Music is stopped",
+                    message: "The menu bar Play button and the player's Play in Music now start the playlist or Apple Music page in front. Shuffle Library appears only after a Play starts nothing.",
+                    accent: .pink
+                ),
+                WhatsNewHighlight(
+                    symbolName: "macwindow",
+                    title: "Drag the detached player again",
+                    message: "On macOS 27, dragging the detached player's empty space moves the window again.",
+                    accent: .green
+                ),
+                WhatsNewHighlight(
+                    symbolName: "link",
+                    title: "playstatus://idleplay",
+                    message: "Presses the idle player's play button from Shortcuts, Raycast, or a script. When Music is stopped, it starts playback where playpause can't.",
+                    accent: .violet
+                )
+            ]
         )
     ]
 

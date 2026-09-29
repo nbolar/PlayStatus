@@ -231,6 +231,7 @@ playstatus://next
 playstatus://previous
 playstatus://favorite
 playstatus://toggle              # show or hide the player
+playstatus://idleplay            # the idle card's play button, for a stopped player
 playstatus://shuffle
 playstatus://repeat
 playstatus://volume?level=35     # 0–100, or 0–1

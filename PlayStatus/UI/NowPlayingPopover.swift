@@ -288,6 +288,11 @@ struct NowPlayingPopover: View {
                 isSearchFocused = false
             }
         )
+        // macOS 27 stopped starting a background drag through the hosting view, so
+        // `isMovableByWindowBackground` alone left the detached window stuck in place.
+        // As a parent gesture this loses to every control's own, so buttons and the
+        // rail still get their presses; only undecorated surface moves the window.
+        .gesture(WindowDragGesture(), including: model.surfaceMode == .detached ? .all : .subviews)
     }
 
     /// Both layouts live in one ZStack rather than an if/else. A branch swap gave the

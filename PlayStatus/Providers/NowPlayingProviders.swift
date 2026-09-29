@@ -610,8 +610,10 @@ enum MusicProvider {
     enum IdlePlayback: String {
         /// Plain play works: a track is loaded, or the front window is showing a list.
         case play
-        /// Play would do nothing, but there is a library to shuffle instead.
-        case shuffleLibrary
+        /// Play may or may not work — the front window will not say which, and there is a
+        /// library to shuffle if it turns out it does not. Offer play, and let a press that
+        /// starts nothing be the answer; nothing short of trying can tell.
+        case playUnconfirmed
         /// Nothing to start at all.
         case unavailable
     }
@@ -621,10 +623,8 @@ enum MusicProvider {
     /// Music's own play button is dimmed unless the front window is showing something it
     /// can play, and while it is dimmed `playpause` is a silent no-op — which is what made
     /// the idle player's "Play in Music" button look live and do nothing. Two things make
-    /// it live: a track already loaded, which play resumes, or a front window showing a
-    /// list with tracks in it. An Apple Music catalog page — Listen Now, Browse, a search
-    /// result — is neither, and the object model will not even hand back that window's
-    /// view there, which is the cheapest way to tell the two apart.
+    /// it live for certain: a track already loaded, which play resumes, or a front window
+    /// showing a list with tracks in it.
     ///
     /// The track count matters as well as the view: a store page that *is* scriptable
     /// comes back as an empty playlist, and play does nothing there either. So does the
@@ -632,9 +632,19 @@ enum MusicProvider {
     /// — one of Apple's, shown in the sidebar with a full track list behind it — is read as
     /// unplayable even though it counts tracks like a library one would.
     ///
+    /// When the object model will not hand back the window's view at all, the answer is
+    /// genuinely unknown, and #43 is where assuming the worst went wrong. Measured on
+    /// macOS 27 from a Music just launched, muted, with nothing ever played: on the Home
+    /// page a bare `play` left it stopped, and after deep-linking to an Apple Music catalog
+    /// album the same `play` started that album — while `view of front browser window`
+    /// threw `Unknown object type` in both. Nothing else separates them either; the window
+    /// is named "Music" and reports an empty selection on both pages. So the unscriptable
+    /// case is reported as unknown rather than unplayable, and the card finds out by
+    /// asking — see `NowPlayingModel.startIdlePlayback()`.
+    ///
     /// A library playlist named explicitly can still be started while all of that is true,
-    /// so a catalog page is not a dead end — it just means the only honest offer left is a
-    /// shuffle, and only when there is actually a library to shuffle.
+    /// so an unplayable window is not a dead end — the shuffle stays as the fallback, and
+    /// only when there is actually a library to shuffle.
     static func idlePlayback() -> IdlePlayback {
         guard providerAppIsRunning(bundleIdentifier: "com.apple.Music") else { return .unavailable }
 
@@ -652,7 +662,7 @@ enum MusicProvider {
                 end if
             end try
             try
-                if (count of tracks of library playlist 1) > 0 then return "shuffle"
+                if (count of tracks of library playlist 1) > 0 then return "maybe"
             end try
             return "no"
         end tell
@@ -660,7 +670,7 @@ enum MusicProvider {
 
         switch runAppleScript(script)?.trimmingCharacters(in: .whitespacesAndNewlines) {
         case "play": return .play
-        case "shuffle": return .shuffleLibrary
+        case "maybe": return .playUnconfirmed
         default: return .unavailable
         }
     }
@@ -669,13 +679,19 @@ enum MusicProvider {
     /// Starts playback outright.
     ///
     /// From a stopped player with nothing loaded, `playpause` is a silent no-op even with a
-    /// library list in front. A bare `play` is not much better: with no current track and no
-    /// current playlist it has no implicit target, so Music ignores it as well — measured
-    /// with a 5037-track user playlist in front, which `idlePlayback()` reads as playable
-    /// and which Music itself will start the moment the command names it. So the list in
-    /// front is named. The bare verb is kept for the case it is actually good at, resuming a
-    /// track that is already loaded, and as the fallback when there is no browser window to
-    /// name — a Music with no window at all still answers `play` from its own queue.
+    /// library list in front, and a bare `play` is not always better: with a user playlist in
+    /// front — measured on a 5037-track one — it has no implicit target and Music ignores it,
+    /// while `play <that playlist>` starts it immediately. So the list in front is named.
+    ///
+    /// Only when the list in front *is* what the user is looking at. A browser window's
+    /// `view` is the containing playlist, and Music's object model has no album view, so
+    /// browsing an album under Library hands back `library playlist 1` — the whole library.
+    /// Naming that turns "play this album" into "play everything, by artist, from a", which
+    /// is what #43 caught. A `library playlist` view therefore means the user has navigated
+    /// *inside* a container, and the bare verb is the right one: Music resolves the album on
+    /// screen itself, the same as its own play button. The bare verb also covers what it is
+    /// plainly good at — resuming a loaded track — and a Music with no browser window at all,
+    /// which still answers `play` from its own queue.
     static func play() {
         let script = """
         tell application "Music"
@@ -686,8 +702,11 @@ enum MusicProvider {
                 end if
             end try
             try
-                play (view of front browser window)
-                return
+                set vw to view of front browser window
+                if ((class of vw) as text) is "user playlist" then
+                    play vw
+                    return
+                end if
             end try
             play
         end tell
@@ -928,7 +947,7 @@ enum MusicProvider {
     /// Naming the playlist is also what lets this work where `playpause` does nothing: the
     /// command targets the library directly rather than whatever the front window happens
     /// to be showing, which is why it is the idle card's offer when `idlePlayback()` comes
-    /// back `.shuffleLibrary`.
+    /// back `.playUnconfirmed` and a press has shown that play does nothing here.
     static func shuffleLibrary() {
         defer { invalidateColdFields() }
         _ = runAppleScript("""

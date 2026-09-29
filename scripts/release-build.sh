@@ -13,9 +13,21 @@ require_value APPLE_DEVELOPER_IDENTITY
 require_value APPLE_TEAM_ID
 require_value NOTARY_PROFILE
 
-require_value RELEASE_TAG
-VERSION="$(scripts/validate-release-tag.sh "$RELEASE_TAG")"
-BUILD_NUMBER="$(scripts/release-build-number.sh "$RELEASE_TAG")"
+# A tagged release takes its version from the tag, which must match what the
+# project says. A beta has no tag to match — `validate-release-tag.sh` accepts
+# vX.Y.Z only — so it names the version outright and the build stamps it in.
+if [[ -n "${RELEASE_TAG:-}" ]]; then
+  VERSION="$(scripts/validate-release-tag.sh "$RELEASE_TAG")"
+  BUILD_NUMBER="$(scripts/release-build-number.sh "$RELEASE_TAG")"
+  VERSION_OVERRIDES=()
+else
+  require_value VERSION
+  require_value BUILD_NUMBER
+  VERSION_OVERRIDES=(
+    "MARKETING_VERSION=$VERSION"
+    "CURRENT_PROJECT_VERSION=$BUILD_NUMBER"
+  )
+fi
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-$PWD/.build/release-derived-data}"
 ARCHIVE_PATH="${ARCHIVE_PATH:-$PWD/.build/PlayStatus.xcarchive}"
 DIST_DIR="${DIST_DIR:-$PWD/.build/dist}"
@@ -35,7 +47,8 @@ xcodebuild \
   ENABLE_HARDENED_RUNTIME=YES \
   APPLE_DEVELOPER_IDENTITY="$APPLE_DEVELOPER_IDENTITY" \
   CODE_SIGN_IDENTITY="$APPLE_DEVELOPER_IDENTITY" \
-  DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
+  DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+  "${VERSION_OVERRIDES[@]}"
 
 APP_PATH="$ARCHIVE_PATH/Products/Applications/PlayStatus.app"
 if [[ ! -d "$APP_PATH" ]]; then
@@ -64,6 +77,18 @@ require_automation_entitlement() {
     grep -A 3 -F 'com.apple.security.automation.apple-events' |
     grep -Fq '[Bool] true'; then
     echo "Release app is missing com.apple.security.automation.apple-events: $app_path" >&2
+    exit 1
+  fi
+}
+
+# Read into a variable rather than piping to `grep -q`: grep exits at the first
+# match and the codesign writing into that pipe takes a SIGPIPE, which `pipefail`
+# then turns into a failed release build for a check that had just passed.
+require_secure_timestamp() {
+  local description
+  description="$(codesign -d --verbose=4 "$1" 2>&1)"
+  if [[ "$description" != *"Timestamp="* ]]; then
+    echo "Signature carries no secure timestamp: $1" >&2
     exit 1
   fi
 }
@@ -101,13 +126,13 @@ if [[ -d "$SPARKLE_FRAMEWORK" ]]; then
   for component in "${SPARKLE_COMPONENTS[@]}"; do
     test -e "$component"
     sign_with_developer_id "$component"
-    codesign -d --verbose=4 "$component" 2>&1 | grep -q 'Timestamp='
+    require_secure_timestamp "$component"
   done
 fi
 
 # Re-seal the app after its embedded framework has been re-signed.
 sign_app_with_developer_id
-codesign -d --verbose=4 "$APP_PATH" 2>&1 | grep -q 'Timestamp='
+require_secure_timestamp "$APP_PATH"
 codesign --verify --deep --strict --verbose=4 "$APP_PATH"
 require_automation_entitlement "$APP_PATH"
 
