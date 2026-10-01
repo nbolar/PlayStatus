@@ -4,3 +4,7 @@ PlayStatus/Secrets.plist
 
 # Local build artifacts.
 build/
+
+# Local release notes drafts. Published via the GitHub release, not the repo.
+RELEASE_NOTES_*.md
+RELEASE_NOTES_*.html
